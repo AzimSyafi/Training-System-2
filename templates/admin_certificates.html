@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="p-4">
+        <h2><i class="fas fa-certificate"></i> Certificate Management</h2>
+
+        {% if certificates %}
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Certificate ID</th>
+                                    <th>User</th>
+                                    <th>Module</th>
+                                    <th>Module Type</th>
+                                    <th>Issue Date</th>
+                                    <th>Rating</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for certificate in certificates %}
+                                <tr>
+                                    <td>{{ certificate.certificate_id }}</td>
+                                    <td>{{ certificate.user.full_name }}</td>
+                                    <td>{{ certificate.module.module_name }}</td>
+                                    <td>{{ certificate.module_type }}</td>
+                                    <td>{{ certificate.issue_date.strftime('%Y-%m-%d') }}</td>
+                                    <td>
+                                        {% for i in range(1, 6) %}
+                                            {% if i <= certificate.star_rating %}
+                                                <i class="fas fa-star text-warning"></i>
+                                            {% else %}
+                                                <i class="far fa-star text-muted"></i>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </td>
+                                    <td>
+                                        <a href="{{ certificate.certificate_url }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                            <i class="fas fa-download"></i> Download
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <h5><i class="fas fa-info-circle"></i> No Certificates Issued</h5>
+                <p>No certificates have been issued yet. Certificates are automatically issued when users complete modules with a passing score (>50%).</p>
+                <a href="{{ url_for('monitor_progress') }}" class="btn btn-primary">
+                    <i class="fas fa-chart-line"></i> Monitor Progress
+                </a>
+            </div>
+        {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

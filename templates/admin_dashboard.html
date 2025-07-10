@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2><i class="fas fa-tachometer-alt"></i> Admin Dashboard</h2>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center bg-primary text-white">
+                <div class="card-body">
+                    <i class="fas fa-users fa-2x mb-2"></i>
+                    <h4>{{ dashboard.total_users }}</h4>
+                    <p>Total Users</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center bg-success text-white">
+                <div class="card-body">
+                    <i class="fas fa-book fa-2x mb-2"></i>
+                    <h4>{{ dashboard.total_modules }}</h4>
+                    <p>Total Modules</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center bg-warning text-white">
+                <div class="card-body">
+                    <i class="fas fa-certificate fa-2x mb-2"></i>
+                    <h4>{{ dashboard.total_certificates }}</h4>
+                    <p>Certificates Issued</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center bg-info text-white">
+                <div class="card-body">
+                    <i class="fas fa-chalkboard-teacher fa-2x mb-2"></i>
+                    <h4>{{ dashboard.active_trainers }}</h4>
+                    <p>Active Trainers</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Metrics -->
+    {% if dashboard.performance_metrics %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-bar"></i> Performance Metrics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center">
+                            <h6>Average Score</h6>
+                            <h4 class="text-primary">{{ "%.1f"|format(dashboard.performance_metrics.avg_score or 0) }}%</h4>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <h6>Highest Score</h6>
+                            <h4 class="text-success">{{ "%.1f"|format(dashboard.performance_metrics.max_score or 0) }}%</h4>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <h6>Lowest Score</h6>
+                            <h4 class="text-danger">{{ "%.1f"|format(dashboard.performance_metrics.min_score or 0) }}%</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Completion Statistics -->
+    {% if dashboard.completion_stats %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-pie"></i> Module Completion Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Module Name</th>
+                                    <th>Total Attempts</th>
+                                    <th>Completed</th>
+                                    <th>Completion Rate</th>
+                                    <th>Average Score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stat in dashboard.completion_stats %}
+                                <tr>
+                                    <td>{{ stat.module_name }}</td>
+                                    <td>{{ stat.total_attempts }}</td>
+                                    <td>{{ stat.completed }}</td>
+                                    <td>
+                                        {% set completion_rate = (stat.completed / stat.total_attempts * 100) if stat.total_attempts > 0 else 0 %}
+                                        <div class="progress">
+                                            <div class="progress-bar" style="width: {{ completion_rate }}%">
+                                                {{ "%.1f"|format(completion_rate) }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if stat.avg_score %}
+                                            <span class="{% if stat.avg_score <= 50 %}text-danger{% elif stat.avg_score > 75 %}text-success{% else %}text-primary{% endif %}">
+                                                {{ "%.1f"|format(stat.avg_score) }}%
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Quick Actions -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-bolt"></i> Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <a href="{{ url_for('create_module') }}" class="btn btn-primary btn-block w-100">
+                                <i class="fas fa-plus"></i> Create Module
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{{ url_for('create_user') }}" class="btn btn-success btn-block w-100">
+                                <i class="fas fa-user-plus"></i> Create User
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{{ url_for('monitor_progress') }}" class="btn btn-warning btn-block w-100">
+                                <i class="fas fa-chart-line"></i> Monitor Progress
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{{ url_for('admin_certificates') }}" class="btn btn-info btn-block w-100">
+                                <i class="fas fa-certificate"></i> View Certificates
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

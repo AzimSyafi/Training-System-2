@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="p-4">
+        <h2><i class="fas fa-chart-line"></i> Progress Monitoring</h2>
+
+        {% if user_modules %}
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Module</th>
+                                    <th>Agency</th>
+                                    <th>Status</th>
+                                    <th>Score</th>
+                                    <th>Completion Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user_module, user, module in user_modules %}
+                                <tr>
+                                    <td>{{ user.full_name }}</td>
+                                    <td>{{ module.module_name }}</td>
+                                    <td>{{ user.agency.agency_name }}</td>
+                                    <td>
+                                        {% if user_module.is_completed %}
+                                            <span class="badge bg-success">Completed</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">In Progress</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user_module.is_completed %}
+                                            <span class="{% if user_module.score <= 50 %}score-red{% elif user_module.score > 75 %}score-green{% else %}score-blue{% endif %}">
+                                                {{ user_module.score }}%
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user_module.completion_date %}
+                                            {{ user_module.completion_date.strftime('%Y-%m-%d %I:%M %p') }}
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user_module.is_completed and user_module.score > 50 %}
+                                            <form method="POST" action="{{ url_for('issue_certificate') }}" class="d-inline">
+                                                <input type="hidden" name="user_id" value="{{ user.User_id }}">
+                                                <input type="hidden" name="module_id" value="{{ module.module_id }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-success">
+                                                    <i class="fas fa-certificate"></i> Issue Certificate
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <h5><i class="fas fa-info-circle"></i> No Progress Data Available</h5>
+                <p>No users have enrolled in any modules yet.</p>
+            </div>
+        {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

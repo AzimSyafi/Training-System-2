@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="p-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-users"></i> User Management</h2>
+            <a href="{{ url_for('create_user') }}" class="btn btn-primary">
+                <i class="fas fa-user-plus"></i> Create New User
+            </a>
+        </div>
+
+        {% if users %}
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Agency</th>
+                                    <th>Series</th>
+                                    <th>Recruitment Date</th>
+                                    <th>Rating</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                <tr>
+                                    <td>{{ user.User_id }}</td>
+                                    <td>{{ user.full_name }}</td>
+                                    <td>{{ user.email }}</td>
+                                    <td>{{ user.agency.agency_name }}</td>
+                                    <td>{{ user.number_series }}</td>
+                                    <td>{{ user.recruitment_date.strftime('%Y-%m-%d') if user.recruitment_date else 'N/A' }}</td>
+                                    <td>
+                                        {% for i in range(1, 6) %}
+                                            {% if i <= user.rating_star %}
+                                                <i class="fas fa-star text-warning"></i>
+                                            {% else %}
+                                                <i class="far fa-star text-muted"></i>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-info" onclick="viewUserProgress({{ user.User_id }})">
+                                            <i class="fas fa-eye"></i> View Progress
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <h5><i class="fas fa-info-circle"></i> No Users Found</h5>
+                <p>No users have been registered yet.</p>
+                <a href="{{ url_for('create_user') }}" class="btn btn-primary">
+                    <i class="fas fa-user-plus"></i> Create First User
+                </a>
+            </div>
+        {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- User Progress Modal -->
+<div class="modal fade" id="userProgressModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">User Progress</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="userProgressContent">
+                <!-- Progress content will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function viewUserProgress(userId) {
+    fetch(`/api/user_progress/${userId}`)
+        .then(response => response.json())
+        .then(data => {
+            let content = '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Module</th><th>Status</th><th>Score</th><th>Completion Date</th></tr></thead><tbody>';
+
+            data.forEach(module => {
+                let statusBadge = module.is_completed ?
+                    '<span class="badge bg-success">Completed</span>' :
+                    '<span class="badge bg-warning">In Progress</span>';
+
+                let scoreClass = '';
+                if (module.score <= 50) scoreClass = 'text-danger';
+                else if (module.score > 75) scoreClass = 'text-success';
+                else scoreClass = 'text-primary';
+
+                content += `<tr>
+                    <td>${module.module_name}</td>
+                    <td>${statusBadge}</td>
+                    <td><span class="${scoreClass}">${module.score}%</span></td>
+                    <td>${module.completion_date ? new Date(module.completion_date).toLocaleDateString() : 'N/A'}</td>
+                </tr>`;
+            });
+
+            content += '</tbody></table></div>';
+            document.getElementById('userProgressContent').innerHTML = content;
+
+            new bootstrap.Modal(document.getElementById('userProgressModal')).show();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('userProgressContent').innerHTML = '<div class="alert alert-danger">Error loading user progress.</div>';
+        });
+}
+</script>
+{% endblock %}

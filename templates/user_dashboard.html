@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <h2 class="mb-4 text-2xl font-bold text-blue-900 flex items-center"><i class="fas fa-user-shield mr-2"></i> Trainee Dashboard</h2>
+  <!-- Statistic Cards -->
+  <div class="row mb-5">
+    <div class="col-md-3 mb-3">
+      <div class="card text-center bg-primary text-white shadow">
+        <div class="card-body">
+          <i class="fas fa-book fa-2x mb-2"></i>
+          <h4>{{ user_modules|length }}</h4>
+          <p>Modules Enrolled</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-center bg-success text-white shadow">
+        <div class="card-body">
+          <i class="fas fa-check-circle fa-2x mb-2"></i>
+          <h4>{{ user_modules|selectattr('is_completed')|list|length }}</h4>
+          <p>Modules Completed</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-center bg-warning text-white shadow">
+        <div class="card-body">
+          <i class="fas fa-certificate fa-2x mb-2"></i>
+          <h4>{{ user.certificates|length }}</h4>
+          <p>Certificates</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-center bg-info text-white shadow">
+        <div class="card-body">
+          <i class="fas fa-chalkboard-teacher fa-2x mb-2"></i>
+          <h4>{{ user.trainer or 'N/A' }}</h4>
+          <p>Trainer</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Profile Section -->
+  <div class="card mb-4 shadow">
+    <div class="card-body d-flex flex-column flex-md-row align-items-center gap-4">
+      <img src="{{ user.profile_pic_url or url_for('static', filename='default_avatar.png') }}" alt="Profile" class="rounded-circle border border-3 border-primary" style="width: 110px; height: 110px; object-fit: cover;">
+      <div class="flex-1 w-100 row">
+        <div class="col-md-6 mb-2">
+          <div class="text-muted small">Name</div>
+          <div class="fw-semibold">{{ user.full_name }}</div>
+        </div>
+        <div class="col-md-6 mb-2">
+          <div class="text-muted small">Email</div>
+          <div class="fw-semibold">{{ user.email }}</div>
+        </div>
+        <div class="col-md-6 mb-2">
+          <div class="text-muted small">User ID</div>
+          <div class="fw-semibold">{{ user.number_series }}</div>
+        </div>
+        <div class="col-md-6 mb-2">
+          <div class="text-muted small">Phone</div>
+          <div class="fw-semibold">{{ user.emergency_contact or 'N/A' }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Details Section -->
+  <div class="row mb-4">
+    <div class="col-md-6 mb-3">
+      <div class="card shadow">
+        <div class="card-body">
+          <div class="fw-semibold text-primary mb-1"><i class="fas fa-briefcase me-2"></i>Working Experience</div>
+          <div class="text-muted">{{ user.working_experience or '2+ years in security (example)' }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 mb-3">
+      <div class="card shadow">
+        <div class="card-body">
+          <div class="fw-semibold text-primary mb-1"><i class="fas fa-building me-2"></i>Current Workplace</div>
+          <div class="text-muted">{{ user.current_workplace or 'Current Position/Placement' }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 mb-3">
+      <div class="card shadow">
+        <div class="card-body">
+          <div class="fw-semibold text-primary mb-1"><i class="fas fa-shield-alt me-2"></i>Agency Info</div>
+          <div class="text-muted">{{ user.agency.agency_name if user.agency else 'Agency Name' }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 mb-3">
+      <div class="card shadow">
+        <div class="card-body">
+          <div class="fw-semibold text-primary mb-1"><i class="fas fa-user-friends me-2"></i>Emergency Contact</div>
+          <div class="text-muted">{{ user.emergency_relationship or 'Contact Name' }}<br>
+            <span class="small">{{ user.emergency_relationship_type or 'Relationship' }}</span>
+          </div>
+          <div class="text-muted mt-1">{{ user.emergency_contact or 'Contact Number' }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Enrollment Section -->
+  {% if not user_modules %}
+    <div class="alert alert-info">
+      <h5><i class="fas fa-info-circle"></i> Welcome to Security Guard Training!</h5>
+      <p>You need to enroll in the Security Guard Training course to begin your learning journey.</p>
+      <a href="{{ url_for('enroll_course') }}" class="btn btn-primary">
+        <i class="fas fa-graduation-cap"></i> Enroll in Course
+      </a>
+    </div>
+  {% endif %}
+  <!-- Progress Overview -->
+  {% if user_modules %}
+    <div class="card shadow mb-4">
+      <div class="card-body">
+        <h5 class="fw-bold mb-3"><i class="fas fa-chart-line me-2"></i>Progress Overview</h5>
+        {% set percent = ((user_modules|selectattr('is_completed')|list|length / user_modules|length * 100) if user_modules|length > 0 else 0) %}
+        <div class="w-100 bg-gray-200 rounded-full h-4 mb-2" style="overflow: hidden;">
+          <div class="bg-success h-4 rounded-full flex items-center transition-all duration-500" style="width: {{ percent }}%; min-width: 2rem;">
+            <span class="w-full text-center text-white font-semibold">{{ percent|round(0) }}%</span>
+          </div>
+        </div>
+        <div class="text-muted small">{{ percent|round(0) }}% Complete</div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

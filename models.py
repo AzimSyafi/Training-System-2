@@ -1,0 +1,380 @@
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime, date
+from flask_login import UserMixin
+
+db = SQLAlchemy()
+
+class Admin(UserMixin, db.Model):
+    __tablename__ = 'admin'
+
+    admin_id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(50), nullable=False, default='admin')
+
+    def get_id(self):
+        return str(self.admin_id)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def login(self, email, password):
+        admin = Admin.query.filter_by(email=email).first()
+        if admin and admin.check_password(password):
+            return admin
+        return None
+
+    def createModule(self, module_data):
+        module = Module(**module_data)
+        db.session.add(module)
+        db.session.commit()
+        return module
+
+    def updateModule(self, module_id, module_data):
+        module = Module.query.get(module_id)
+        if module:
+            for key, value in module_data.items():
+                setattr(module, key, value)
+            db.session.commit()
+        return module
+
+    def deleteModule(self, module_id):
+        module = Module.query.get(module_id)
+        if module:
+            db.session.delete(module)
+            db.session.commit()
+            return True
+        return False
+
+    def viewAllModules(self):
+        return Module.query.all()
+
+    def issueCerticate(self, user_id, module_id):
+        certificate = Certificate(
+            user_id=user_id,
+            module_id=module_id,
+            issue_date=datetime.now().date(),
+            certificate_url=f"/certificates/{user_id}_{module_id}.pdf"
+        )
+        db.session.add(certificate)
+        db.session.commit()
+        return certificate
+
+    def viewIssueCerticate(self):
+        return Certificate.query.all()
+
+class Agency(db.Model):
+    __tablename__ = 'agency'
+
+    agency_id = db.Column(db.Integer, primary_key=True)
+    agency_name = db.Column(db.String(255), nullable=False)
+    contact_number = db.Column(db.String(20), nullable=False)
+    address = db.Column(db.Text, nullable=False)
+    Reg_of_Company = db.Column(db.String(100), nullable=False)
+    PIC = db.Column(db.String(100), nullable=False)  # Person in Charge
+    email = db.Column(db.String(120), nullable=False)
+
+    # Relationship
+    users = db.relationship('User', backref='agency', lazy=True)
+
+    def getInfo(self):
+        return {
+            'agency_id': self.agency_id,
+            'agency_name': self.agency_name,
+            'contact_number': self.contact_number,
+            'address': self.address,
+            'Reg_of_Company': self.Reg_of_Company,
+            'PIC': self.PIC,
+            'email': self.email
+        }
+
+class User(UserMixin, db.Model):
+    __tablename__ = 'user'
+
+    User_id = db.Column(db.Integer, primary_key=True)
+    Profile_picture = db.Column(db.String(255))
+    number_series = db.Column(db.String(50))
+    full_name = db.Column(db.String(255), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    visa_expiry_date = db.Column(db.Date)
+    emergency_contact = db.Column(db.String(20))
+    emergency_relationship = db.Column(db.String(100))
+    recruitment_date = db.Column(db.Date)
+    current_workplace = db.Column(db.String(255))
+    future_posting_location = db.Column(db.String(255))
+    state = db.Column(db.String(50))
+    postcode = db.Column(db.String(10))
+    remarks = db.Column(db.Text)
+    rating_star = db.Column(db.Integer, default=0)
+    trainer = db.Column(db.String(255))
+    agency_id = db.Column(db.Integer, db.ForeignKey('agency.agency_id'), nullable=False)
+
+    # Relationship
+    certificates = db.relationship('Certificate', backref='user', lazy=True)
+    user_modules = db.relationship('UserModule', backref='user', lazy=True)
+    work_histories = db.relationship('WorkHistory', backref='user', lazy=True)
+
+    def get_id(self):
+        return str(self.User_id)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def login(self, email, password):
+        user = User.query.filter_by(email=email).first()
+        if user and user.check_password(password):
+            return user
+        return None
+
+    def updateProfile(self, profile_data):
+        for key, value in profile_data.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+        db.session.commit()
+
+    def EligibleForCertificate(self):
+        # Check if user has completed all required modules with passing grade
+        completed_modules = UserModule.query.filter_by(
+            user_id=self.User_id,
+            is_completed=True
+        ).all()
+
+        for module in completed_modules:
+            if module.score <= 50:
+                return False
+        return len(completed_modules) > 0
+
+    def generateUserid(self):
+        # Generate unique user ID based on agency and sequence
+        last_user = User.query.filter_by(agency_id=self.agency_id).order_by(User.User_id.desc()).first()
+        if last_user:
+            return last_user.User_id + 1
+        return 1
+
+    def get_color_by_score(self, score):
+        if score <= 50:
+            return 'red'
+        elif score > 75:
+            return 'green'
+        else:
+            return 'blue'
+
+class Module(db.Model):
+    __tablename__ = 'module'
+
+    module_id = db.Column(db.Integer, primary_key=True)
+    module_name = db.Column(db.String(255), nullable=False)
+    module_type = db.Column(db.String(100), nullable=False)
+    series_number = db.Column(db.String(50))
+    scoring_float = db.Column(db.Float, default=0.0)
+    star_rating = db.Column(db.Integer, default=0)
+    content = db.Column(db.Text)
+
+    # Relationships
+    certificates = db.relationship('Certificate', backref='module', lazy=True)
+    user_modules = db.relationship('UserModule', backref='module', lazy=True)
+    trainers = db.relationship('Trainer', backref='module', lazy=True)
+
+    def getModuleDetails(self):
+        return {
+            'module_id': self.module_id,
+            'module_name': self.module_name,
+            'module_type': self.module_type,
+            'series_number': self.series_number,
+            'scoring_float': self.scoring_float,
+            'star_rating': self.star_rating,
+            'content': self.content
+        }
+
+    def editScoring(self, new_score):
+        self.scoring_float = new_score
+        db.session.commit()
+
+    def setStarRating(self, rating):
+        self.star_rating = rating
+        db.session.commit()
+
+class Certificate(db.Model):
+    __tablename__ = 'certificate'
+
+    certificate_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.User_id'), nullable=False)
+    module_type = db.Column(db.String(100))
+    module_id = db.Column(db.Integer, db.ForeignKey('module.module_id'), nullable=False)
+    issue_date = db.Column(db.Date, nullable=False)
+    star_rating = db.Column(db.Integer, default=0)
+    certificate_url = db.Column(db.String(255))
+
+    def generateCertificate(self):
+        # Generate certificate URL/path
+        self.certificate_url = f"/certificates/{self.user_id}_{self.module_id}_{self.issue_date}.pdf"
+        db.session.commit()
+        return self.certificate_url
+
+    def download(self):
+        return self.certificate_url
+
+    def validateCertificate(self):
+        # Validate certificate authenticity
+        return self.certificate_id is not None and self.issue_date is not None
+
+class Trainer(db.Model):
+    __tablename__ = 'trainer'
+
+    trainer_id = db.Column(db.Integer, primary_key=True)
+    profile_image = db.Column(db.String(255))
+    name = db.Column(db.String(255), nullable=False)
+    address = db.Column(db.Text)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    active_status = db.Column(db.Boolean, default=True)
+    availability = db.Column(db.String(100))
+    contact_number = db.Column(db.Integer)
+    course = db.Column(db.String(255))
+    module_id = db.Column(db.Integer, db.ForeignKey('module.module_id'))
+
+    def assignModule(self, module_id):
+        self.module_id = module_id
+        db.session.commit()
+
+    def getAssignedUsers(self):
+        return User.query.filter_by(trainer=self.name).all()
+
+    def getSchedule(self):
+        # Return trainer's schedule
+        return {
+            'trainer_id': self.trainer_id,
+            'availability': self.availability,
+            'assigned_module': self.module_id
+        }
+
+    def updateAvailability(self, new_availability):
+        self.availability = new_availability
+        db.session.commit()
+
+class UserModule(db.Model):
+    __tablename__ = 'user_module'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.User_id'), nullable=False)
+    module_id = db.Column(db.Integer, db.ForeignKey('module.module_id'), nullable=False)
+    is_completed = db.Column(db.Boolean, default=False)
+    score = db.Column(db.Float, default=0.0)
+    completion_date = db.Column(db.DateTime)
+
+    def complete_module(self, score):
+        self.is_completed = True
+        self.score = score
+        self.completion_date = datetime.now()
+        db.session.commit()
+
+class Management(db.Model):
+    __tablename__ = 'management'
+
+    id = db.Column(db.Integer, primary_key=True)
+    manager_name = db.Column(db.String(255), nullable=False)
+    designation = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    signature = db.Column(db.String(255))
+
+    def generateReport(self):
+        # Generate comprehensive training report
+        total_users = User.query.count()
+        completed_modules = UserModule.query.filter_by(is_completed=True).count()
+        issued_certificates = Certificate.query.count()
+
+        return {
+            'total_users': total_users,
+            'completed_modules': completed_modules,
+            'issued_certificates': issued_certificates,
+            'completion_rate': (completed_modules / total_users) * 100 if total_users > 0 else 0
+        }
+
+    def getCompletionStatistics(self):
+        # Get detailed completion statistics
+        stats = db.session.query(
+            Module.module_name,
+            db.func.count(UserModule.id).label('total_attempts'),
+            db.func.count(db.case((UserModule.is_completed == True, 1))).label('completed'),
+            db.func.avg(UserModule.score).label('avg_score')
+        ).join(UserModule).group_by(Module.module_id).all()
+
+        return stats
+
+    def exportModuleData(self):
+        # Export module data for analysis
+        return Module.query.all()
+
+    def getPerformanceMetrics(self):
+        # Get performance metrics
+        metrics = db.session.query(
+            db.func.avg(UserModule.score).label('avg_score'),
+            db.func.max(UserModule.score).label('max_score'),
+            db.func.min(UserModule.score).label('min_score')
+        ).filter(UserModule.is_completed == True).first()
+
+        return metrics
+
+    def getDashboard(self):
+        # Get dashboard data
+        return {
+            'total_users': User.query.count(),
+            'total_modules': Module.query.count(),
+            'total_certificates': Certificate.query.count(),
+            'active_trainers': Trainer.query.filter_by(active_status=True).count(),
+            'completion_stats': self.getCompletionStatistics(),
+            'performance_metrics': self.getPerformanceMetrics()
+        }
+
+class Registration:
+    @staticmethod
+    def registerUser(user_data):
+        user = User(**user_data)
+        user.set_password(user_data['password'])
+        db.session.add(user)
+        db.session.commit()
+        return user
+
+    @staticmethod
+    def assignAgency(user_id, agency_id):
+        user = User.query.get(user_id)
+        if user:
+            user.agency_id = agency_id
+            db.session.commit()
+            return True
+        return False
+
+    @staticmethod
+    def getUserList():
+        return User.query.all()
+
+    @staticmethod
+    def getAgencyList():
+        return Agency.query.all()
+
+    @staticmethod
+    def getModuleList():
+        return Module.query.all()
+
+    @staticmethod
+    def generateUserid():
+        last_user = User.query.order_by(User.User_id.desc()).first()
+        return (last_user.User_id + 1) if last_user else 1
+
+class WorkHistory(db.Model):
+    __tablename__ = 'work_history'
+    work_history_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.User_id'), nullable=False)
+    company_name = db.Column(db.String(255), nullable=False)
+    position_title = db.Column(db.String(255))
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date)
+    location = db.Column(db.String(255))

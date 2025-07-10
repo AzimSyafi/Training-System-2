@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <!-- Admin Sidebar -->
+    <div class="col-md-3 sidebar">
+        <div class="p-3">
+            <h5><i class="fas fa-user-shield"></i> {{ current_user.username }}</h5>
+            <p class="text-muted">Administrator</p>
+            <hr>
+            <ul class="nav nav-pills flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
+                        <i class="fas fa-tachometer-alt"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="{{ url_for('admin_modules') }}">
+                        <i class="fas fa-book"></i> Modules
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('admin_users') }}">
+                        <i class="fas fa-users"></i> Users
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('monitor_progress') }}">
+                        <i class="fas fa-chart-line"></i> Progress Monitor
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('admin_certificates') }}">
+                        <i class="fas fa-certificate"></i> Certificates
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="col-md-9">
+        <div class="p-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-plus"></i> Create New Module</h2>
+                <a href="{{ url_for('admin_modules') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Modules
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="module_name" class="form-label">Module Name</label>
+                                    <input type="text" class="form-control" id="module_name" name="module_name" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="module_type" class="form-label">Module Type</label>
+                                    <select class="form-select" id="module_type" name="module_type" required>
+                                        <option value="">Select Type</option>
+                                        <option value="Theory">Theory</option>
+                                        <option value="Practical">Practical</option>
+                                        <option value="Assessment">Assessment</option>
+                                        <option value="Mixed">Mixed</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="series_number" class="form-label">Series Number</label>
+                            <input type="text" class="form-control" id="series_number" name="series_number" placeholder="e.g., SG001">
+                        </div>
+                        <div class="mb-3">
+                            <label for="content" class="form-label">Module Content</label>
+                            <textarea class="form-control" id="content" name="content" rows="8" required placeholder="Enter the module content, learning objectives, and materials..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Create Module
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

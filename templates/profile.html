@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid py-4">
+  <h2 class="mb-4 text-2xl font-bold text-blue-900 flex items-center"><i class="fas fa-user-circle mr-2"></i> My Profile</h2>
+  <div class="row mb-5">
+    <div class="col-md-3 mb-3">
+      <div class="card text-center bg-primary text-white shadow">
+        <div class="card-body">
+          <i class="fas fa-id-badge fa-2x mb-2"></i>
+          <h4>{{ user.number_series }}</h4>
+          <p>User ID</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-center bg-success text-white shadow">
+        <div class="card-body">
+          <i class="fas fa-envelope fa-2x mb-2"></i>
+          <h4>{{ user.email }}</h4>
+          <p>Email</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-center bg-info text-white shadow">
+        <div class="card-body">
+          <i class="fas fa-user-tie fa-2x mb-2"></i>
+          <h4>{{ user.full_name }}</h4>
+          <p>Name</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-center bg-warning text-white shadow">
+        <div class="card-body">
+          <i class="fas fa-phone fa-2x mb-2"></i>
+          <h4>{{ user.emergency_contact or 'N/A' }}</h4>
+          <p>Phone</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card mb-4 shadow">
+    <div class="card-body d-flex flex-column flex-md-row align-items-center gap-4">
+      <img src="{{ user.profile_pic_url or url_for('static', filename='default_avatar.png') }}" alt="Profile" class="rounded-circle border border-3 border-primary" style="width: 110px; height: 110px; object-fit: cover;">
+      <div class="flex-1 w-100 row">
+        <div class="col-md-6 mb-2">
+          <div class="text-muted small">Working Experience</div>
+          <div class="fw-semibold">{{ user.working_experience }}</div>
+        </div>
+        <div class="col-md-6 mb-2">
+          <div class="text-muted small">Current Workplace</div>
+          <div class="fw-semibold">{{ user.current_workplace }}</div>
+        </div>
+        <div class="col-md-6 mb-2">
+          <div class="text-muted small">Agency</div>
+          <div class="fw-semibold">{{ user.agency.agency_name if user.agency else '' }}</div>
+        </div>
+        <div class="col-md-6 mb-2">
+          <div class="text-muted small">Emergency Contact Name</div>
+          <div class="fw-semibold">{{ user.emergency_relationship }}</div>
+        </div>
+        <div class="col-md-6 mb-2">
+          <div class="text-muted small">Relationship</div>
+          <div class="fw-semibold">{{ user.emergency_relationship_type or '' }}</div>
+        </div>
+        <div class="col-md-6 mb-2">
+          <div class="text-muted small">Emergency Phone</div>
+          <div class="fw-semibold">{{ user.emergency_contact }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="flex justify-end mb-4">
+    <a href="{{ url_for('profile') }}?edit=1" class="btn btn-primary px-6 py-2 rounded shadow-lg font-bold bg-blue-700 hover:bg-blue-800 text-white border border-blue-700 transition">Edit Profile</a>
+  </div>
+  {% if request.args.get('edit') == '1' %}
+  <div class="card shadow mb-4">
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('profile') }}">
+        <div class="row mb-3">
+          <div class="col-md-6 mb-2">
+            <label class="text-gray-500 text-sm">Full Name</label>
+            <input type="text" name="full_name" value="{{ user.full_name }}" class="form-control" required>
+          </div>
+          <div class="col-md-6 mb-2">
+            <label class="text-gray-500 text-sm">Email</label>
+            <input type="email" name="email" value="{{ user.email }}" class="form-control" required>
+          </div>
+          <div class="col-md-6 mb-2">
+            <label class="text-gray-500 text-sm">Phone</label>
+            <input type="text" name="emergency_contact" value="{{ user.emergency_contact }}" class="form-control">
+          </div>
+          <div class="col-md-6 mb-2">
+            <label class="text-gray-500 text-sm">User ID</label>
+            <input type="text" name="number_series" value="{{ user.number_series }}" class="form-control" readonly>
+          </div>
+          <div class="col-md-6 mb-2">
+            <label class="text-gray-500 text-sm">Working Experience</label>
+            <input type="text" name="working_experience" value="{{ user.working_experience }}" class="form-control">
+          </div>
+          <div class="col-md-6 mb-2">
+            <label class="text-gray-500 text-sm">Current Workplace</label>
+            <input type="text" name="current_workplace" value="{{ user.current_workplace }}" class="form-control">
+          </div>
+          <div class="col-md-6 mb-2">
+            <label class="text-gray-500 text-sm">Agency Name</label>
+            <input type="text" value="{{ user.agency.agency_name if user.agency else '' }}" class="form-control" readonly>
+          </div>
+          <div class="col-md-6 mb-2">
+            <label class="text-gray-500 text-sm">Emergency Contact Name</label>
+            <input type="text" name="emergency_relationship" value="{{ user.emergency_relationship }}" class="form-control">
+          </div>
+          <div class="col-md-6 mb-2">
+            <label class="text-gray-500 text-sm">Relationship</label>
+            <input type="text" name="emergency_relationship_type" value="{{ user.emergency_relationship_type or '' }}" class="form-control">
+          </div>
+          <div class="col-md-6 mb-2">
+            <label class="text-gray-500 text-sm">Emergency Phone</label>
+            <input type="text" name="emergency_contact" value="{{ user.emergency_contact }}" class="form-control">
+          </div>
+        </div>
+        <div class="flex justify-end mt-4 gap-2">
+          <a href="{{ url_for('profile') }}" class="btn btn-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

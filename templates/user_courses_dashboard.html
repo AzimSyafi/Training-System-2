@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-5xl mx-auto p-4">
+  <!-- Profile Section -->
+  <div class="flex flex-col md:flex-row items-center md:items-start bg-white rounded-xl shadow p-6 mb-8 gap-6">
+    <img src="{{ user.profile_pic_url or url_for('static', filename='default_avatar.png') }}" alt="Profile" class="w-28 h-28 rounded-full object-cover border-4 border-blue-200">
+    <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+      <div>
+        <div class="text-gray-500 text-sm">Name</div>
+        <div class="font-semibold text-lg">{{ user.full_name or 'John Doe' }}</div>
+      </div>
+      <div>
+        <div class="text-gray-500 text-sm">Email</div>
+        <div class="font-semibold text-lg">{{ user.email or 'john@example.com' }}</div>
+      </div>
+      <div>
+        <div class="text-gray-500 text-sm">User ID</div>
+        <div class="font-semibold text-lg">{{ user.number_series or 'SG20250001' }}</div>
+      </div>
+      <div>
+        <div class="text-gray-500 text-sm">Phone</div>
+        <div class="font-semibold text-lg">{{ user.emergency_contact or '+1234567890' }}</div>
+      </div>
+    </div>
+  </div>
+  <!-- Details Section -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="bg-white rounded-xl shadow p-5">
+      <div class="font-semibold text-blue-800 mb-1">Working Experience</div>
+      <div class="text-gray-700">{{ user.working_experience or '2+ years in security (example)' }}</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-5">
+      <div class="font-semibold text-blue-800 mb-1">Working Details</div>
+      <div class="text-gray-700">{{ user.current_workplace or 'Current Position/Placement' }}<br>{{ user.agency.agency_name if user.agency else 'Agency Name' }}</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-5">
+      <div class="font-semibold text-blue-800 mb-1">Emergency Contact</div>
+      <div class="text-gray-700">{{ user.emergency_relationship or 'Contact Name' }}<br><span class="text-sm text-gray-500">Relationship</span></div>
+      <div class="text-gray-700 mt-1">{{ user.emergency_contact or 'Contact Number' }}</div>
+    </div>
+  </div>
+  <!-- Courses Section -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    {% set courses = [
+      {
+        'name': 'NEPAL SECURITY GUARD TRAINING (TNG)',
+        'progress': 60,
+        'id': 'tng'
+      },
+      {
+        'name': 'CERTIFIED SECURITY GUARD (CSG)',
+        'progress': 30,
+        'id': 'csg'
+      }
+    ] %}
+    {% for course in courses %}
+    <div class="bg-white rounded-xl shadow p-6 flex flex-col justify-between">
+      <div>
+        <div class="text-lg font-bold text-blue-900 mb-2">{{ course.name }}</div>
+        <div class="w-full bg-gray-200 rounded-full h-3 mb-4">
+          <div class="bg-blue-600 h-3 rounded-full" style="width: {{ course.progress }}%"></div>
+        </div>
+      </div>
+      <a href="{{ url_for('user_modules_page', course_id=course.id) }}" class="mt-2 inline-block px-4 py-2 bg-blue-700 text-white rounded hover:bg-blue-800 text-center">View Modules</a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
