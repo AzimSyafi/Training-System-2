@@ -1,16 +1,41 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash
+from werkzeug.utils import secure_filename
 from datetime import datetime, date
 import os
 from models import db, Admin, User, Agency, Module, Certificate, Trainer, UserModule, Management, Registration
 from sqlalchemy.exc import IntegrityError
 import re
+import urllib.parse
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///security_training.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = 'static/profile_pics'
+
+def extract_youtube_id(url):
+    """Extracts YouTube video ID from a URL."""
+    if not isinstance(url, str):
+        return None
+    # Regex to find video ID from various YouTube URL formats
+    regex = r"(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})"
+    match = re.search(regex, url)
+    if match:
+        return match.group(1)
+    return None
+
+def is_slide_file(filename):
+    """Checks if a filename is a PDF or PPTX file."""
+    if not isinstance(filename, str):
+        return False
+    return filename.lower().endswith(('.pdf', '.pptx'))
+
+# Register the filter with Jinja2
+app.jinja_env.filters['youtube_id'] = extract_youtube_id
+app.jinja_env.filters['is_slide'] = is_slide_file
+app.jinja_env.filters['url_encode'] = lambda s: urllib.parse.quote(s, safe='')
 
 # Initialize extensions
 db.init_app(app)
@@ -26,11 +51,17 @@ def load_user(user_id):
         return Admin.query.get(int(user_id))
     elif user_type == 'user':
         return User.query.get(int(user_id))
+    elif user_type == 'trainer':
+        return Trainer.query.get(int(user_id))
     # Fallback: try Admin first, then User
     admin = Admin.query.get(int(user_id))
     if admin:
         return admin
     return User.query.get(int(user_id))
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 # Home route
 @app.route('/')
@@ -50,17 +81,32 @@ def login():
             login_user(user)
             session['user_type'] = 'admin'
             session['user_id'] = user.get_id()
-            return redirect(url_for('admin_dashboard'))
+            return redirect(url_for('index'))
         # If not admin, try Users
         user = User.query.filter_by(email=email).first()
         if user and user.check_password(password):
             login_user(user)
             session['user_type'] = 'user'
             session['user_id'] = user.get_id()
-            return redirect(url_for('user_dashboard'))
+            return redirect(url_for('index'))
+        # If not user, try Trainers
+        user = Trainer.query.filter_by(email=email).first()
+        if user and user.check_password(password):
+            login_user(user)
+            session['user_type'] = 'trainer'
+            session['user_id'] = user.get_id()
+            return redirect(url_for('index'))
         flash('Invalid email or password')
 
     return render_template('login.html')
+
+@app.route('/trainer_portal')
+@login_required
+def trainer_portal():
+    if not isinstance(current_user, Trainer):
+        # Redirect if not a trainer
+        return redirect(url_for('login'))
+    return render_template('trainer_portal.html', trainer=current_user)
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -99,15 +145,12 @@ def logout():
 @app.route('/user_dashboard')
 @login_required
 def user_dashboard():
-    # Check if current user is actually a User (not Admin)
-    if not isinstance(current_user, User):
-        # If user is not a User instance but is authenticated, they're probably an Admin
-        # Update the session to match the user type
-        session['user_type'] = 'admin'
+    if isinstance(current_user, Admin):
         return redirect(url_for('admin_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'user'
+    if isinstance(current_user, Trainer):
+        return redirect(url_for('trainer_portal'))
+    if not isinstance(current_user, User):
+        return redirect(url_for('login'))
 
     # Get user's module progress
     user_modules = UserModule.query.filter_by(user_id=current_user.User_id).all()
@@ -121,15 +164,12 @@ def user_dashboard():
 @app.route('/enroll_course')
 @login_required
 def enroll_course():
-    # Check if current user is actually a User (not Admin)
-    if not isinstance(current_user, User):
-        # If user is not a User instance but is authenticated, they're probably an Admin
-        # Update the session to match the user type
-        session['user_type'] = 'admin'
+    if isinstance(current_user, Admin):
         return redirect(url_for('admin_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'user'
+    if isinstance(current_user, Trainer):
+        return redirect(url_for('trainer_portal'))
+    if not isinstance(current_user, User):
+        return redirect(url_for('login'))
 
     # Enroll user in Security Guard Training course
     modules = Module.query.all()
@@ -154,15 +194,12 @@ def enroll_course():
 @app.route('/module/<int:module_id>')
 @login_required
 def view_module(module_id):
-    # Check if current user is actually a User (not Admin)
-    if not isinstance(current_user, User):
-        # If user is not a User instance but is authenticated, they're probably an Admin
-        # Update the session to match the user type
-        session['user_type'] = 'admin'
+    if isinstance(current_user, Admin):
         return redirect(url_for('admin_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'user'
+    if isinstance(current_user, Trainer):
+        return redirect(url_for('trainer_portal'))
+    if not isinstance(current_user, User):
+        return redirect(url_for('login'))
 
     module = Module.query.get_or_404(module_id)
     user_module = UserModule.query.filter_by(
@@ -179,15 +216,12 @@ def view_module(module_id):
 @app.route('/complete_module/<int:module_id>', methods=['POST'])
 @login_required
 def complete_module(module_id):
-    # Check if current user is actually a User (not Admin)
-    if not isinstance(current_user, User):
-        # If user is not a User instance but is authenticated, they're probably an Admin
-        # Update the session to match the user type
-        session['user_type'] = 'admin'
+    if isinstance(current_user, Admin):
         return redirect(url_for('admin_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'user'
+    if isinstance(current_user, Trainer):
+        return redirect(url_for('trainer_portal'))
+    if not isinstance(current_user, User):
+        return redirect(url_for('login'))
 
     user_module = UserModule.query.filter_by(
         user_id=current_user.User_id,
@@ -215,15 +249,12 @@ def complete_module(module_id):
 @app.route('/my_certificates')
 @login_required
 def my_certificates():
-    # Check if current user is actually a User (not Admin)
-    if not isinstance(current_user, User):
-        # If user is not a User instance but is authenticated, they're probably an Admin
-        # Update the session to match the user type
-        session['user_type'] = 'admin'
+    if isinstance(current_user, Admin):
         return redirect(url_for('admin_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'user'
+    if isinstance(current_user, Trainer):
+        return redirect(url_for('trainer_portal'))
+    if not isinstance(current_user, User):
+        return redirect(url_for('login'))
 
     certificates = Certificate.query.filter_by(user_id=current_user.User_id).all()
     return render_template('my_certificates.html', certificates=certificates)
@@ -232,15 +263,12 @@ def my_certificates():
 @app.route('/admin_dashboard')
 @login_required
 def admin_dashboard():
-    # Check if current user is actually an Admin (not User)
     if not isinstance(current_user, Admin):
-        # If user is not an Admin instance but is authenticated, they're probably a User
-        # Update the session to match the user type
-        session['user_type'] = 'user'
-        return redirect(url_for('user_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'admin'
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
 
     # Get dashboard statistics
     management = Management.query.first()
@@ -260,15 +288,12 @@ def admin_dashboard():
 @app.route('/admin/modules')
 @login_required
 def admin_modules():
-    # Check if current user is actually an Admin (not User)
     if not isinstance(current_user, Admin):
-        # If user is not an Admin instance but is authenticated, they're probably a User
-        # Update the session to match the user type
-        session['user_type'] = 'user'
-        return redirect(url_for('user_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'admin'
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
 
     modules = current_user.viewAllModules()
     return render_template('admin_modules.html', modules=modules)
@@ -276,15 +301,12 @@ def admin_modules():
 @app.route('/admin/create_module', methods=['GET', 'POST'])
 @login_required
 def create_module():
-    # Check if current user is actually an Admin (not User)
     if not isinstance(current_user, Admin):
-        # If user is not an Admin instance but is authenticated, they're probably a User
-        # Update the session to match the user type
-        session['user_type'] = 'user'
-        return redirect(url_for('user_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'admin'
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
 
     if request.method == 'POST':
         module_data = {
@@ -303,15 +325,12 @@ def create_module():
 @app.route('/admin/edit_module/<int:module_id>', methods=['GET', 'POST'])
 @login_required
 def edit_module(module_id):
-    # Check if current user is actually an Admin (not User)
     if not isinstance(current_user, Admin):
-        # If user is not an Admin instance but is authenticated, they're probably a User
-        # Update the session to match the user type
-        session['user_type'] = 'user'
-        return redirect(url_for('user_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'admin'
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
 
     module = Module.query.get_or_404(module_id)
 
@@ -332,15 +351,12 @@ def edit_module(module_id):
 @app.route('/admin/delete_module/<int:module_id>', methods=['POST'])
 @login_required
 def delete_module(module_id):
-    # Check if current user is actually an Admin (not User)
     if not isinstance(current_user, Admin):
-        # If user is not an Admin instance but is authenticated, they're probably a User
-        # Update the session to match the user type
-        session['user_type'] = 'user'
-        return redirect(url_for('user_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'admin'
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
 
     if current_user.deleteModule(module_id):
         flash('Module deleted successfully!')
@@ -352,15 +368,12 @@ def delete_module(module_id):
 @app.route('/admin/users')
 @login_required
 def admin_users():
-    # Check if current user is actually an Admin (not User)
     if not isinstance(current_user, Admin):
-        # If user is not an Admin instance but is authenticated, they're probably a User
-        # Update the session to match the user type
-        session['user_type'] = 'user'
-        return redirect(url_for('user_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'admin'
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
 
     users = Registration.getUserList()
     return render_template('admin_users.html', users=users)
@@ -368,15 +381,12 @@ def admin_users():
 @app.route('/admin/create_user', methods=['GET', 'POST'])
 @login_required
 def create_user():
-    # Check if current user is actually an Admin (not User)
     if not isinstance(current_user, Admin):
-        # If user is not an Admin instance but is authenticated, they're probably a User
-        # Update the session to match the user type
-        session['user_type'] = 'user'
-        return redirect(url_for('user_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'admin'
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
 
     if request.method == 'POST':
         user_data = {
@@ -398,15 +408,12 @@ def create_user():
 @app.route('/admin/monitor_progress')
 @login_required
 def monitor_progress():
-    # Check if current user is actually an Admin (not User)
     if not isinstance(current_user, Admin):
-        # If user is not an Admin instance but is authenticated, they're probably a User
-        # Update the session to match the user type
-        session['user_type'] = 'user'
-        return redirect(url_for('user_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'admin'
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
 
     # Get all user modules with progress
     user_modules = db.session.query(UserModule, User, Module).join(User).join(Module).all()
@@ -415,31 +422,31 @@ def monitor_progress():
 @app.route('/admin/certificates')
 @login_required
 def admin_certificates():
-    # Check if current user is actually an Admin (not User)
     if not isinstance(current_user, Admin):
-        # If user is not an Admin instance but is authenticated, they're probably a User
-        # Update the session to match the user type
-        session['user_type'] = 'user'
-        return redirect(url_for('user_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'admin'
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
 
     certificates = current_user.viewIssueCerticate()
     return render_template('admin_certificates.html', certificates=certificates)
 
+@app.route('/agency')
+@login_required
+def agency():
+    agencies = Agency.query.all()
+    return render_template('agency.html', agencies=agencies)
+
 @app.route('/admin/issue_certificate', methods=['POST'])
 @login_required
 def issue_certificate():
-    # Check if current user is actually an Admin (not User)
     if not isinstance(current_user, Admin):
-        # If user is not an Admin instance but is authenticated, they're probably a User
-        # Update the session to match the user type
-        session['user_type'] = 'user'
-        return redirect(url_for('user_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'admin'
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
 
     user_id = request.form['user_id']
     module_id = request.form['module_id']
@@ -453,15 +460,12 @@ def issue_certificate():
 @app.route('/api/user_progress/<int:user_id>')
 @login_required
 def get_user_progress(user_id):
-    # Check if current user is actually an Admin (not User)
     if not isinstance(current_user, Admin):
-        # If user is not an Admin instance but is authenticated, they're probably a User
-        # Update the session to match the user type
-        session['user_type'] = 'user'
+        if isinstance(current_user, User):
+            return jsonify({'error': 'Unauthorized'}), 403
+        if isinstance(current_user, Trainer):
+            return jsonify({'error': 'Unauthorized'}), 403
         return jsonify({'error': 'Unauthorized'}), 403
-
-    # Ensure session matches user type
-    session['user_type'] = 'admin'
 
     user_modules = UserModule.query.filter_by(user_id=user_id).all()
     progress_data = []
@@ -479,6 +483,12 @@ def get_user_progress(user_id):
 @app.route('/courses')
 @login_required
 def courses():
+    if isinstance(current_user, Admin):
+        return redirect(url_for('admin_dashboard'))
+    if isinstance(current_user, Trainer):
+        return redirect(url_for('trainer_portal'))
+    if not isinstance(current_user, User):
+        return redirect(url_for('login'))
     # Example: Replace with your actual Course model and query if available
     # courses = Course.query.all()
     # For now, use a placeholder list
@@ -488,12 +498,12 @@ def courses():
 @app.route('/modules/<string:course_code>')
 @login_required
 def course_modules(course_code):
-    # Check if current user is actually a User (not Admin)
-    if not isinstance(current_user, User):
+    if isinstance(current_user, Admin):
         return redirect(url_for('admin_dashboard'))
-
-    # Ensure session matches user type
-    session['user_type'] = 'user'
+    if isinstance(current_user, Trainer):
+        return redirect(url_for('trainer_portal'))
+    if not isinstance(current_user, User):
+        return redirect(url_for('login'))
 
     # Filter modules based on the course code (e.g., 'TNG' or 'CSG' in the name)
     search_term = f"%{course_code.upper()}%"
@@ -515,45 +525,37 @@ def course_modules(course_code):
 
     return render_template('course_modules.html', modules=modules, course_name=course_name, user_progress=user_progress)
 
-
 # User profile route
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
-    user = current_user
-    if request.method == 'POST':
-        # Update user fields from form
-        user.full_name = request.form.get('full_name', user.full_name)
-        user.email = request.form.get('email', user.email)
-        user.emergency_contact = request.form.get('emergency_contact', user.emergency_contact)
-        user.working_experience = request.form.get('working_experience', user.working_experience)
-        user.current_workplace = request.form.get('current_workplace', user.current_workplace)
-        user.emergency_relationship = request.form.get('emergency_relationship', user.emergency_relationship)
-        user.emergency_relationship_type = request.form.get('emergency_relationship_type', getattr(user, 'emergency_relationship_type', ''))
-        # Save changes
-        from models import db
-        db.session.commit()
-        flash('Profile updated successfully!', 'success')
-    return render_template('profile.html', user=user)
+    if isinstance(current_user, Admin):
+        return redirect(url_for('admin_dashboard'))
+    if isinstance(current_user, Trainer):
+        return redirect(url_for('trainer_portal'))
+    if not isinstance(current_user, User):
+        return redirect(url_for('login'))
 
-@app.route('/agency')
-@login_required
-def agency():
-    agency = None
-    if hasattr(current_user, 'agency') and current_user.agency:
-        agency = current_user.agency
-    else:
-        from models import Agency
-        agency = Agency.query.first()
-    # Calculate user course completion percentage
-    from models import UserModule
-    total_modules = UserModule.query.filter_by(user_id=current_user.User_id).count()
-    completed_modules = UserModule.query.filter_by(user_id=current_user.User_id, is_completed=True).count()
-    if total_modules > 0:
-        completion_percent = int((completed_modules / total_modules) * 100)
-    else:
-        completion_percent = 0
-    return render_template('agency.html', agency=agency, completion_percent=completion_percent)
+    if request.method == 'POST':
+        current_user.full_name = request.form['full_name']
+        current_user.email = request.form['email']
+        current_user.emergency_contact = request.form['emergency_contact']
+        current_user.working_experience = request.form['working_experience']
+        current_user.current_workplace = request.form['current_workplace']
+        current_user.emergency_relationship = request.form['emergency_relationship']
+
+        if 'profile_pic' in request.files:
+            file = request.files['profile_pic']
+            if file.filename != '':
+                filename = secure_filename(file.filename)
+                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                current_user.Profile_picture = filename
+
+        db.session.commit()
+        flash('Your profile has been updated.')
+        return redirect(url_for('profile'))
+
+    return render_template('profile.html', user=current_user)
 
 # Initialize database function
 def init_db():
@@ -605,7 +607,7 @@ def init_db():
                 'module_name': 'TNG: Basic Security Principles',
                 'module_type': 'Theory',
                 'series_number': 'TNG001',
-                'content': 'Introduction to basic security principles and procedures for TNG. This module covers fundamental concepts of security work including observation techniques, patrol procedures, and basic security protocols.'
+                'content': 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
             },
             {
                 'module_name': 'TNG: Emergency Response Procedures',
@@ -648,6 +650,7 @@ def init_db():
                 course='Security Guard Training',
                 module_id=first_module.module_id if first_module else None
             )
+            trainer1.set_password('sarah123')
             db.session.add(trainer1)
 
             trainer2 = Trainer(
@@ -660,6 +663,7 @@ def init_db():
                 course='Advanced Security Training',
                 module_id=first_module.module_id if first_module else None
             )
+            trainer2.set_password('mike123')
             db.session.add(trainer2)
 
             db.session.commit()
@@ -846,6 +850,39 @@ def insert_profile():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
+
+@app.route('/cleanup-db-for-mockup')
+def cleanup_db_for_mockup():
+    try:
+        # --- Clean Users ---
+        user_to_keep = User.query.filter_by(username='john').first()
+        if user_to_keep:
+            users_to_delete = User.query.filter(User.username != 'john').all()
+            for user in users_to_delete:
+                UserModule.query.filter_by(user_id=user.User_id).delete()
+                Certificate.query.filter_by(user_id=user.User_id).delete()
+                db.session.delete(user)
+
+        # --- Clean Trainers ---
+        trainer_to_keep = Trainer.query.filter_by(username='sarah').first()
+        if trainer_to_keep:
+            trainers_to_delete = Trainer.query.filter(Trainer.username != 'sarah').all()
+            for trainer in trainers_to_delete:
+                db.session.delete(trainer)
+
+        # --- Clean Admins ---
+        admin_to_keep = Admin.query.filter_by(username='admin').first()
+        if admin_to_keep:
+            admins_to_delete = Admin.query.filter(Admin.username != 'admin').all()
+            for admin in admins_to_delete:
+                db.session.delete(admin)
+
+        db.session.commit()
+        flash("Database cleaned successfully. Only 'john', 'sarah', and 'admin' remain.")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"An error occurred during cleanup: {e}")
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
     app.run(debug=True)

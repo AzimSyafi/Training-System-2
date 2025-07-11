@@ -77,7 +77,7 @@
   {% if request.args.get('edit') == '1' %}
   <div class="card shadow mb-4">
     <div class="card-body">
-      <form method="POST" action="{{ url_for('profile') }}">
+      <form method="POST" action="{{ url_for('profile') }}" enctype="multipart/form-data">
         <div class="row mb-3">
           <div class="col-md-6 mb-2">
             <label class="text-gray-500 text-sm">Full Name</label>
@@ -118,6 +118,10 @@
           <div class="col-md-6 mb-2">
             <label class="text-gray-500 text-sm">Emergency Phone</label>
             <input type="text" name="emergency_contact" value="{{ user.emergency_contact }}" class="form-control">
+          </div>
+          <div class="col-md-6 mb-2">
+            <label class="text-gray-500 text-sm">Profile Picture</label>
+            <input type="file" name="profile_pic" class="form-control">
           </div>
         </div>
         <div class="flex justify-end mt-4 gap-2">

@@ -23,6 +23,10 @@ class Admin(UserMixin, db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+    @property
+    def profile_pic(self):
+        return None
+
     def login(self, email, password):
         admin = Admin.query.filter_by(email=email).first()
         if admin and admin.check_password(password):
@@ -105,6 +109,7 @@ class User(UserMixin, db.Model):
     visa_expiry_date = db.Column(db.Date)
     emergency_contact = db.Column(db.String(20))
     emergency_relationship = db.Column(db.String(100))
+    working_experience = db.Column(db.String(255))
     recruitment_date = db.Column(db.Date)
     current_workplace = db.Column(db.String(255))
     future_posting_location = db.Column(db.String(255))
@@ -119,6 +124,21 @@ class User(UserMixin, db.Model):
     certificates = db.relationship('Certificate', backref='user', lazy=True)
     user_modules = db.relationship('UserModule', backref='user', lazy=True)
     work_histories = db.relationship('WorkHistory', backref='user', lazy=True)
+
+    @property
+    def profile_pic_url(self):
+        from flask import url_for
+        if self.Profile_picture:
+            return url_for('static', filename=f'profile_pics/{self.Profile_picture}')
+        return None
+
+    @property
+    def username(self):
+        return self.full_name
+
+    @property
+    def profile_pic(self):
+        return self.Profile_picture
 
     def get_id(self):
         return str(self.User_id)
@@ -227,7 +247,7 @@ class Certificate(db.Model):
         # Validate certificate authenticity
         return self.certificate_id is not None and self.issue_date is not None
 
-class Trainer(db.Model):
+class Trainer(UserMixin, db.Model):
     __tablename__ = 'trainer'
 
     trainer_id = db.Column(db.Integer, primary_key=True)
@@ -235,11 +255,31 @@ class Trainer(db.Model):
     name = db.Column(db.String(255), nullable=False)
     address = db.Column(db.Text)
     email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255))
     active_status = db.Column(db.Boolean, default=True)
     availability = db.Column(db.String(100))
     contact_number = db.Column(db.Integer)
     course = db.Column(db.String(255))
     module_id = db.Column(db.Integer, db.ForeignKey('module.module_id'))
+
+    def get_id(self):
+        return str(self.trainer_id)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        if self.password_hash:
+            return check_password_hash(self.password_hash, password)
+        return False
+
+    @property
+    def username(self):
+        return self.name
+
+    @property
+    def profile_pic(self):
+        return self.profile_image
 
     def assignModule(self, module_id):
         self.module_id = module_id
@@ -377,4 +417,3 @@ class WorkHistory(db.Model):
     position_title = db.Column(db.String(255))
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date)
-    location = db.Column(db.String(255))

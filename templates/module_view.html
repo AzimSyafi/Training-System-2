@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-2">
-        <a href="{{ url_for('user_dashboard') }}" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Back to Dashboard
-        </a>
-    </div>
-    <div class="col-md-10">
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="mb-3">
+            <a href="{{ url_for('user_dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
         <div class="card">
             <div class="card-header">
                 <h3><i class="fas fa-book"></i> {{ module.module_name }}</h3>
@@ -17,9 +17,16 @@
                 <!-- Module Content -->
                 <div class="mb-4">
                     <h5>Module Content</h5>
-                    <div class="border p-3 bg-light">
-                        {{ module.content|safe }}
-                    </div>
+                    {% set video_id = module.content | youtube_id %}
+                    {% if video_id %}
+                        <div class="ratio ratio-16x9">
+                            <iframe src="https://www.youtube.com/embed/{{ video_id }}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                        </div>
+                    {% else %}
+                        <div class="border p-3 bg-light">
+                            {{ module.content|safe }}
+                        </div>
+                    {% endif %}
                 </div>
 
                 <!-- Module Status -->
