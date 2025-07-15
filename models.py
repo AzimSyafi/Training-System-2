@@ -123,7 +123,7 @@ class User(UserMixin, db.Model):
     # Relationship
     certificates = db.relationship('Certificate', backref='user', lazy=True)
     user_modules = db.relationship('UserModule', backref='user', lazy=True)
-    work_histories = db.relationship('WorkHistory', backref='user', lazy=True)
+    work_histories = db.relationship('WorkHistory', back_populates='user', lazy=True)
 
     @property
     def profile_pic_url(self):
@@ -198,6 +198,7 @@ class Module(db.Model):
     scoring_float = db.Column(db.Float, default=0.0)
     star_rating = db.Column(db.Integer, default=0)
     content = db.Column(db.Text)
+    youtube_url = db.Column(db.String(255))  # New field for YouTube video URL
 
     # Relationships
     certificates = db.relationship('Certificate', backref='module', lazy=True)
@@ -416,4 +417,28 @@ class WorkHistory(db.Model):
     company_name = db.Column(db.String(255), nullable=False)
     position_title = db.Column(db.String(255))
     start_date = db.Column(db.Date, nullable=False)
-    end_date = db.Column(db.Date)
+    end_date = db.Column(db.Date, nullable=False)
+
+    # Relationship
+    user = db.relationship('User', back_populates='work_histories', lazy=True)
+
+    def getWorkDuration(self):
+        if self.start_date and self.end_date:
+            return (self.end_date - self.start_date).days
+        return 0
+
+    def getCompanyName(self):
+        return self.company_name
+
+    def getPositionTitle(self):
+        return self.position_title
+
+    def getWorkHistoryDetails(self):
+        return {
+            'work_history_id': self.work_history_id,
+            'user_id': self.user_id,
+            'company_name': self.company_name,
+            'position_title': self.position_title,
+            'start_date': self.start_date,
+            'end_date': self.end_date
+        }

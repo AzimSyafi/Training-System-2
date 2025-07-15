@@ -26,6 +26,14 @@
     </div>
     <div class="card-body p-6">
       <p class="text-gray-700 mb-6">{{ module.content }}</p>
+      {% if module.youtube_url %}
+        <div class="mb-4">
+          <h4 class="text-lg font-semibold mb-2">Module Video</h4>
+          <div class="aspect-w-16 aspect-h-9">
+            <iframe class="w-full h-96" src="https://www.youtube.com/embed/{{ module.youtube_url|youtube_id }}" frameborder="0" allowfullscreen></iframe>
+          </div>
+        </div>
+      {% endif %}
 
       <!-- Tab Navigation -->
       <ul class="nav nav-tabs mb-4" id="myTab-{{ module.module_id }}" role="tablist">

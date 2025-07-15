@@ -501,8 +501,15 @@ def upload_content():
                 return render_template('upload_content.html', modules=modules)
         elif content_type == 'video':
             youtube_url = request.form.get('youtube_url')
-            result['youtube_url'] = youtube_url
-            flash('YouTube video saved!', 'success')
+            module_id = request.form.get('module_id')
+            module = Module.query.get(module_id)
+            if module:
+                module.youtube_url = youtube_url
+                db.session.commit()
+                flash('YouTube video saved!', 'success')
+            else:
+                flash('Module not found.', 'danger')
+            return redirect(url_for('upload_content'))
         elif content_type == 'quiz':
             question = request.form.get('quiz_question')
             answer1 = request.form.get('quiz_answer1')
