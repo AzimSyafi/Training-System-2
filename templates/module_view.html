@@ -91,6 +91,185 @@
                         </ul>
                     </div>
                 </div>
+
+                <!-- Add Content Button -->
+                <button type="button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#uploadContentModal">
+                    <i class="fas fa-upload"></i> Add/Upload Content
+                </button>
+
+                <!-- Upload Content Modal (rewritten for module selection and content type tabs) -->
+                <div class="modal fade" id="uploadContentModal" tabindex="-1" aria-labelledby="uploadContentModalLabel" aria-hidden="true">
+                  <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title" id="uploadContentModalLabel"><i class="fas fa-upload"></i> Upload Content to Module</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                      </div>
+                      <div class="modal-body">
+                        <form method="POST" action="{{ url_for('upload_content') }}" enctype="multipart/form-data" id="contentForm">
+                          <div class="form-group mb-3">
+                            <label for="moduleSelect" class="form-label">Select Module</label>
+                            <select class="form-select" id="moduleSelect" name="module_id" required>
+                              <option value="" disabled selected>Select a module</option>
+                              {% for m in modules %}
+                                <option value="{{ m.id }}">{{ m.module_name }}</option>
+                              {% endfor %}
+                            </select>
+                          </div>
+                          <div class="form-group mb-3">
+                            <label class="form-label">Content Type</label>
+                            <div class="btn-group w-100 mb-2" role="group" aria-label="Content type tabs">
+                              <button type="button" class="btn btn-outline-primary active" id="tabSlides">Slides</button>
+                              <button type="button" class="btn btn-outline-primary" id="tabVideo">Video</button>
+                              <button type="button" class="btn btn-outline-primary" id="tabQuiz">Quiz</button>
+                            </div>
+                            <input type="hidden" name="content_type" id="contentType" value="slide">
+                          </div>
+                          <div class="form-group mb-3" id="slideUpload" style="display:block;">
+                            <label class="form-label">Upload Slide (PDF or PPTX)</label>
+                            <input type="file" name="slide_file" accept=".pdf,.pptx" class="form-control" id="slideFileInput">
+                          </div>
+                          <div class="form-group mb-3" id="videoUpload" style="display:none;">
+                            <label class="form-label">YouTube Video URL</label>
+                            <input type="url" name="youtube_url" id="youtubeUrl" class="form-control" placeholder="Paste YouTube video link here">
+                            <small class="form-text text-muted">Provide a YouTube link to embed a video for this module.</small>
+                            <div id="videoPreview" class="mt-2" style="display:none;"></div>
+                          </div>
+                          <div class="form-group mb-3" id="quizUpload" style="display:none;">
+                            <label class="form-label">Quiz Question</label>
+                            <input type="text" name="quiz_question" class="form-control" placeholder="Enter quiz question" id="quizQuestionInput">
+                            <label class="form-label mt-2">Answer 1</label>
+                            <input type="text" name="quiz_answer1" class="form-control" placeholder="Enter answer 1" id="quizAnswer1Input">
+                            <label class="form-label mt-2">Answer 2</label>
+                            <input type="text" name="quiz_answer2" class="form-control" placeholder="Enter answer 2" id="quizAnswer2Input">
+                            <label class="form-label mt-2">Answer 3</label>
+                            <input type="text" name="quiz_answer3" class="form-control" placeholder="Enter answer 3" id="quizAnswer3Input">
+                          </div>
+                          <div class="form-group mt-4">
+                            <button type="submit" class="btn btn-primary w-100">
+                              <i class="fas fa-save"></i> Save Content
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+                <script>
+                  document.addEventListener('DOMContentLoaded', function() {
+                    const tabSlides = document.getElementById('tabSlides');
+                    const tabVideo = document.getElementById('tabVideo');
+                    const tabQuiz = document.getElementById('tabQuiz');
+                    const slideUpload = document.getElementById('slideUpload');
+                    const videoUpload = document.getElementById('videoUpload');
+                    const quizUpload = document.getElementById('quizUpload');
+                    const youtubeUrl = document.getElementById('youtubeUrl');
+                    const videoPreview = document.getElementById('videoPreview');
+                    const contentTypeInput = document.getElementById('contentType');
+                    const contentForm = document.getElementById('contentForm');
+                    // Tab logic
+                    function showTab(tab) {
+                      tabSlides.classList.remove('active');
+                      tabVideo.classList.remove('active');
+                      tabQuiz.classList.remove('active');
+                      slideUpload.style.display = 'none';
+                      videoUpload.style.display = 'none';
+                      quizUpload.style.display = 'none';
+                      if (tab === 'slide') {
+                        tabSlides.classList.add('active');
+                        slideUpload.style.display = 'block';
+                        contentTypeInput.value = 'slide';
+                      } else if (tab === 'video') {
+                        tabVideo.classList.add('active');
+                        videoUpload.style.display = 'block';
+                        contentTypeInput.value = 'video';
+                      } else if (tab === 'quiz') {
+                        tabQuiz.classList.add('active');
+                        quizUpload.style.display = 'block';
+                        contentTypeInput.value = 'quiz';
+                      }
+                      // Hide video preview if not video
+                      if (tab !== 'video' && videoPreview) {
+                        videoPreview.innerHTML = '';
+                        videoPreview.style.display = 'none';
+                        if (youtubeUrl) youtubeUrl.value = '';
+                      }
+                    }
+                    tabSlides.addEventListener('click', function(e) { e.preventDefault(); showTab('slide'); });
+                    tabVideo.addEventListener('click', function(e) { e.preventDefault(); showTab('video'); });
+                    tabQuiz.addEventListener('click', function(e) { e.preventDefault(); showTab('quiz'); });
+                    // Default tab
+                    showTab('slide');
+                    // Live YouTube preview
+                    if (youtubeUrl) {
+                      youtubeUrl.addEventListener('input', function() {
+                        const url = youtubeUrl.value.trim();
+                        let videoId = null;
+                        if (url === '') {
+                          videoPreview.innerHTML = '';
+                          videoPreview.style.display = 'none';
+                          return;
+                        }
+                        if (url.includes('youtube.com/watch?v=')) {
+                          videoId = url.split('v=')[1].split('&')[0];
+                        } else if (url.includes('youtu.be/')) {
+                          videoId = url.split('youtu.be/')[1].split('?')[0];
+                        }
+                        if (videoId) {
+                          videoPreview.innerHTML = `<iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
+                          videoPreview.style.display = 'block';
+                        } else {
+                          videoPreview.innerHTML = '';
+                          videoPreview.style.display = 'none';
+                        }
+                      });
+                    }
+                    // Client-side validation before submit
+                    contentForm.addEventListener('submit', function(e) {
+                      let valid = true;
+                      const moduleSelect = document.getElementById('moduleSelect');
+                      if (!moduleSelect.value) {
+                        moduleSelect.classList.add('is-invalid');
+                        valid = false;
+                      } else {
+                        moduleSelect.classList.remove('is-invalid');
+                      }
+                      if (contentTypeInput.value === 'slide') {
+                        const slideFile = document.getElementById('slideFileInput');
+                        if (!slideFile.files.length) {
+                          slideFile.classList.add('is-invalid');
+                          valid = false;
+                        } else {
+                          slideFile.classList.remove('is-invalid');
+                        }
+                      } else if (contentTypeInput.value === 'video') {
+                        if (!youtubeUrl.value.trim()) {
+                          youtubeUrl.classList.add('is-invalid');
+                          valid = false;
+                        } else {
+                          youtubeUrl.classList.remove('is-invalid');
+                        }
+                      } else if (contentTypeInput.value === 'quiz') {
+                        const q = document.getElementById('quizQuestionInput');
+                        const a1 = document.getElementById('quizAnswer1Input');
+                        const a2 = document.getElementById('quizAnswer2Input');
+                        const a3 = document.getElementById('quizAnswer3Input');
+                        [q, a1, a2, a3].forEach(function(input) {
+                          if (!input.value.trim()) {
+                            input.classList.add('is-invalid');
+                            valid = false;
+                          } else {
+                            input.classList.remove('is-invalid');
+                          }
+                        });
+                      }
+                      if (!valid) {
+                        e.preventDefault();
+                      }
+                    });
+                  });
+                </script>
             </div>
         </div>
     </div>

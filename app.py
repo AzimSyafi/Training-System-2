@@ -11,9 +11,17 @@ import urllib.parse
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///security_training.db'
+
+# Use absolute path for SQLite DB
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'instance', 'security_training.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/profile_pics'
+
+UPLOAD_CONTENT_FOLDER = os.path.join('instance', 'uploads')
+os.makedirs(UPLOAD_CONTENT_FOLDER, exist_ok=True)
 
 def extract_youtube_id(url):
     """Extracts YouTube video ID from a URL."""
@@ -207,11 +215,14 @@ def view_module(module_id):
         module_id=module_id
     ).first()
 
+    # Get all modules for the same course/type as the current module
+    modules = Module.query.filter_by(module_type=module.module_type).all()
+
     if not user_module:
         flash('You are not enrolled in this module.')
         return redirect(url_for('user_dashboard'))
 
-    return render_template('module_view.html', module=module, user_module=user_module)
+    return render_template('module_view.html', module=module, user_module=user_module, modules=modules)
 
 @app.route('/complete_module/<int:module_id>', methods=['POST'])
 @login_required
@@ -456,6 +467,56 @@ def issue_certificate():
 
     return redirect(url_for('admin_certificates'))
 
+@app.route('/modules_by_type/<module_type>')
+def modules_by_type(module_type):
+    from models import Module
+    modules = Module.query.filter_by(module_type=module_type).all()
+    modules_data = [
+        {'module_id': m.module_id, 'module_name': m.module_name}
+        for m in modules
+    ]
+    return jsonify({'modules': modules_data})
+
+@app.route('/upload_content', methods=['GET', 'POST'])
+def upload_content():
+    from models import Module  # ensure import in case of circular import
+    # Get all unique module types for the dropdown
+    module_types = [row[0] for row in Module.query.with_entities(Module.module_type).distinct().all()]
+    modules = Module.query.all()
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        content_type = request.form.get('content_type')
+        result = {'title': title, 'description': description, 'content_type': content_type}
+        if content_type == 'slide':
+            file = request.files.get('slide_file')
+            if file and file.filename and file.filename.lower().endswith(('.pdf', '.pptx')):
+                filename = secure_filename(file.filename)
+                filepath = os.path.join(UPLOAD_CONTENT_FOLDER, filename)
+                file.save(filepath)
+                result['slide_file'] = filepath
+                flash('Slide uploaded successfully!', 'success')
+            else:
+                flash('Please upload a valid PDF or PPTX file.', 'danger')
+                return render_template('upload_content.html', modules=modules)
+        elif content_type == 'video':
+            youtube_url = request.form.get('youtube_url')
+            result['youtube_url'] = youtube_url
+            flash('YouTube video saved!', 'success')
+        elif content_type == 'quiz':
+            question = request.form.get('quiz_question')
+            answer1 = request.form.get('quiz_answer1')
+            answer2 = request.form.get('quiz_answer2')
+            answer3 = request.form.get('quiz_answer3')
+            result['quiz'] = {'question': question, 'answers': [answer1, answer2, answer3]}
+            flash('Quiz saved!', 'success')
+        else:
+            flash('Invalid content type.', 'danger')
+            return render_template('upload_content.html', modules=modules)
+        # TODO: Save 'result' to the database as needed
+        return redirect(url_for('upload_content'))
+    return render_template('upload_content.html', modules=modules, module_types=module_types)
+
 # API endpoints for dynamic data
 @app.route('/api/user_progress/<int:user_id>')
 @login_required
@@ -505,9 +566,8 @@ def course_modules(course_code):
     if not isinstance(current_user, User):
         return redirect(url_for('login'))
 
-    # Filter modules based on the course code (e.g., 'TNG' or 'CSG' in the name)
-    search_term = f"%{course_code.upper()}%"
-    modules = Module.query.filter(Module.module_name.like(search_term)).all()
+    # Filter modules based on the course code (e.g., 'TNG' or 'CSG')
+    modules = Module.query.filter(Module.module_type == course_code.upper()).all()
 
     if not modules:
         flash('No modules found for this course.')
@@ -599,41 +659,41 @@ def init_db():
 
         # Create default modules
         # For debugging: clear existing modules to ensure fresh data
-        db.session.query(Module).delete()
-        db.session.commit()
+        # db.session.query(Module).delete()
+        # db.session.commit()
 
-        modules = [
-            {
-                'module_name': 'TNG: Basic Security Principles',
-                'module_type': 'Theory',
-                'series_number': 'TNG001',
-                'content': 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
-            },
-            {
-                'module_name': 'TNG: Emergency Response Procedures',
-                'module_type': 'Practical',
-                'series_number': 'TNG002',
-                'content': 'Emergency response procedures and protocols for TNG. Learn how to handle various emergency situations including fire, medical emergencies, and security breaches.'
-            },
-            {
-                'module_name': 'CSG: Communication Skills',
-                'module_type': 'Theory',
-                'series_number': 'CSG001',
-                'content': 'Effective communication in security situations for CSG. This module teaches proper communication techniques with clients, colleagues, and emergency services.'
-            },
-            {
-                'module_name': 'CSG: Legal Aspects of Security',
-                'module_type': 'Theory',
-                'series_number': 'CSG002',
-                'content': 'Legal framework and regulations for CSG security personnel. Understanding your rights and responsibilities as a security guard.'
-            }
-        ]
+        # modules = [
+        #     {
+        #         'module_name': 'TNG: Basic Security Principles',
+        #         'module_type': 'Theory',
+        #         'series_number': 'TNG001',
+        #         'content': 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
+        #     },
+        #     {
+        #         'module_name': 'TNG: Emergency Response Procedures',
+        #         'module_type': 'Practical',
+        #         'series_number': 'TNG002',
+        #         'content': 'Emergency response procedures and protocols for TNG. Learn how to handle various emergency situations including fire, medical emergencies, and security breaches.'
+        #     },
+        #     {
+        #         'module_name': 'CSG: Communication Skills',
+        #         'module_type': 'Theory',
+        #         'series_number': 'CSG001',
+        #         'content': 'Effective communication in security situations for CSG. This module teaches proper communication techniques with clients, colleagues, and emergency services.'
+        #     },
+        #     {
+        #         'module_name': 'CSG: Legal Aspects of Security',
+        #         'module_type': 'Theory',
+        #         'series_number': 'CSG002',
+        #         'content': 'Legal framework and regulations for CSG security personnel. Understanding your rights and responsibilities as a security guard.'
+        #     }
+        # ]
 
-        for module_data in modules:
-            module = Module(**module_data)
-            db.session.add(module)
+        # for module_data in modules:
+        #     module = Module(**module_data)
+        #     db.session.add(module)
 
-        db.session.commit()
+        # db.session.commit()
 
         # Create mock trainer accounts
         if not Trainer.query.first():

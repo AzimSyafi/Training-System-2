@@ -501,6 +501,44 @@
             background: rgba(239, 68, 68, 0.15);
             color: var(--danger);
         }
+
+        /* Upload section in module card */
+        .upload-section {
+            display: none;
+            margin-top: 15px;
+            padding: 15px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .upload-section.open {
+            display: block;
+        }
+
+        .content-tab {
+            padding: 10px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: center;
+            transition: var(--transition);
+            margin-right: 10px;
+        }
+
+        .content-tab.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
     </style>
 {% endblock %}
 
@@ -655,9 +693,7 @@
         <div class="dashboard-section">
             <div class="section-header">
                 <h2 class="section-title">My Training Courses</h2>
-                <button class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Create New Course
-                </button>
+                <!-- Removed Create New Course button -->
             </div>
 
             <div class="module-grid">
@@ -690,6 +726,9 @@
                     <div class="section-header">
                         <h2 class="section-title" id="details-course-title">Course Details</h2>
                         <button class="btn btn-outline" id="close-details">Close</button>
+                        <button class="btn btn-primary" id="show-module-upload" style="margin-left: 12px;" onclick="window.location.href='{{ url_for('upload_content') }}'">
+                            <i class="fas fa-upload"></i> Upload Content
+                        </button>
                     </div>
                     <div id="modules-list">
                         <!-- Populated by JS -->
@@ -718,6 +757,39 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+            <!-- Floating Modal for Module Upload -->
+            <div id="module-upload-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.35); z-index:1000; align-items:center; justify-content:center;">
+                <div style="background:#fff; border-radius:12px; max-width:420px; width:95%; margin:auto; padding:32px 24px; position:relative; box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+                    <button id="close-module-upload" style="position:absolute; top:16px; right:16px; background:none; border:none; font-size:22px; color:#888; cursor:pointer;">&times;</button>
+                    <h2 id="module-upload-title" style="font-size:20px; font-weight:600; margin-bottom:18px;">Upload Content</h2>
+                    <div style="margin-bottom: 18px;">
+                        <button class="content-tab active" data-tab="slide">Slides</button>
+                        <button class="content-tab" data-tab="video">Video</button>
+                        <button class="content-tab" data-tab="quiz">Quiz</button>
+                    </div>
+                    <div class="tab-content slide-tab">
+                        <div class="form-group">
+                            <label class="form-label">Upload Slides</label>
+                            <input type="file" class="form-control">
+                        </div>
+                        <button class="btn btn-primary">Save Slides</button>
+                    </div>
+                    <div class="tab-content video-tab hidden">
+                        <div class="form-group">
+                            <label class="form-label">Upload Video</label>
+                            <input type="file" class="form-control">
+                        </div>
+                        <button class="btn btn-primary">Save Video</button>
+                    </div>
+                    <div class="tab-content quiz-tab hidden">
+                        <div class="form-group">
+                            <label class="form-label">Upload Quiz</label>
+                            <input type="file" class="form-control">
+                        </div>
+                        <button class="btn btn-primary">Save Quiz</button>
                     </div>
                 </div>
             </div>
@@ -979,35 +1051,52 @@
                 { name: 'SECURITY DRILL', progress: 0 }
             ],
             'CSG': [
-                { name: 'CSG Module 1', progress: 0 },
-                { name: 'CSG Module 2', progress: 0 }
+                { name: 'PENGENALAN KEPADA INDUSTRI KESELAMATAN', progress: 0 },
+                { name: 'PERANAN, PENAMPILAN & TANGGUNGJAWAB PENGAWAL KESELAMATAN', progress: 0 },
+                { name: 'ARAHAN TUGAS', progress: 0 },
+                { name: 'KAWALAN KELUAR MASUK', progress: 0 },
+                { name: 'PEMERIKSAAN & PEMERIKSAAN KENDERAAN', progress: 0 },
+                { name: 'RONDAAN', progress: 0 },
+                { name: 'MENULIS LAPORAN', progress: 0 },
+                { name: 'PENGENALAN ALAT KOMUNIKASI', progress: 0 },
+                { name: 'KHIDMAT PELANGGAN', progress: 0 },
+                { name: 'MELAKSANAKAN TUGAS MENGIKUT BATASAN UNDANG-UNDANG', progress: 0 },
+                { name: 'PERTOLONGAN CEMAS DAN CPR', progress: 0 },
+                { name: 'PENCEGAHAN KEBAKARAN DAN BENCANA', progress: 0 },
+                { name: 'LATIHAN SENI MEMPERTAHANKAN DIRI', progress: 0 },
+                { name: 'LATIHAN T-BATON', progress: 0 },
+                { name: 'KAWAD', progress: 0 },
+                { name: 'PENGENALAN DADAH DAN PENYALAHGUNAAN DADAH', progress: 0 },
+                { name: 'PENGENALAN & PERANAN ANGGOTA BERSENJATA & CIT', progress: 0 }
             ]
         };
         const courseUsers = {
             'TNG': ['John Doe'],
             'CSG': ['John Doe']
         };
-        // Populate module select based on course
-        function populateModuleSelect(course) {
-            const moduleSelect = document.getElementById('upload-module-select');
-            moduleSelect.innerHTML = '';
-            if (courseModules[course]) {
-                courseModules[course].forEach(m => {
-                    const opt = document.createElement('option');
-                    opt.value = m.name;
-                    opt.textContent = m.name;
-                    moduleSelect.appendChild(opt);
-                });
+        document.addEventListener('DOMContentLoaded', function() {
+            // Populate module select based on course
+            function populateModuleSelect(course) {
+                const moduleSelect = document.getElementById('upload-module-select');
+                moduleSelect.innerHTML = '';
+                if (courseModules[course]) {
+                    courseModules[course].forEach(m => {
+                        const opt = document.createElement('option');
+                        opt.value = m.name;
+                        opt.textContent = m.name;
+                        moduleSelect.appendChild(opt);
+                    });
+                }
             }
-        }
-        const courseSelect = document.getElementById('upload-course-select');
-        if (courseSelect) {
-            courseSelect.addEventListener('change', function() {
-                populateModuleSelect(this.value);
-            });
-            // Initial population
-            populateModuleSelect(courseSelect.value);
-        }
+            const courseSelect = document.getElementById('upload-course-select');
+            if (courseSelect) {
+                courseSelect.addEventListener('change', function() {
+                    populateModuleSelect(this.value);
+                });
+                // Initial population
+                populateModuleSelect(courseSelect.value);
+            }
+        });
 
         // Course card click handler
         document.querySelectorAll('.module-card').forEach(card => {
@@ -1040,6 +1129,81 @@
         const newModuleInput = document.getElementById('new-module-input');
         if (addModuleBtn) addModuleBtn.style.display = 'none';
         if (newModuleInput) newModuleInput.style.display = 'none';
+
+        // Module card click: show upload section with tabs (Slides, Video, Quiz)
+        const moduleCards = document.querySelectorAll('.module-card.clickable');
+        moduleCards.forEach(card => {
+            card.addEventListener('click', function() {
+                // Close all other open upload sections
+                document.querySelectorAll('.upload-section').forEach(section => {
+                    if (section !== card.nextElementSibling) {
+                        section.classList.remove('open');
+                    }
+                });
+                // Toggle this card's upload section
+                const uploadSection = card.nextElementSibling;
+                if (uploadSection) {
+                    uploadSection.classList.toggle('open');
+                }
+            });
+        });
+
+        // Tab switching in upload section and modal
+        document.querySelectorAll('.content-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                const tabName = this.dataset.tab;
+                // Try to find the closest .upload-section, otherwise use the modal
+                let container = this.closest('.upload-section');
+                if (!container) {
+                    container = document.getElementById('module-upload-modal');
+                }
+                if (!container) return;
+                // Update active tab button
+                container.querySelectorAll('.content-tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                // Show active tab content
+                container.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+                const activeTab = container.querySelector(`.${tabName}-tab`);
+                if (activeTab) activeTab.classList.remove('hidden');
+            });
+        });
+
+        // Close modal when clicking the quit/close button
+        const closeModuleUpload = document.getElementById('close-module-upload');
+        if (closeModuleUpload) {
+            closeModuleUpload.addEventListener('click', function() {
+                const modal = document.getElementById('module-upload-modal');
+                if (modal) modal.style.display = 'none';
+            });
+        }
+
+        // Show module upload modal when button is clicked
+        document.addEventListener('DOMContentLoaded', function() {
+            var showUploadBtn = document.getElementById('show-module-upload');
+            var uploadModal = document.getElementById('module-upload-modal');
+            var closeUploadBtn = document.getElementById('close-module-upload');
+            if (showUploadBtn && uploadModal) {
+                showUploadBtn.onclick = function() {
+                    uploadModal.style.display = 'flex';
+                };
+            }
+            if (closeUploadBtn && uploadModal) {
+                closeUploadBtn.onclick = function() {
+                    uploadModal.style.display = 'none';
+                };
+            }
+        });
+
+        // When clicking Upload Content, always pass the course in the URL
+        document.querySelectorAll('#show-module-upload').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                const course = this.closest('.module-card').getAttribute('data-course');
+                if (course) {
+                    window.location.href = `/upload_content?course=${encodeURIComponent(course)}`;
+                    e.preventDefault();
+                }
+            });
+        });
     });
 
     // Make module cards clickable to show course details

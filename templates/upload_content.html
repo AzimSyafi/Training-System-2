@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Upload Content | Security Training System{% endblock %}
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h3>Upload Content to Module</h3>
+          <a href="{{ url_for('trainer_portal') }}" class="btn btn-secondary btn-sm">&larr; Back</a>
+        </div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('upload_content') }}" enctype="multipart/form-data" id="contentForm">
+            <div class="mb-3">
+              <label for="moduleSelect" class="form-label">Select Module</label>
+              <select class="form-select" id="moduleSelect" name="module_id" required>
+                <option value="">-- Select Module --</option>
+                {% for m in modules %}
+                  <option value="{{ m.module_id }}">{{ m.module_name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Content Type</label>
+              <select class="form-select" id="contentTypeSelect" name="content_type">
+                <option value="slide">Slides</option>
+                <option value="video">Video</option>
+                <option value="quiz">Quiz</option>
+              </select>
+            </div>
+            <div class="mb-3" id="slideUpload" style="display:block;">
+              <label class="form-label">Upload Slide (PDF or PPTX)</label>
+              <input type="file" name="slide_file" accept=".pdf,.pptx" class="form-control" id="slideFileInput">
+            </div>
+            <div class="mb-3" id="videoUpload" style="display:none;">
+              <label class="form-label">YouTube Video URL</label>
+              <input type="url" name="youtube_url" id="youtubeUrl" class="form-control" placeholder="Paste YouTube video link here">
+              <small class="form-text text-muted">Provide a YouTube link to embed a video for this module.</small>
+              <div id="videoPreview" class="mt-2" style="display:none;"></div>
+            </div>
+            <div class="mb-3" id="quizUpload" style="display:none;">
+              <label class="form-label">Quiz Question</label>
+              <input type="text" name="quiz_question" class="form-control" placeholder="Enter quiz question" id="quizQuestionInput">
+              <label class="form-label mt-2">Answer 1</label>
+              <input type="text" name="quiz_answer1" class="form-control" placeholder="Enter answer 1" id="quizAnswer1Input">
+              <label class="form-label mt-2">Answer 2</label>
+              <input type="text" name="quiz_answer2" class="form-control" placeholder="Enter answer 2" id="quizAnswer2Input">
+              <label class="form-label mt-2">Answer 3</label>
+              <input type="text" name="quiz_answer3" class="form-control" placeholder="Enter answer 3" id="quizAnswer3Input">
+            </div>
+            <div class="mt-4">
+              <button type="submit" class="btn btn-primary w-100">
+                <i class="fas fa-save"></i> Save Content
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const contentTypeSelect = document.getElementById('contentTypeSelect');
+    const slideUpload = document.getElementById('slideUpload');
+    const videoUpload = document.getElementById('videoUpload');
+    const quizUpload = document.getElementById('quizUpload');
+    const youtubeUrl = document.getElementById('youtubeUrl');
+    const videoPreview = document.getElementById('videoPreview');
+    // Show/hide upload fields based on dropdown
+    function showUploadSection(type) {
+      slideUpload.style.display = (type === 'slide') ? 'block' : 'none';
+      videoUpload.style.display = (type === 'video') ? 'block' : 'none';
+      quizUpload.style.display = (type === 'quiz') ? 'block' : 'none';
+      if (type !== 'video' && videoPreview) {
+        videoPreview.innerHTML = '';
+        videoPreview.style.display = 'none';
+        if (youtubeUrl) youtubeUrl.value = '';
+      }
+    }
+    contentTypeSelect.addEventListener('change', function() {
+      showUploadSection(this.value);
+    });
+    // Default
+    showUploadSection(contentTypeSelect.value);
+    // Live YouTube preview
+    if (youtubeUrl) {
+      youtubeUrl.addEventListener('input', function() {
+        const url = youtubeUrl.value.trim();
+        let videoId = null;
+        if (url === '') {
+          videoPreview.innerHTML = '';
+          videoPreview.style.display = 'none';
+          return;
+        }
+        if (url.includes('youtube.com/watch?v=')) {
+          videoId = url.split('v=')[1].split('&')[0];
+        } else if (url.includes('youtu.be/')) {
+          videoId = url.split('youtu.be/')[1].split('?')[0];
+        }
+        if (videoId) {
+          videoPreview.innerHTML = `<iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
+          videoPreview.style.display = 'block';
+        } else {
+          videoPreview.innerHTML = '';
+          videoPreview.style.display = 'none';
+        }
+      });
+    }
+    // Get course from URL query param (e.g. ?course=TNG or ?course=CSG)
+    function getCourseFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('course') || 'TNG';
+    }
+    const courseModules = {
+      'TNG': [
+        'INTRODUCTION TO SECURITY INDUSTRY',
+        'ROLE AND RESPONSIBILITIES',
+        'ETHICS AND TURNOUT',
+        'MALAYSIAN CULTURE & CUSTOMS',
+        'PATROLLING & ACCESS CONTROL',
+        'REPORT WRITING',
+        'CUSTOMER SERVICE',
+        'COMMUNICATION',
+        'LAWS OF ARREST, SEARCH & USE OF FORCE',
+        'FIRE CONTROL & PREVENTION',
+        'FIRST AID & CPR',
+        'SAFETY AT WORK PLACE',
+        'SECURITY DRILL'
+      ],
+      'CSG': [
+        'PENGENALAN KEPADA INDUSTRI KESELAMATAN',
+        'PERANAN, PENAMPILAN & TANGGUNGJAWAB PENGAWAL KESELAMATAN',
+        'ARAHAN TUGAS',
+        'KAWALAN KELUAR MASUK',
+        'PEMERIKSAAN & PEMERIKSAAN KENDERAAN',
+        'RONDAAN',
+        'MENULIS LAPORAN',
+        'PENGENALAN ALAT KOMUNIKASI',
+        'KHIDMAT PELANGGAN',
+        'MELAKSANAKAN TUGAS MENGIKUT BATASAN UNDANG-UNDANG',
+        'PERTOLONGAN CEMAS DAN CPR',
+        'PENCEGAHAN KEBAKARAN DAN BENCANA',
+        'LATIHAN SENI MEMPERTAHANKAN DIRI',
+        'LATIHAN T-BATON',
+        'KAWAD',
+        'PENGENALAN DADAH DAN PENYALAHGUNAAN DADAH',
+        'PENGENALAN & PERANAN ANGGOTA BERSENJATA & CIT'
+      ]
+    };
+    const moduleSelect = document.getElementById('moduleSelect');
+    function populateModules(course) {
+      moduleSelect.innerHTML = '<option value="">-- Select Module --</option>';
+      if (courseModules[course]) {
+        courseModules[course].forEach((name, idx) => {
+          const opt = document.createElement('option');
+          opt.value = idx + 1;
+          opt.textContent = name;
+          moduleSelect.appendChild(opt);
+        });
+      }
+    }
+    // Populate modules based on course in URL
+    const course = getCourseFromUrl();
+    populateModules(course);
+  });
+</script>
+{% endblock %}
