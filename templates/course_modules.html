@@ -6,25 +6,26 @@
 
   {% for module in modules %}
   <div class="card shadow mb-6">
-    <div class="card-header bg-blue-800 text-white p-4 flex justify-between items-center">
+    <div class="card-header bg-blue-800 text-white p-4 flex justify-between items-center cursor-pointer" onclick="toggleModule('{{ module.module_id }}')">
       <div>
-        <h3 class="text-xl font-semibold">{{ module.module_name }}</h3>
-        <p class="text-sm text-blue-200 mb-0">{{ module.series_number }} | {{ module.module_type }}</p>
+        <h3 class="text-xl font-bold">{{ module.module_name }}</h3>
+        <span class="font-semibold text-xs bg-blue-100 text-blue-800 rounded px-2 py-1 mb-2 inline-block">{{ module.series_number }} | {{ module.module_type }}</span>
+        <div class="progress-bar-container w-full h-4 bg-gray-200 rounded-full overflow-hidden mt-2">
+          {% set progress = user_progress.get(module.module_id) %}
+          <div class="progress-bar h-4 rounded-full" style="width: {{ progress.score|round(0) if progress and progress.is_completed else 50 }}%; background: linear-gradient(270deg, #3498db, #2980b9, #3498db); background-size: 400% 100%; animation: loading 2s linear infinite;"></div>
+        </div>
+        <div class="flex justify-between items-center mt-1">
+          <span class="progress-label font-semibold text-gray-100">Progress</span>
+          <span class="progress-percent font-bold text-white">{{ progress.score|round(0) if progress and progress.is_completed else 50 }}%</span>
+        </div>
       </div>
       <div>
         {% set progress = user_progress.get(module.module_id) %}
-        {% if progress and progress.is_completed %}
-          <span class="px-3 py-1 rounded-full bg-green-500 text-white text-sm font-bold">
-            <i class="fas fa-check-circle mr-1"></i> Completed: {{ progress.score|round(0) }}%
-          </span>
-        {% else %}
-          <span class="px-3 py-1 rounded-full bg-gray-500 text-white text-sm font-bold">
-            In Progress
-          </span>
-        {% endif %}
+        {# Removed completed/in progress status bar #}
       </div>
+      <i class="fas fa-chevron-down text-xl transition-transform duration-300" id="chevron-{{ module.module_id }}"></i>
     </div>
-    <div class="card-body p-6">
+    <div class="card-body p-6" id="module-content-{{ module.module_id }}" style="display:{{ 'block' if loop.first else 'none' }};">
       <p class="text-gray-700 mb-6">{{ module.content }}</p>
 
       <!-- Tab Navigation -->
@@ -126,5 +127,30 @@
     </div>
   </div>
   {% endfor %}
+  <script>
+    function toggleModule(moduleId) {
+      const content = document.getElementById('module-content-' + moduleId);
+      const chevron = document.getElementById('chevron-' + moduleId);
+      if (content.style.display === 'none') {
+        content.style.display = 'block';
+        chevron.style.transform = 'rotate(180deg)';
+      } else {
+        content.style.display = 'none';
+        chevron.style.transform = 'rotate(0deg)';
+      }
+    }
+  </script>
+  <style>
+    .progress-bar-container { min-width: 120px; max-width: 100%; }
+    .progress-bar { transition: width 1s cubic-bezier(.4,2,.3,1); }
+    @keyframes loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .progress-label, .progress-percent { font-size: 1rem; }
+    @media (max-width: 600px) {
+      .progress-label, .progress-percent { font-size: 0.95rem; }
+    }
+  </style>
 </div>
 {% endblock %}
