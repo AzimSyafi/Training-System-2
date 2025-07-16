@@ -951,5 +951,17 @@ def cleanup_db_for_mockup():
         flash(f"An error occurred during cleanup: {e}")
     return redirect(url_for('index'))
 
+@app.route('/user_courses_dashboard')
+@login_required
+def user_courses_dashboard():
+    if isinstance(current_user, Admin):
+        return redirect(url_for('admin_dashboard'))
+    if isinstance(current_user, Trainer):
+        return redirect(url_for('trainer_portal'))
+    if not isinstance(current_user, User):
+        return redirect(url_for('login'))
+    # You can customize the data passed to the template as needed
+    return render_template('user_courses_dashboard.html', user=current_user)
+
 if __name__ == '__main__':
     app.run(debug=True)

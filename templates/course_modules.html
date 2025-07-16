@@ -26,14 +26,6 @@
     </div>
     <div class="card-body p-6">
       <p class="text-gray-700 mb-6">{{ module.content }}</p>
-      {% if module.youtube_url %}
-        <div class="mb-4">
-          <h4 class="text-lg font-semibold mb-2">Module Video</h4>
-          <div class="aspect-w-16 aspect-h-9">
-            <iframe class="w-full h-96" src="https://www.youtube.com/embed/{{ module.youtube_url|youtube_id }}" frameborder="0" allowfullscreen></iframe>
-          </div>
-        </div>
-      {% endif %}
 
       <!-- Tab Navigation -->
       <ul class="nav nav-tabs mb-4" id="myTab-{{ module.module_id }}" role="tablist">
@@ -86,12 +78,15 @@
         <div class="tab-pane fade" id="video-{{ module.module_id }}" role="tabpanel" aria-labelledby="video-tab-{{ module.module_id }}">
           <div class="bg-gray-100 p-4 rounded-lg">
             <h4 class="text-lg font-semibold mb-2">Instructional Video</h4>
-            <p class="text-gray-600 mb-4">This is a placeholder for the video content. You can embed a YouTube or Vimeo video here.</p>
-            <div class="max-w-2xl mx-auto">
+            {% if module.youtube_url %}
+            <div class="max-w-4xl mx-auto">
               <div class="aspect-w-16 aspect-h-9">
-                <iframe class="w-full h-full" src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="YouTube video player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                <iframe class="w-full h-96" src="https://www.youtube.com/embed/{{ module.youtube_url|youtube_id }}" title="YouTube video player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
               </div>
             </div>
+            {% else %}
+            <p class="text-gray-600 mb-4">No video available for this module.</p>
+            {% endif %}
           </div>
         </div>
 
