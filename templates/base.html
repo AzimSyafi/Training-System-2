@@ -187,6 +187,7 @@
                 <a class="nav-link {% if request.endpoint=='admin_modules' %}active{% endif %}" href="{{ url_for('admin_modules') }}"><i class="fas fa-book"></i> <span class="link-text">Module Management</span></a>
                 <a class="nav-link {% if request.endpoint=='admin_certificates' %}active{% endif %}" href="{{ url_for('admin_certificates') }}"><i class="fas fa-certificate"></i> <span class="link-text">Certificates</span></a>
                 <a class="nav-link {% if request.endpoint=='monitor_progress' %}active{% endif %}" href="{{ url_for('monitor_progress') }}"><i class="fas fa-chart-line"></i> <span class="link-text">Progress Monitor</span></a>
+                <a class="nav-link {% if request.endpoint=='admin_agencies' %}active{% endif %}" href="{{ url_for('admin_agencies') }}"><i class="fas fa-building"></i> <span class="link-text">Agency Management</span></a>
             {% else %}
                 <a class="nav-link {% if request.endpoint=='login' %}active{% endif %}" href="{{ url_for('login') }}"><i class="fas fa-sign-in-alt"></i> <span class="link-text">Login</span></a>
                 <a class="nav-link {% if request.endpoint=='signup' %}active{% endif %}" href="{{ url_for('signup') }}"><i class="fas fa-user-plus"></i> <span class="link-text">Sign Up</span></a>

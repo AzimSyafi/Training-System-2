@@ -1018,5 +1018,57 @@ def api_submit_quiz(module_id):
     feedback = 'Great job!' if score >= 75 else ('Keep practicing.' if score >= 50 else 'Needs improvement.')
     return jsonify({'score': score, 'feedback': feedback})
 
+@app.route('/admin/agencies')
+@login_required
+def admin_agencies():
+    if not isinstance(current_user, Admin):
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
+    agencies = Agency.query.all()
+    return render_template('admin_agencies.html', agencies=agencies)
+
+@app.route('/admin/add_agency', methods=['POST'])
+@login_required
+def add_agency():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    agency_name = request.form.get('agency_name')
+    PIC = request.form.get('PIC')
+    contact_number = request.form.get('contact_number')
+    email = request.form.get('email')
+    address = request.form.get('address')
+    Reg_of_Company = request.form.get('Reg_of_Company')
+    new_agency = Agency(
+        agency_name=agency_name,
+        PIC=PIC,
+        contact_number=contact_number,
+        email=email,
+        address=address,
+        Reg_of_Company=Reg_of_Company
+    )
+    db.session.add(new_agency)
+    db.session.commit()
+    flash('Agency added successfully!', 'success')
+    return redirect(url_for('admin_agencies'))
+
+@app.route('/admin/edit_agency/<int:agency_id>', methods=['POST'])
+@login_required
+def edit_agency(agency_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    agency = Agency.query.get_or_404(agency_id)
+    agency.agency_name = request.form.get('agency_name')
+    agency.PIC = request.form.get('PIC')
+    agency.contact_number = request.form.get('contact_number')
+    agency.email = request.form.get('email')
+    agency.address = request.form.get('address')
+    agency.Reg_of_Company = request.form.get('Reg_of_Company')
+    db.session.commit()
+    flash('Agency updated successfully!', 'success')
+    return redirect(url_for('admin_agencies'))
+
 if __name__ == '__main__':
     app.run(debug=True)
