@@ -1,136 +1,159 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container-fluid py-4">
-  <h2 class="mb-4 text-2xl font-bold text-blue-900 flex items-center"><i class="fas fa-user-circle mr-2"></i> My Profile</h2>
-  <div class="row mb-5">
-    <div class="col-md-3 mb-3">
-      <div class="card text-center bg-primary text-white shadow">
-        <div class="card-body">
-          <i class="fas fa-id-badge fa-2x mb-2"></i>
-          <h4>{{ user.number_series }}</h4>
-          <p>User ID</p>
-        </div>
-      </div>
+<div class="max-w-5xl mx-auto p-4">
+  <!-- Profile Picture and Profile Number in Personal Information -->
+  <div class="bg-white rounded-xl shadow p-6 mb-8" id="personal-info-section">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold text-blue-900">Personal Information</h2>
     </div>
-    <div class="col-md-3 mb-3">
-      <div class="card text-center bg-success text-white shadow">
-        <div class="card-body">
-          <i class="fas fa-envelope fa-2x mb-2"></i>
-          <h4>{{ user.email }}</h4>
-          <p>Email</p>
+    <div class="flex justify-center mb-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="flex flex-col items-center">
+          <img id="profile-img" src="{{ url_for('static', filename='profile_pics/' ~ user.Profile_picture) if user.Profile_picture else url_for('static', filename='default_avatar.png') }}" alt="Profile Picture" class="w-28 h-28 rounded-full object-cover border-4 border-blue-200 mb-2">
         </div>
-      </div>
+        <div id="personal-info-fields">
+          <div class="text-gray-500 text-sm">Full Name</div>
+          <div class="font-semibold text-lg" id="full_name_display">{{ user.full_name }}</div>
+          <div class="text-gray-500 text-sm mt-2">User ID</div>
+          <div class="font-semibold text-lg">{{ user.user_id }}</div>
+          <div class="text-gray-500 text-sm">Email</div>
+          <div class="font-semibold text-lg" id="email_display">{{ user.email }}</div>
+          <div class="text-gray-500 text-sm">Address</div>
+          <div class="font-semibold text-lg" id="address_display">{{ user.address }}</div>
+          <div class="text-gray-500 text-sm">Postcode</div>
+          <div class="font-semibold text-lg" id="postcode_display">{{ user.postcode }}</div>
+          <div class="text-gray-500 text-sm">State</div>
+          <div class="font-semibold text-lg" id="state_display">{{ user.state }}</div>
+        </div>
+      </div> <!-- end of personal info grid -->
     </div>
-    <div class="col-md-3 mb-3">
-      <div class="card text-center bg-info text-white shadow">
-        <div class="card-body">
-          <i class="fas fa-user-tie fa-2x mb-2"></i>
-          <h4>{{ user.full_name }}</h4>
-          <p>Name</p>
-        </div>
-      </div>
+    <div class="flex justify-end mt-4">
+      <button id="open-profile-modal" class="px-6 py-2 bg-blue-700 text-white rounded shadow hover:bg-blue-800 font-bold">Edit Profile</button>
     </div>
-    <div class="col-md-3 mb-3">
-      <div class="card text-center bg-warning text-white shadow">
-        <div class="card-body">
-          <i class="fas fa-phone fa-2x mb-2"></i>
-          <h4>{{ user.emergency_contact or 'N/A' }}</h4>
-          <p>Phone</p>
-        </div>
-      </div>
+    <div id="personal-info-errors" class="mt-2 text-red-600 text-sm"></div>
+  </div>
+
+  <!-- Working Info -->
+  <div class="bg-white rounded-xl shadow p-6 mb-8" id="working-info-section">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold text-blue-900">Working Info</h2>
+    </div>
+    <div id="working-info-fields">
+      <div class="text-gray-500 text-sm">Working Experience</div>
+      <div class="font-semibold text-lg" id="working_experience_display">{{ user.working_experience }}</div>
+      <div class="text-gray-500 text-sm">Recruitment Date</div>
+      <div class="font-semibold text-lg" id="recruitment_date_display">{{ user.recruitment_date }}</div>
+      <div class="text-gray-500 text-sm">Future Posting Location</div>
+      <div class="font-semibold text-lg" id="future_posting_location_display">{{ user.future_posting_location }}</div>
+      <div class="text-gray-500 text-sm">Rating Star</div>
+      <div class="font-semibold text-lg" id="rating_star_display">{{ user.rating_star }}</div>
+      <div class="text-gray-500 text-sm">Visa Number</div>
+      <div class="font-semibold text-lg" id="visa_number_display">{{ user.visa_number }}</div>
+      <div class="text-gray-500 text-sm">Visa Expiry Date</div>
+      <div class="font-semibold text-lg" id="visa_expiry_date_display">{{ user.visa_expiry_date }}</div>
     </div>
   </div>
-  <div class="card mb-4 shadow">
-    <div class="card-body d-flex flex-column flex-md-row align-items-center gap-4">
-      <img src="{{ user.profile_pic_url or url_for('static', filename='default_avatar.png') }}" alt="Profile" class="rounded-circle border border-3 border-primary" style="width: 110px; height: 110px; object-fit: cover;">
-      <div class="flex-1 w-100 row">
-        <div class="col-md-6 mb-2">
-          <div class="text-muted small">Working Experience</div>
-          <div class="fw-semibold">{{ user.working_experience }}</div>
-        </div>
-        <div class="col-md-6 mb-2">
-          <div class="text-muted small">Current Workplace</div>
-          <div class="fw-semibold">{{ user.current_workplace }}</div>
-        </div>
-        <div class="col-md-6 mb-2">
-          <div class="text-muted small">Agency</div>
-          <div class="fw-semibold">{{ user.agency.agency_name if user.agency else '' }}</div>
-        </div>
-        <div class="col-md-6 mb-2">
-          <div class="text-muted small">Emergency Contact Name</div>
-          <div class="fw-semibold">{{ user.emergency_relationship }}</div>
-        </div>
-        <div class="col-md-6 mb-2">
-          <div class="text-muted small">Relationship</div>
-          <div class="fw-semibold">{{ user.emergency_relationship_type or '' }}</div>
-        </div>
-        <div class="col-md-6 mb-2">
-          <div class="text-muted small">Emergency Phone</div>
-          <div class="fw-semibold">{{ user.emergency_contact }}</div>
-        </div>
-      </div>
+
+  <!-- Current Workplace & Agency Info -->
+  <div class="bg-white rounded-xl shadow p-6 mb-8" id="workplace-section">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold text-blue-900">Current Workplace & Agency Info</h2>
     </div>
+    <div id="workplace-fields">
+      <div class="text-gray-500 text-sm">Current Workplace</div>
+      <div class="font-semibold text-lg" id="current_workplace_display">{{ user.current_workplace }}</div>
+      <div class="text-gray-500 text-sm">Agency ID</div>
+      <div class="font-semibold text-lg" id="agency_id_display">{{ user.agency_id }}</div>
+      <div class="text-gray-500 text-sm">Agency Name</div>
+      <div class="font-semibold text-lg" id="agency_name_display">{{ user.agency.agency_name if user.agency else '' }}</div>
+    </div>
+    <div id="workplace-edit-actions" class="hidden flex gap-2 mt-4 justify-end">
+      <button type="button" class="save-btn bg-blue-700 text-white px-4 py-2 rounded shadow hover:bg-blue-800 font-bold" data-section="workplace">Save</button>
+      <button type="button" class="cancel-btn bg-gray-200 text-gray-700 px-4 py-2 rounded shadow hover:bg-gray-300 font-bold" data-section="workplace">Cancel</button>
+    </div>
+    <div id="workplace-errors" class="mt-2 text-red-600 text-sm"></div>
   </div>
-  <div class="flex justify-end mb-4">
-    <a href="{{ url_for('profile') }}?edit=1" class="btn btn-primary px-6 py-2 rounded shadow-lg font-bold bg-blue-700 hover:bg-blue-800 text-white border border-blue-700 transition">Edit Profile</a>
+
+  <!-- Emergency Contact -->
+  <div class="bg-white rounded-xl shadow p-6 mb-8" id="emergency-section">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold text-blue-900">Emergency Contact</h2>
+    </div>
+    <div id="emergency-fields">
+      <div class="text-gray-500 text-sm">Emergency Contact</div>
+      <div class="font-semibold text-lg" id="emergency_contact_display">{{ user.emergency_contact }}</div>
+      <div class="text-gray-500 text-sm">Emergency Relationship</div>
+      <div class="font-semibold text-lg" id="emergency_relationship_display">{{ user.emergency_relationship }}</div>
+    </div>
+    <div id="emergency-edit-actions" class="hidden flex gap-2 mt-4 justify-end">
+      <button type="button" class="save-btn bg-blue-700 text-white px-4 py-2 rounded shadow hover:bg-blue-800 font-bold" data-section="emergency">Save</button>
+      <button type="button" class="cancel-btn bg-gray-200 text-gray-700 px-4 py-2 rounded shadow hover:bg-gray-300 font-bold" data-section="emergency">Cancel</button>
+    </div>
+    <div id="emergency-errors" class="mt-2 text-red-600 text-sm"></div>
   </div>
-  {% if request.args.get('edit') == '1' %}
-  <div class="card shadow mb-4">
-    <div class="card-body">
-      <form method="POST" action="{{ url_for('profile') }}" enctype="multipart/form-data">
-        <div class="row mb-3">
-          <div class="col-md-6 mb-2">
-            <label class="text-gray-500 text-sm">Full Name</label>
-            <input type="text" name="full_name" value="{{ user.full_name }}" class="form-control" required>
-          </div>
-          <div class="col-md-6 mb-2">
-            <label class="text-gray-500 text-sm">Email</label>
-            <input type="email" name="email" value="{{ user.email }}" class="form-control" required>
-          </div>
-          <div class="col-md-6 mb-2">
-            <label class="text-gray-500 text-sm">Phone</label>
-            <input type="text" name="emergency_contact" value="{{ user.emergency_contact }}" class="form-control">
-          </div>
-          <div class="col-md-6 mb-2">
-            <label class="text-gray-500 text-sm">User ID</label>
-            <input type="text" name="number_series" value="{{ user.number_series }}" class="form-control" readonly>
-          </div>
-          <div class="col-md-6 mb-2">
-            <label class="text-gray-500 text-sm">Working Experience</label>
-            <input type="text" name="working_experience" value="{{ user.working_experience }}" class="form-control">
-          </div>
-          <div class="col-md-6 mb-2">
-            <label class="text-gray-500 text-sm">Current Workplace</label>
-            <input type="text" name="current_workplace" value="{{ user.current_workplace }}" class="form-control">
-          </div>
-          <div class="col-md-6 mb-2">
-            <label class="text-gray-500 text-sm">Agency Name</label>
-            <input type="text" value="{{ user.agency.agency_name if user.agency else '' }}" class="form-control" readonly>
-          </div>
-          <div class="col-md-6 mb-2">
-            <label class="text-gray-500 text-sm">Emergency Contact Name</label>
-            <input type="text" name="emergency_relationship" value="{{ user.emergency_relationship }}" class="form-control">
-          </div>
-          <div class="col-md-6 mb-2">
-            <label class="text-gray-500 text-sm">Relationship</label>
-            <input type="text" name="emergency_relationship_type" value="{{ user.emergency_relationship_type or '' }}" class="form-control">
-          </div>
-          <div class="col-md-6 mb-2">
-            <label class="text-gray-500 text-sm">Emergency Phone</label>
-            <input type="text" name="emergency_contact" value="{{ user.emergency_contact }}" class="form-control">
-          </div>
-          <div class="col-md-6 mb-2">
-            <label class="text-gray-500 text-sm">Profile Picture</label>
-            <input type="file" name="profile_pic" class="form-control">
-          </div>
+
+  <!-- Profile Edit Modal -->
+  <div id="profile-modal" class="fixed inset-0 bg-gray-900 bg-opacity-40 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-6 relative">
+      <button id="close-profile-modal" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700">&times;</button>
+      <h2 class="text-xl font-bold mb-4">Edit Personal Information</h2>
+      <form id="edit-profile-form" method="POST" action="/profile" enctype="multipart/form-data">
+        <div class="mb-4 flex flex-col items-center">
+          <img id="modal-profile-img" src="{{ url_for('static', filename='profile_pics/' ~ user.Profile_picture) if user.Profile_picture else url_for('static', filename='default_avatar.png') }}" alt="Profile Picture" class="w-24 h-24 rounded-full object-cover border-4 border-blue-200 mb-2">
+          <input type="file" name="profile_pic" accept="image/*" class="mt-2" />
         </div>
-        <div class="flex justify-end mt-4 gap-2">
-          <a href="{{ url_for('profile') }}" class="btn btn-secondary">Cancel</a>
-          <button type="submit" class="btn btn-primary">Save</button>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Full Name</label>
+          <input type="text" name="full_name" value="{{ user.full_name }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Email</label>
+          <input type="email" name="email" value="{{ user.email }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Address</label>
+          <input type="text" name="address" value="{{ user.address }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Postcode</label>
+          <input type="text" name="postcode" value="{{ user.postcode }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">State</label>
+          <input type="text" name="state" value="{{ user.state }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div id="modal-profile-errors" class="text-red-600 text-sm mb-2"></div>
+        <div class="flex justify-end gap-2 mt-4">
+          <button type="button" id="cancel-profile-modal" class="bg-gray-200 text-gray-700 px-4 py-2 rounded shadow hover:bg-gray-300 font-bold">Cancel</button>
+          <button type="submit" id="save-profile-modal" class="bg-blue-700 text-white px-4 py-2 rounded shadow hover:bg-blue-800 font-bold">Save</button>
         </div>
       </form>
     </div>
   </div>
-  {% endif %}
+
+  <div id="profile-success" class="hidden bg-green-100 text-green-800 px-4 py-2 rounded mb-4"></div>
+  <div id="profile-error" class="hidden bg-red-100 text-red-800 px-4 py-2 rounded mb-4"></div>
 </div>
+<script src="{{ url_for('static', filename='profile_edit.js') }}"></script>
+<script>
+// Modal open/close logic
+const openModalBtn = document.getElementById('open-profile-modal');
+const modal = document.getElementById('profile-modal');
+const closeModalBtn = document.getElementById('close-profile-modal');
+const cancelModalBtn = document.getElementById('cancel-profile-modal');
+if (openModalBtn && modal) {
+  openModalBtn.onclick = () => { modal.classList.remove('hidden'); };
+}
+if (closeModalBtn && modal) {
+  closeModalBtn.onclick = () => { modal.classList.add('hidden'); };
+}
+if (cancelModalBtn && modal) {
+  cancelModalBtn.onclick = () => { modal.classList.add('hidden'); };
+}
+// Save button logic
+const saveProfileBtn = document.getElementById('save-profile-modal');
+if (saveProfileBtn) {
+  saveProfileBtn.onclick = saveProfileModal;
+}
+</script>
 {% endblock %}

@@ -4,8 +4,8 @@
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="mb-3">
-            <a href="{{ url_for('user_dashboard') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            <a href="{{ url_for('courses') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Courses
             </a>
         </div>
         <div class="card">
@@ -269,6 +269,63 @@
                       }
                     });
                   });
+                </script>
+
+                <!-- User Quiz Tab/Section -->
+                <div id="user-quiz-section" class="card mt-4">
+                  <div class="card-header">
+                    <h5><i class="fas fa-question-circle"></i> Quiz</h5>
+                  </div>
+                  <div class="card-body">
+                    <div id="quiz-form-container">
+                      <p>Loading quiz...</p>
+                    </div>
+                  </div>
+                </div>
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                  const quizFormContainer = document.getElementById('quiz-form-container');
+                  const moduleId = {{ module.module_id|tojson }};
+                  fetch(`/api/load_quiz/${moduleId}`)
+                    .then(res => res.json())
+                    .then(quiz => {
+                      if (!quiz || !Array.isArray(quiz) || quiz.length === 0) {
+                        quizFormContainer.innerHTML = '<div class="alert alert-info">No quiz available for this module.</div>';
+                        return;
+                      }
+                      let html = '<form id="user-quiz-form">';
+                      quiz.forEach((q, idx) => {
+                        html += `<div class='mb-3'><label class='form-label'><b>Q${idx+1}:</b> ${q.text}</label>`;
+                        q.answers.forEach((a, aIdx) => {
+                          html += `<div class='form-check'><input class='form-check-input' type='radio' name='q${idx}' id='q${idx}a${aIdx}' value='${aIdx}' required><label class='form-check-label' for='q${idx}a${aIdx}'>${a.text}</label></div>`;
+                        });
+                        html += '</div>';
+                      });
+                      html += '<button type="submit" class="btn btn-success">Submit Quiz</button></form>';
+                      quizFormContainer.innerHTML = html;
+                      document.getElementById('user-quiz-form').addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        const formData = new FormData(e.target);
+                        const answers = quiz.map((q, idx) => parseInt(formData.get(`q${idx}`), 10));
+                        fetch(`/api/submit_quiz/${moduleId}`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ answers })
+                        })
+                        .then(res => res.json())
+                        .then(result => {
+                          let feedback = `<div class='alert alert-info'><b>Your Score:</b> ${result.score}%<br>${result.feedback || ''}</div>`;
+                          quizFormContainer.innerHTML = feedback;
+                        })
+                        .catch(() => {
+                          quizFormContainer.innerHTML = '<div class="alert alert-danger">Error submitting quiz. Please try again.</div>';
+                        });
+                      });
+                    })
+                    .catch(() => {
+                      quizFormContainer.innerHTML = '<div class="alert alert-danger">Failed to load quiz.</div>';
+                    });
+                });
                 </script>
             </div>
         </div>

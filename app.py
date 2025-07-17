@@ -8,8 +8,10 @@ from models import db, Admin, User, Agency, Module, Certificate, Trainer, UserMo
 from sqlalchemy.exc import IntegrityError
 import re
 import urllib.parse
+from flask import request, jsonify
+import json
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/static')
 app.config['SECRET_KEY'] = 'your-secret-key-here'
 
 # Use absolute path for SQLite DB
@@ -603,19 +605,28 @@ def profile():
     if not isinstance(current_user, User):
         return redirect(url_for('login'))
 
+    # Ensure upload folder exists
+    upload_folder = app.config.get('UPLOAD_FOLDER', 'static/profile_pics')
+    if not os.path.exists(upload_folder):
+        os.makedirs(upload_folder)
+
     if request.method == 'POST':
-        current_user.full_name = request.form['full_name']
-        current_user.email = request.form['email']
-        current_user.emergency_contact = request.form['emergency_contact']
-        current_user.working_experience = request.form['working_experience']
-        current_user.current_workplace = request.form['current_workplace']
-        current_user.emergency_relationship = request.form['emergency_relationship']
+        current_user.full_name = request.form.get('full_name', current_user.full_name)
+        current_user.email = request.form.get('email', current_user.email)
+        current_user.emergency_contact = request.form.get('emergency_contact', current_user.emergency_contact)
+        current_user.working_experience = request.form.get('working_experience', current_user.working_experience)
+        current_user.current_workplace = request.form.get('current_workplace', current_user.current_workplace)
+        current_user.emergency_relationship = request.form.get('emergency_relationship', current_user.emergency_relationship)
+        current_user.address = request.form.get('address', current_user.address)
+        current_user.postcode = request.form.get('postcode', current_user.postcode)
+        current_user.state = request.form.get('state', current_user.state)
 
         if 'profile_pic' in request.files:
             file = request.files['profile_pic']
-            if file.filename != '':
+            if file and file.filename != '':
                 filename = secure_filename(file.filename)
-                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                file_path = os.path.join(upload_folder, filename)
+                file.save(file_path)
                 current_user.Profile_picture = filename
 
         db.session.commit()
@@ -962,6 +973,50 @@ def user_courses_dashboard():
         return redirect(url_for('login'))
     # You can customize the data passed to the template as needed
     return render_template('user_courses_dashboard.html', user=current_user)
+
+@app.route('/api/save_quiz', methods=['POST'])
+def api_save_quiz():
+    data = request.get_json()
+    module_id = data.get('module_id')
+    quiz = data.get('quiz')
+    if not module_id or quiz is None:
+        return jsonify({'success': False, 'error': 'Missing data'}), 400
+    module = Module.query.get(module_id)
+    if not module:
+        return jsonify({'success': False, 'error': 'Module not found'}), 404
+    module.quiz_json = json.dumps(quiz)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/load_quiz/<int:module_id>', methods=['GET'])
+def api_load_quiz(module_id):
+    from models import Module
+    module = Module.query.get(module_id)
+    if not module or not module.quiz_json:
+        return jsonify([])
+    try:
+        return jsonify(json.loads(module.quiz_json))
+    except Exception:
+        return jsonify([])
+
+@app.route('/api/submit_quiz/<int:module_id>', methods=['POST'])
+def api_submit_quiz(module_id):
+    module = Module.query.get(module_id)
+    if not module or not module.quiz_json:
+        return jsonify({'score': 0, 'feedback': 'No quiz found.'})
+    quiz = json.loads(module.quiz_json)
+    data = request.get_json()
+    answers = data.get('answers', [])
+    correct = 0
+    total = len(quiz)
+    for idx, q in enumerate(quiz):
+        if idx < len(answers):
+            ans_idx = answers[idx]
+            if 0 <= ans_idx < len(q['answers']) and q['answers'][ans_idx].get('isCorrect'):
+                correct += 1
+    score = int((correct / total) * 100) if total > 0 else 0
+    feedback = 'Great job!' if score >= 75 else ('Keep practicing.' if score >= 50 else 'Needs improvement.')
+    return jsonify({'score': score, 'feedback': feedback})
 
 if __name__ == '__main__':
     app.run(debug=True)

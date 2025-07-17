@@ -2,6 +2,11 @@
 
 {% block content %}
 <div class="container mx-auto p-4">
+  <div class="mb-4">
+    <a href="{{ url_for('courses') }}" class="btn btn-secondary">
+      <i class="fas fa-arrow-left"></i> Back to Courses
+    </a>
+  </div>
   <h2 class="text-3xl font-bold mb-6 text-blue-900">{{ course_name }}</h2>
 
   {% for module in modules %}
@@ -95,32 +100,9 @@
         <div class="tab-pane fade" id="quiz-{{ module.module_id }}" role="tabpanel" aria-labelledby="quiz-tab-{{ module.module_id }}">
           <div class="bg-gray-100 p-4 rounded-lg">
             <h4 class="text-lg font-semibold mb-2">Knowledge Check</h4>
-            <form action="{{ url_for('complete_module', module_id=module.module_id) }}" method="POST">
-              <div class="mb-4">
-                <p class="font-semibold">1. What is the primary role of a security guard?</p>
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="q1" id="q1a" value="a">
-                  <label class="form-check-label" for="q1a">To observe and report</label>
-                </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="q1" id="q1b" value="b">
-                  <label class="form-check-label" for="q1b">To make arrests</label>
-                </div>
-              </div>
-              <div class="mb-4">
-                <p class="font-semibold">2. What should you do in case of a fire?</p>
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="q2" id="q2a" value="a">
-                  <label class="form-check-label" for="q2a">Activate the alarm and evacuate</label>
-                </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="q2" id="q2b" value="b">
-                  <label class="form-check-label" for="q2b">Try to fight the fire yourself</label>
-                </div>
-              </div>
-              <input type="hidden" name="score" value="100"> <!-- Placeholder score -->
-              <button type="submit" class="btn btn-primary bg-blue-700 hover:bg-blue-800">Submit Quiz</button>
-            </form>
+            <div id="quiz-user-view-{{ module.module_id }}">
+              <p class="text-gray-600 mb-4">Loading quiz...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -139,6 +121,91 @@
         chevron.style.transform = 'rotate(0deg)';
       }
     }
+
+    // Quiz User View Loader
+    function renderUserQuiz(moduleId, quiz) {
+      const root = document.getElementById('quiz-user-view-' + moduleId);
+      if (!quiz || !quiz.length) {
+        root.innerHTML = '<p class="text-gray-600 mb-4">No quiz available for this module.</p>';
+        return;
+      }
+      let html = '';
+      quiz.forEach((q, qIdx) => {
+        html += `<div class='mb-6 p-4 bg-white border rounded'><div class='font-semibold mb-2'>Q${qIdx+1}: ${q.text}</div>`;
+        q.answers.forEach((a, aIdx) => {
+          html += `<div class='flex items-center mb-1'><input type='radio' name='quiz-q${qIdx}-m${moduleId}' id='quiz-q${qIdx}-a${aIdx}-m${moduleId}' value='${aIdx}' class='mr-2'> <label for='quiz-q${qIdx}-a${aIdx}-m${moduleId}'>${a.text}</label></div>`;
+        });
+        html += `</div>`;
+      });
+      html += `<button class='btn btn-primary' onclick='submitUserQuiz(${moduleId}, ${quiz.length})'>Submit Quiz</button>`;
+      root.innerHTML = html;
+    }
+
+    function submitUserQuiz(moduleId, qCount) {
+      let correct = 0, total = qCount;
+      fetch(`/api/load_quiz/${moduleId}`)
+        .then(res => res.json())
+        .then(data => {
+          const quiz = data.quiz || [];
+          quiz.forEach((q, qIdx) => {
+            const selected = document.querySelector(`input[name='quiz-q${qIdx}-m${moduleId}']:checked`);
+            if (selected) {
+              const idx = parseInt(selected.value);
+              if (q.answers[idx] && q.answers[idx].isCorrect) correct++;
+            }
+          });
+          const root = document.getElementById('quiz-user-view-' + moduleId);
+          root.innerHTML += `<div class='mt-4 alert alert-info'>You got ${correct} out of ${total} correct.</div>`;
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      {% for module in modules %}
+      (function() {
+        const quizDiv = document.getElementById('quiz-user-view-{{ module.module_id }}');
+        if (!quizDiv) return;
+        fetch(`/api/load_quiz/{{ module.module_id }}`)
+          .then(res => res.json())
+          .then(quiz => {
+            if (!quiz || !Array.isArray(quiz) || quiz.length === 0) {
+              quizDiv.innerHTML = '<div class="alert alert-info">No quiz available for this module.</div>';
+              return;
+            }
+            let html = '<form id="user-quiz-form-{{ module.module_id }}">';
+            quiz.forEach((q, idx) => {
+              html += `<div class='mb-3'><label class='form-label'><b>Q${idx+1}:</b> ${q.text}</label>`;
+              q.answers.forEach((a, aIdx) => {
+                html += `<div class='form-check'><input class='form-check-input' type='radio' name='q${idx}' id='q${idx}a${aIdx}-{{ module.module_id }}' value='${aIdx}' required><label class='form-check-label' for='q${idx}a${aIdx}-{{ module.module_id }}'>${a.text}</label></div>`;
+              });
+              html += '</div>';
+            });
+            html += '<button type="submit" class="btn btn-success">Submit Quiz</button></form>';
+            quizDiv.innerHTML = html;
+            document.getElementById('user-quiz-form-{{ module.module_id }}').addEventListener('submit', function(e) {
+              e.preventDefault();
+              const formData = new FormData(e.target);
+              const answers = quiz.map((q, idx) => parseInt(formData.get(`q${idx}`), 10));
+              fetch(`/api/submit_quiz/{{ module.module_id }}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ answers })
+              })
+              .then(res => res.json())
+              .then(result => {
+                let feedback = `<div class='alert alert-info'><b>Your Score:</b> ${result.score}%<br>${result.feedback || ''}</div>`;
+                quizDiv.innerHTML = feedback;
+              })
+              .catch(() => {
+                quizDiv.innerHTML = '<div class="alert alert-danger">Error submitting quiz. Please try again.</div>';
+              });
+            });
+          })
+          .catch(() => {
+            quizDiv.innerHTML = '<div class="alert alert-danger">Failed to load quiz.</div>';
+          });
+      })();
+      {% endfor %}
+    });
   </script>
   <style>
     .progress-bar-container { min-width: 120px; max-width: 100%; }

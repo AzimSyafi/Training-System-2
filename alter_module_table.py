@@ -1,22 +1,15 @@
-import sqlite3
+from models import db, Module
+from app import app
+from sqlalchemy import text
 
-# Path to your SQLite database
-DB_PATH = 'instance/security_training.db'
-
-# Connect to the database
-conn = sqlite3.connect(DB_PATH)
-cursor = conn.cursor()
-
-# Check if the column already exists
-cursor.execute("PRAGMA table_info(module);")
-columns = [col[1] for col in cursor.fetchall()]
-
-if 'youtube_url' not in columns:
-    cursor.execute("ALTER TABLE module ADD COLUMN youtube_url VARCHAR(255);")
-    print("youtube_url column added successfully.")
-else:
-    print("youtube_url column already exists.")
-
-conn.commit()
-conn.close()
+with app.app_context():
+    # Check if the column already exists
+    result = db.session.execute(text("PRAGMA table_info(module);"))
+    columns = [row[1] for row in result]
+    if 'quiz_json' not in columns:
+        db.session.execute(text('ALTER TABLE module ADD COLUMN quiz_json TEXT'))
+        db.session.commit()
+        print('Added quiz_json column to module table.')
+    else:
+        print('quiz_json column already exists.')
 

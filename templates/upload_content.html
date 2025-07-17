@@ -10,6 +10,7 @@
           <a href="javascript:history.back()" class="btn btn-secondary btn-sm">&larr; Back</a>
         </div>
         <div class="card-body">
+          <div id="form-error-message" class="alert alert-danger" style="display:none;"></div>
           <form method="POST" action="{{ url_for('upload_content') }}" enctype="multipart/form-data" id="contentForm">
             <div class="mb-3">
               <label for="moduleSelect" class="form-label">Select Module</label>
@@ -39,14 +40,7 @@
               <div id="videoPreview" class="mt-2" style="display:none;"></div>
             </div>
             <div class="mb-3" id="quizUpload" style="display:none;">
-              <label class="form-label">Quiz Question</label>
-              <input type="text" name="quiz_question" class="form-control" placeholder="Enter quiz question" id="quizQuestionInput">
-              <label class="form-label mt-2">Answer 1</label>
-              <input type="text" name="quiz_answer1" class="form-control" placeholder="Enter answer 1" id="quizAnswer1Input">
-              <label class="form-label mt-2">Answer 2</label>
-              <input type="text" name="quiz_answer2" class="form-control" placeholder="Enter answer 2" id="quizAnswer2Input">
-              <label class="form-label mt-2">Answer 3</label>
-              <input type="text" name="quiz_answer3" class="form-control" placeholder="Enter answer 3" id="quizAnswer3Input">
+              <div id="quiz-builder-root"></div>
             </div>
             <div class="mt-4">
               <button type="submit" class="btn btn-primary w-100">
@@ -60,6 +54,9 @@
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="/static/quiz_builder.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     const contentTypeSelect = document.getElementById('contentTypeSelect');
@@ -68,11 +65,18 @@
     const quizUpload = document.getElementById('quizUpload');
     const youtubeUrl = document.getElementById('youtubeUrl');
     const videoPreview = document.getElementById('videoPreview');
+    const formError = document.getElementById('form-error-message');
     // Show/hide upload fields based on dropdown
     function showUploadSection(type) {
       slideUpload.style.display = (type === 'slide') ? 'block' : 'none';
       videoUpload.style.display = (type === 'video') ? 'block' : 'none';
       quizUpload.style.display = (type === 'quiz') ? 'block' : 'none';
+      if (type === '') {
+        formError.style.display = 'block';
+        formError.textContent = 'Please select a content type.';
+      } else {
+        formError.style.display = 'none';
+      }
       if (type !== 'video' && videoPreview) {
         videoPreview.innerHTML = '';
         videoPreview.style.display = 'none';

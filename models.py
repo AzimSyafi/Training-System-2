@@ -119,6 +119,7 @@ class User(UserMixin, db.Model):
     rating_star = db.Column(db.Integer, default=0)
     trainer = db.Column(db.String(255))
     agency_id = db.Column(db.Integer, db.ForeignKey('agency.agency_id'), nullable=False)
+    address = db.Column(db.Text)  # New field for address
 
     # Relationship
     certificates = db.relationship('Certificate', backref='user', lazy=True)
@@ -199,6 +200,7 @@ class Module(db.Model):
     star_rating = db.Column(db.Integer, default=0)
     content = db.Column(db.Text)
     youtube_url = db.Column(db.String(255))  # New field for YouTube video URL
+    quiz_json = db.Column(db.Text)  # New field for storing quiz as JSON
 
     # Relationships
     certificates = db.relationship('Certificate', backref='module', lazy=True)

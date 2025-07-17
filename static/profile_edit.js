@@ -1,0 +1,294 @@
+document.addEventListener('DOMContentLoaded', function () {
+  // Section edit buttons
+  document.querySelectorAll('.edit-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const section = btn.getAttribute('data-section');
+      enableEditMode(section);
+    });
+  });
+
+  // Save/Cancel buttons
+  document.querySelectorAll('.save-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const section = btn.getAttribute('data-section');
+      saveSection(section);
+    });
+  });
+  document.querySelectorAll('.cancel-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const section = btn.getAttribute('data-section');
+      cancelEdit(section);
+    });
+  });
+
+  // Change Photo button
+  const changePhotoBtn = document.getElementById('change-photo-btn');
+  if (changePhotoBtn) {
+    changePhotoBtn.addEventListener('click', function () {
+      document.getElementById('profile-pic-input').click();
+    });
+  }
+  const profilePicInput = document.getElementById('profile-pic-input');
+  if (profilePicInput) {
+    profilePicInput.addEventListener('change', function (e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function (ev) {
+          document.getElementById('profile-pic-preview').innerHTML = `<img src='${ev.target.result}' class='w-20 h-20 rounded-full object-cover border-2 border-blue-200'>`;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  // Edit Profile button for modal
+  const editProfileBtn = document.querySelector('a[href*="?edit=1"]');
+  if (editProfileBtn) {
+    editProfileBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      showEditProfileModal();
+    });
+  }
+
+  // Modal close
+  document.addEventListener('click', function(e) {
+    if (e.target.id === 'edit-profile-modal-bg' || e.target.id === 'edit-profile-modal-close') {
+      closeEditProfileModal();
+    }
+  });
+
+  // Modal Save button
+  const saveProfileBtn = document.getElementById('save-profile-modal');
+  if (saveProfileBtn) {
+    saveProfileBtn.onclick = function () {
+      const form = document.querySelector('#profile-modal form');
+      const formData = new FormData(form);
+      let errors = [];
+      if (!validateEmail(formData.get('email'))) errors.push('Invalid email format.');
+      if (errors.length) {
+        document.getElementById('modal-profile-errors').textContent = errors.join(' ');
+        return;
+      }
+      fetch('/profile', {
+        method: 'POST',
+        body: formData
+      })
+        .then(response => {
+          if (response.redirected) {
+            window.location.href = response.url;
+          } else {
+            return response.text();
+          }
+        })
+        .then(data => {
+          // Optionally handle non-redirect responses
+          document.getElementById('profile-modal').classList.add('hidden');
+          window.location.reload();
+        })
+        .catch(err => {
+          document.getElementById('modal-profile-errors').textContent = 'Error saving profile.';
+        });
+  }
+});
+
+function showEditProfileModal() {
+  if (document.getElementById('edit-profile-modal-bg')) return;
+  const modalBg = document.createElement('div');
+  modalBg.id = 'edit-profile-modal-bg';
+  modalBg.className = 'fixed inset-0 bg-[#f5f7fa] flex items-center justify-center z-50 overflow-y-auto';
+  modalBg.innerHTML = `
+    <div class='user-card w-full max-w-lg relative'>
+      <div class='sticky top-0 bg-white z-10 pb-2 mb-2'>
+        <h2 class='text-blue-900 text-2xl font-bold'>Edit Profile</h2>
+        <button id='edit-profile-modal-close' class='absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-2xl' aria-label='Close'>&times;</button>
+      </div>
+      <form id='edit-profile-form' class='space-y-4' enctype='multipart/form-data'>
+        <div class='flex flex-col items-center mb-4'>
+          <img id='modal-profile-img' src='${document.getElementById('profile-img').src}' alt='Profile Picture' class='w-24 h-24 rounded-full object-cover border-4 border-blue-200 mb-2'>
+          <input type='file' id='modal-profile-pic-input' class='hidden' accept='image/*'>
+          <button type='button' id='modal-change-photo-btn' class='mt-2 px-3 py-1 bg-blue-100 text-blue-900 rounded shadow hover:bg-blue-200 font-semibold'>Change Photo</button>
+          <div id='modal-profile-pic-preview' class='mt-2'></div>
+        </div>
+        <div class='user-card mb-4'>
+          <h2 class='text-blue-900 text-xl font-bold mb-2'>Personal Information</h2>
+          <div class='info-row'>
+            <span class='label'>Full Name:</span>
+            <span class='value'><input class='border rounded p-2 w-full bg-white' name='full_name' id='modal_full_name' value='${document.getElementById('full_name_display').textContent}' required></span>
+          </div>
+          <div class='info-row'>
+            <span class='label'>Email:</span>
+            <span class='value'><input class='border rounded p-2 w-full bg-white' name='email' id='modal_email' value='${document.getElementById('email_display').textContent}' required></span>
+          </div>
+          <div class='info-row'>
+            <span class='label'>Address:</span>
+            <span class='value'><input class='border rounded p-2 w-full bg-white' name='address' id='modal_address' value='${document.getElementById('address_display').textContent}'></span>
+          </div>
+          <div class='info-row'>
+            <span class='label'>Postcode:</span>
+            <span class='value'><input class='border rounded p-2 w-full bg-white' name='postcode' id='modal_postcode' value='${document.getElementById('postcode_display').textContent}'></span>
+          </div>
+          <div class='info-row'>
+            <span class='label'>State:</span>
+            <span class='value'><input class='border rounded p-2 w-full bg-white' name='state' id='modal_state' value='${document.getElementById('state_display').textContent}'></span>
+          </div>
+        </div>
+        <div id='modal-profile-errors' class='text-red-600 text-sm'></div>
+        <div class='flex gap-2 justify-end pt-2'>
+          <button type='submit' class='bg-blue-700 text-white px-4 py-2 rounded shadow hover:bg-blue-800 font-bold'>Save</button>
+          <button type='button' id='modal-cancel-btn' class='bg-gray-200 text-gray-700 px-4 py-2 rounded shadow hover:bg-gray-300 font-bold'>Cancel</button>
+        </div>
+      </form>
+    </div>
+    <style>
+      body { background: #f5f7fa; overflow-y: auto; }
+      .user-card { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+      .info-row { display: flex; margin-bottom: 12px; align-items: center; }
+      .label { width: 180px; color: #666; font-weight: 600; }
+      .value { flex: 1; color: #222; font-weight: 400; }
+      .sticky { position: sticky; top: 0; }
+    </style>
+  `;
+  document.body.appendChild(modalBg);
+
+  // Change photo in modal
+  document.getElementById('modal-change-photo-btn').onclick = function() {
+    document.getElementById('modal-profile-pic-input').click();
+  };
+  document.getElementById('modal-profile-pic-input').onchange = function(e) {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        document.getElementById('modal-profile-pic-preview').innerHTML = `<img src='${ev.target.result}' class='w-20 h-20 rounded-full object-cover border-2 border-blue-200'>`;
+        document.getElementById('modal-profile-img').src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  document.getElementById('modal-cancel-btn').onclick = closeEditProfileModal;
+  document.getElementById('edit-profile-form').onsubmit = function(e) {
+    e.preventDefault();
+    saveProfileModal();
+  };
+}
+
+function closeEditProfileModal() {
+  const modalBg = document.getElementById('edit-profile-modal-bg');
+  if (modalBg) modalBg.remove();
+}
+
+function saveProfileModal() {
+  const form = document.getElementById('edit-profile-form');
+  const formData = new FormData(form);
+  let errors = [];
+  if (!validateEmail(formData.get('email'))) errors.push('Invalid email format.');
+  if (errors.length) {
+    document.getElementById('modal-profile-errors').textContent = errors.join(' ');
+    return;
+  }
+  fetch('/profile', {
+    method: 'POST',
+    body: formData
+  })
+    .then(response => {
+      if (response.redirected) {
+        window.location.href = response.url;
+      } else {
+        return response.text();
+      }
+    })
+    .catch(() => {
+      document.getElementById('modal-profile-errors').textContent = 'Failed to update profile.';
+    });
+}
+
+function enableEditMode(section) {
+  if (section === 'personal-info') {
+    const fields = document.getElementById('personal-info-fields');
+    fields.innerHTML = `
+      <label class='text-gray-500 text-sm'>Full Name</label>
+      <input class='border rounded p-2 w-full mb-2' id='full_name_input' value='${document.getElementById('full_name_display').textContent}' name='full_name'>
+      <label class='text-gray-500 text-sm'>Email</label>
+      <input class='border rounded p-2 w-full mb-2' id='email_input' value='${document.getElementById('email_display').textContent}' name='email'>
+      <label class='text-gray-500 text-sm'>Visa Number</label>
+      <input class='border rounded p-2 w-full mb-2' id='visa_number_input' value='${document.getElementById('visa_number_display').textContent}' name='visa_number'>
+      <label class='text-gray-500 text-sm'>Visa Expiry Date</label>
+      <input type='date' class='border rounded p-2 w-full mb-2' id='visa_expiry_date_input' value='${document.getElementById('visa_expiry_date_display').textContent}' name='visa_expiry_date'>
+      <label class='text-gray-500 text-sm'>State</label>
+      <input class='border rounded p-2 w-full mb-2' id='state_input' value='${document.getElementById('state_display').textContent}' name='state'>
+      <label class='text-gray-500 text-sm'>Postcode</label>
+      <input class='border rounded p-2 w-full mb-2' id='postcode_input' value='${document.getElementById('postcode_display').textContent}' name='postcode'>
+      <label class='text-gray-500 text-sm'>Remarks</label>
+      <textarea class='border rounded p-2 w-full mb-2' id='remarks_input' name='remarks'>${document.getElementById('remarks_display').textContent}</textarea>
+    `;
+    document.getElementById('personal-info-edit-actions').classList.remove('hidden');
+  }
+}
+
+function saveSection(section) {
+  if (section === 'personal-info') {
+    const payload = {
+      full_name: document.getElementById('full_name_input').value,
+      email: document.getElementById('email_input').value,
+      visa_number: document.getElementById('visa_number_input').value,
+      visa_expiry_date: document.getElementById('visa_expiry_date_input').value,
+      state: document.getElementById('state_input').value,
+      postcode: document.getElementById('postcode_input').value,
+      remarks: document.getElementById('remarks_input').value
+    };
+    // Basic validation
+    let errors = [];
+    if (!validateEmail(payload.email)) errors.push('Invalid email format.');
+    if (payload.visa_expiry_date && !/^\d{4}-\d{2}-\d{2}$/.test(payload.visa_expiry_date)) errors.push('Invalid date format.');
+    if (errors.length) {
+      document.getElementById('personal-info-errors').textContent = errors.join(' ');
+      return;
+    } else {
+      document.getElementById('personal-info-errors').textContent = '';
+    }
+    fetch('/api/user/update', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        document.getElementById('profile-success').textContent = 'Profile updated successfully.';
+        document.getElementById('profile-success').classList.remove('hidden');
+        setTimeout(() => { document.getElementById('profile-success').classList.add('hidden'); }, 3000);
+        // Update display
+        document.getElementById('full_name_display').textContent = payload.full_name;
+        document.getElementById('email_display').textContent = payload.email;
+        document.getElementById('visa_number_display').textContent = payload.visa_number;
+        document.getElementById('visa_expiry_date_display').textContent = payload.visa_expiry_date;
+        document.getElementById('state_display').textContent = payload.state;
+        document.getElementById('postcode_display').textContent = payload.postcode;
+        document.getElementById('remarks_display').textContent = payload.remarks;
+        cancelEdit('personal-info');
+      } else {
+        document.getElementById('profile-error').textContent = data.error || 'Failed to update profile.';
+        document.getElementById('profile-error').classList.remove('hidden');
+        setTimeout(() => { document.getElementById('profile-error').classList.add('hidden'); }, 3000);
+      }
+    })
+    .catch(() => {
+      document.getElementById('profile-error').textContent = 'Failed to update profile.';
+      document.getElementById('profile-error').classList.remove('hidden');
+      setTimeout(() => { document.getElementById('profile-error').classList.add('hidden'); }, 3000);
+    });
+  }
+}
+
+function cancelEdit(section) {
+  if (section === 'personal-info') {
+    // Reload page to revert changes (or re-render display fields)
+    window.location.reload();
+  }
+}
+
+function validateEmail(email) {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+}
+// ...expand for other sections as needed...
