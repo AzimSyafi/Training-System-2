@@ -31,7 +31,10 @@
             </div>
             <div class="mb-3" id="slideUpload" style="display:block;">
               <label class="form-label">Upload Slide (PDF or PPTX)</label>
+              <select class="form-select mb-2" id="slideModuleSelect" name="slide_module_id" style="display:none;"></select>
+              <div id="currentSlidePreview"></div>
               <input type="file" name="slide_file" accept=".pdf,.pptx" class="form-control" id="slideFileInput">
+              <button type="button" class="btn btn-danger btn-sm mt-2" id="clearSlideBtn" style="display:none;">Clear</button>
             </div>
             <div class="mb-3" id="videoUpload" style="display:none;">
               <label class="form-label">YouTube Video URL</label>
@@ -40,6 +43,9 @@
               <div id="videoPreview" class="mt-2" style="display:none;"></div>
             </div>
             <div class="mb-3" id="quizUpload" style="display:none;">
+              <label class="form-label">Upload Image for Quiz (optional)</label>
+              <input type="file" name="quiz_image" accept="image/*" class="form-control mb-2" id="quizImageInput">
+              <button type="button" class="btn btn-secondary btn-sm mt-2" id="clearQuizImgBtn">Clear</button>
               <div id="quiz-builder-root"></div>
             </div>
             <div class="mt-4">
@@ -58,6 +64,53 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
 <script src="/static/quiz_builder.js"></script>
 <script>
+// Helper to get current module's slide_url from modules data
+const modules = JSON.parse('{{ modules_data|tojson|safe }}');
+function getModuleById(id) {
+  return modules.find(m => m.module_id == id);
+}
+function updateSlideUI() {
+  const moduleId = document.getElementById('moduleSelect').value;
+  const module = getModuleById(moduleId);
+  const previewDiv = document.getElementById('currentSlidePreview');
+  const fileInput = document.getElementById('slideFileInput');
+  const clearBtn = document.getElementById('clearSlideBtn');
+  previewDiv.innerHTML = '';
+  if (module && module.slide_url) {
+    let url = `/static/uploads/${module.slide_url}`;
+    if (module.slide_url.endsWith('.pdf')) {
+      previewDiv.innerHTML = `<iframe src='${url}' width='100%' height='300'></iframe>`;
+    } else if (module.slide_url.endsWith('.pptx')) {
+      previewDiv.innerHTML = `<iframe src='https://view.officeapps.live.com/op/embed.aspx?src=${window.location.origin}/static/uploads/${module.slide_url}' width='100%' height='300'></iframe>`;
+    } else {
+      previewDiv.innerHTML = `<a href='${url}' target='_blank'>Download Slide</a>`;
+    }
+    fileInput.disabled = true;
+    clearBtn.style.display = '';
+  } else {
+    fileInput.disabled = false;
+    clearBtn.style.display = 'none';
+  }
+}
+document.getElementById('moduleSelect').addEventListener('change', updateSlideUI);
+document.getElementById('clearSlideBtn').addEventListener('click', function() {
+  const moduleId = document.getElementById('moduleSelect').value;
+  if (!moduleId) return;
+  if (!confirm('Are you sure you want to clear the slide for this module?')) return;
+  fetch(`/clear_slide/${moduleId}`, {method: 'POST'})
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        // Update modules data in JS
+        const m = getModuleById(moduleId);
+        if (m) m.slide_url = null;
+        updateSlideUI();
+      } else {
+        alert('Failed to clear slide.');
+      }
+    });
+});
+document.addEventListener('DOMContentLoaded', updateSlideUI);
   document.addEventListener('DOMContentLoaded', function() {
     const contentTypeSelect = document.getElementById('contentTypeSelect');
     const slideUpload = document.getElementById('slideUpload');
@@ -168,6 +221,12 @@
     // Populate modules based on course in URL
     const course = getCourseFromUrl();
     populateModules(course);
+    document.getElementById('clearSlideBtn').onclick = function() {
+      document.getElementById('slideFileInput').value = '';
+    };
+    document.getElementById('clearQuizImgBtn').onclick = function() {
+      document.getElementById('quizImageInput').value = '';
+    };
   });
 </script>
 {% endblock %}

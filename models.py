@@ -112,14 +112,15 @@ class User(UserMixin, db.Model):
     working_experience = db.Column(db.String(255))
     recruitment_date = db.Column(db.Date)
     current_workplace = db.Column(db.String(255))
-    future_posting_location = db.Column(db.String(255))
     state = db.Column(db.String(50))
     postcode = db.Column(db.String(10))
     remarks = db.Column(db.Text)
     rating_star = db.Column(db.Integer, default=0)
+    rating_label = db.Column(db.String(50), default='')
     trainer = db.Column(db.String(255))
     agency_id = db.Column(db.Integer, db.ForeignKey('agency.agency_id'), nullable=False)
-    address = db.Column(db.Text)  # New field for address
+    address = db.Column(db.Text)
+    visa_number = db.Column(db.String(50))
 
     # Relationship
     certificates = db.relationship('Certificate', backref='user', lazy=True)
@@ -163,19 +164,16 @@ class User(UserMixin, db.Model):
         db.session.commit()
 
     def EligibleForCertificate(self):
-        # Check if user has completed all required modules with passing grade
         completed_modules = UserModule.query.filter_by(
             user_id=self.User_id,
             is_completed=True
         ).all()
-
         for module in completed_modules:
             if module.score <= 50:
                 return False
         return len(completed_modules) > 0
 
     def generateUserid(self):
-        # Generate unique user ID based on agency and sequence
         last_user = User.query.filter_by(agency_id=self.agency_id).order_by(User.User_id.desc()).first()
         if last_user:
             return last_user.User_id + 1
@@ -201,6 +199,8 @@ class Module(db.Model):
     content = db.Column(db.Text)
     youtube_url = db.Column(db.String(255))  # New field for YouTube video URL
     quiz_json = db.Column(db.Text)  # New field for storing quiz as JSON
+    quiz_image = db.Column(db.String(255))  # Filename for quiz image
+    slide_url = db.Column(db.String(255))  # Field for uploaded slide filename/path
 
     # Relationships
     certificates = db.relationship('Certificate', backref='module', lazy=True)
@@ -225,6 +225,21 @@ class Module(db.Model):
     def setStarRating(self, rating):
         self.star_rating = rating
         db.session.commit()
+
+    def to_dict(self):
+        return {
+            'module_id': self.module_id,
+            'module_name': self.module_name,
+            'module_type': self.module_type,
+            'series_number': self.series_number,
+            'scoring_float': self.scoring_float,
+            'star_rating': self.star_rating,
+            'content': self.content,
+            'youtube_url': self.youtube_url,
+            'quiz_json': self.quiz_json,
+            'quiz_image': self.quiz_image,
+            'slide_url': self.slide_url
+        }
 
 class Certificate(db.Model):
     __tablename__ = 'certificate'

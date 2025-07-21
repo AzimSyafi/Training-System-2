@@ -36,8 +36,8 @@ function createQuizBuilder(root) {
       card.innerHTML = `
         <div class="flex items-center mb-2">
           <span class="font-semibold text-lg mr-2">Question ${qIdx + 1}:</span>
-          <input type="text" class="flex-1 border rounded px-2 py-1 focus:outline-none" placeholder="Enter your question..." value="${q.text}" maxlength="200" data-qidx="${qIdx}" />
-          <span class="ml-2 text-xs text-gray-500">${q.text.length}/200</span>
+          <textarea class="flex-1 border rounded px-2 py-1 focus:outline-none" placeholder="Enter your question..." data-qidx="${qIdx}" rows="4" maxlength="1000">${q.text || ''}</textarea>
+          <span class="ml-2 text-xs text-gray-500">${q.text.length}/1000</span>
         </div>
         <div class="ml-6" id="answers-${qIdx}"></div>
         <button type="button" class="mt-2 px-3 py-1 bg-blue-100 text-blue-700 rounded" id="add-answer-${qIdx}" ${q.answers.length >= 3 ? 'disabled' : ''}>+ Add Answer (${q.answers.length}/3)</button>
@@ -47,11 +47,10 @@ function createQuizBuilder(root) {
       `;
       root.appendChild(card);
       // Question text event
-      const questionInput = card.querySelector('input[type="text"]');
-      questionInput.addEventListener('input', e => {
-        q.text = e.target.value.slice(0, 200);
-        // Do not re-render here
-        card.querySelector('.ml-2.text-xs.text-gray-500').textContent = `${q.text.length}/200`;
+      const questionTextarea = card.querySelector('textarea');
+      questionTextarea.addEventListener('input', e => {
+        q.text = e.target.value.slice(0, 1000);
+        card.querySelector('.ml-2.text-xs.text-gray-500').textContent = `${q.text.length}/1000`;
       });
       // Answers
       const answersDiv = card.querySelector(`#answers-${qIdx}`);

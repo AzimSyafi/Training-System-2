@@ -1,15 +1,22 @@
-from models import db, Module
-from app import app
-from sqlalchemy import text
+import sqlite3
+import os
 
-with app.app_context():
+DB_PATH = os.path.join(os.path.dirname(__file__), 'instance', 'security_training.db')
+
+def add_slide_url_column():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
     # Check if the column already exists
-    result = db.session.execute(text("PRAGMA table_info(module);"))
-    columns = [row[1] for row in result]
-    if 'quiz_json' not in columns:
-        db.session.execute(text('ALTER TABLE module ADD COLUMN quiz_json TEXT'))
-        db.session.commit()
-        print('Added quiz_json column to module table.')
+    cursor.execute("PRAGMA table_info(module)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'slide_url' not in columns:
+        cursor.execute("ALTER TABLE module ADD COLUMN slide_url VARCHAR(255)")
+        print("slide_url column added to module table.")
     else:
-        print('quiz_json column already exists.')
+        print("slide_url column already exists.")
+    conn.commit()
+    conn.close()
+
+if __name__ == '__main__':
+    add_slide_url_column()
 

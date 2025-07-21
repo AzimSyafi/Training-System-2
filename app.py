@@ -22,7 +22,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/profile_pics'
 
-UPLOAD_CONTENT_FOLDER = os.path.join('instance', 'uploads')
+# Change upload content folder to static/uploads for public access
+UPLOAD_CONTENT_FOLDER = os.path.join('static', 'uploads')
 os.makedirs(UPLOAD_CONTENT_FOLDER, exist_ok=True)
 
 def extract_youtube_id(url):
@@ -55,7 +56,6 @@ login_manager.login_view = 'login'
 
 @login_manager.user_loader
 def load_user(user_id):
-    # Use session to determine user type if available
     user_type = session.get('user_type')
     if user_type == 'admin':
         return Admin.query.get(int(user_id))
@@ -63,7 +63,6 @@ def load_user(user_id):
         return User.query.get(int(user_id))
     elif user_type == 'trainer':
         return Trainer.query.get(int(user_id))
-    # Fallback: try Admin first, then User
     admin = Admin.query.get(int(user_id))
     if admin:
         return admin
@@ -72,6 +71,11 @@ def load_user(user_id):
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/uploads/<filename>')
+def serve_uploaded_slide(filename):
+    uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
+    return send_from_directory(uploads_dir, filename)
 
 # Home route
 @app.route('/')
@@ -485,6 +489,13 @@ def upload_content():
     # Get all unique module types for the dropdown
     module_types = [row[0] for row in Module.query.with_entities(Module.module_type).distinct().all()]
     modules = Module.query.all()
+    modules_data = [
+        {
+            'module_id': m.module_id,
+            'module_name': m.module_name,
+            'slide_url': m.slide_url
+        } for m in modules
+    ]
     if request.method == 'POST':
         title = request.form.get('title')
         description = request.form.get('description')
@@ -492,14 +503,22 @@ def upload_content():
         result = {'title': title, 'description': description, 'content_type': content_type}
         if content_type == 'slide':
             file = request.files.get('slide_file')
-            if file and file.filename and file.filename.lower().endswith(('.pdf', '.pptx')):
+            module_id = request.form.get('module_id')
+            if file and file.filename and file.filename.lower().endswith(('.pdf', '.pptx')) and module_id:
                 filename = secure_filename(file.filename)
                 filepath = os.path.join(UPLOAD_CONTENT_FOLDER, filename)
                 file.save(filepath)
-                result['slide_file'] = filepath
-                flash('Slide uploaded successfully!', 'success')
+                # Save slide_url to the selected module
+                module = Module.query.get(module_id)
+                if module:
+                    module.slide_url = filename
+                    db.session.commit()
+                    flash('Slide uploaded and linked to module successfully!', 'success')
+                else:
+                    flash('Module not found.', 'danger')
+                    return render_template('upload_content.html', modules=modules)
             else:
-                flash('Please upload a valid PDF or PPTX file.', 'danger')
+                flash('Please upload a valid PDF or PPTX file and select a module.', 'danger')
                 return render_template('upload_content.html', modules=modules)
         elif content_type == 'video':
             youtube_url = request.form.get('youtube_url')
@@ -513,18 +532,34 @@ def upload_content():
                 flash('Module not found.', 'danger')
             return redirect(url_for('upload_content'))
         elif content_type == 'quiz':
+            module_id = request.form.get('module_id')
+            module = Module.query.get(module_id)
             question = request.form.get('quiz_question')
             answer1 = request.form.get('quiz_answer1')
             answer2 = request.form.get('quiz_answer2')
             answer3 = request.form.get('quiz_answer3')
-            result['quiz'] = {'question': question, 'answers': [answer1, answer2, answer3]}
-            flash('Quiz saved!', 'success')
+            quiz_image = request.files.get('quiz_image')
+            image_filename = None
+            if quiz_image and quiz_image.filename:
+                image_filename = secure_filename(quiz_image.filename)
+                image_path = os.path.join('static', 'uploads', image_filename)
+                os.makedirs(os.path.dirname(image_path), exist_ok=True)
+                quiz_image.save(image_path)
+                if module:
+                    module.quiz_image = image_filename
+                    db.session.commit()
+            result['quiz'] = {
+                'question': question,
+                'answers': [answer1, answer2, answer3],
+                'image': image_filename
+            }
+            flash('Quiz saved!' + (f' Image uploaded: {image_filename}' if image_filename else ''), 'success')
         else:
             flash('Invalid content type.', 'danger')
             return render_template('upload_content.html', modules=modules)
         # TODO: Save 'result' to the database as needed
         return redirect(url_for('upload_content'))
-    return render_template('upload_content.html', modules=modules, module_types=module_types)
+    return render_template('upload_content.html', modules=modules, modules_data=modules_data, module_types=module_types)
 
 # API endpoints for dynamic data
 @app.route('/api/user_progress/<int:user_id>')
@@ -559,11 +594,27 @@ def courses():
         return redirect(url_for('trainer_portal'))
     if not isinstance(current_user, User):
         return redirect(url_for('login'))
-    # Example: Replace with your actual Course model and query if available
-    # courses = Course.query.all()
-    # For now, use a placeholder list
-    courses = []
-    return render_template('courses.html', courses=courses)
+
+    # Define course codes and names
+    course_defs = [
+        {"code": "tng", "name": "NEPAL SECURITY GUARD TRAINING (TNG)"},
+        {"code": "csg", "name": "CERTIFIED SECURITY GUARD (CSG)"}
+    ]
+    course_progress = []
+    for course in course_defs:
+        modules = Module.query.filter(Module.module_type == course["code"].upper()).all()
+        total = len(modules)
+        if total == 0:
+            percent = 0
+        else:
+            completed = UserModule.query.filter_by(user_id=current_user.User_id, is_completed=True).filter(UserModule.module_id.in_([m.module_id for m in modules])).count()
+            percent = int((completed / total) * 100)
+        course_progress.append({
+            "code": course["code"],
+            "name": course["name"],
+            "percent": percent
+        })
+    return render_template('courses.html', course_progress=course_progress)
 
 @app.route('/modules/<string:course_code>')
 @login_required
@@ -1016,7 +1067,42 @@ def api_submit_quiz(module_id):
                 correct += 1
     score = int((correct / total) * 100) if total > 0 else 0
     feedback = 'Great job!' if score >= 75 else ('Keep practicing.' if score >= 50 else 'Needs improvement.')
-    return jsonify({'score': score, 'feedback': feedback})
+
+    # Update UserModule score and is_completed
+    user_id = None
+    if hasattr(current_user, 'User_id'):
+        user_id = current_user.User_id
+    elif hasattr(current_user, 'id'):
+        user_id = current_user.id
+    if user_id:
+        user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
+        if user_module:
+            user_module.score = score
+            user_module.is_completed = True
+            user_module.completion_date = datetime.now()
+            db.session.commit()
+        # Update user's star rating based on average score
+        user_modules = UserModule.query.filter_by(user_id=user_id, is_completed=True).all()
+        if user_modules:
+            avg_score = sum([um.score for um in user_modules]) / len(user_modules)
+            if avg_score <= 50:
+                stars = 1
+                label = 'Needs Improvement'
+                color = 'red'
+            elif avg_score > 75:
+                stars = 5
+                label = 'Great Job'
+                color = 'green'
+            else:
+                stars = 3
+                label = 'Keep Practicing'
+                color = 'blue'
+            user = User.query.get(user_id)
+            if user:
+                user.rating_star = stars
+                user.rating_label = label
+                db.session.commit()
+    return jsonify({'score': score, 'feedback': feedback, 'star_rating': stars if user_id else None, 'star_label': label if user_id else None, 'star_color': color if user_id else None})
 
 @app.route('/admin/agencies')
 @login_required
@@ -1069,6 +1155,38 @@ def edit_agency(agency_id):
     db.session.commit()
     flash('Agency updated successfully!', 'success')
     return redirect(url_for('admin_agencies'))
+
+@app.route('/admin/reset_user_progress', methods=['POST'])
+@login_required
+def reset_user_progress():
+    if not hasattr(current_user, 'role') or current_user.role != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    user_id = request.form.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'User ID required'}), 400
+    user_modules = UserModule.query.filter_by(user_id=user_id).all()
+    for um in user_modules:
+        um.is_completed = False
+        um.score = 0.0
+        um.completion_date = None
+    db.session.commit()
+    return jsonify({'success': True, 'message': f'Progress reset for user {user_id}.'})
+
+@app.route('/clear_slide/<int:module_id>', methods=['POST'])
+def clear_slide(module_id):
+    module = Module.query.get(module_id)
+    if module and module.slide_url:
+        # Optionally, delete the file from disk
+        slide_path = os.path.join(app.root_path, 'instance', 'uploads', module.slide_url)
+        if os.path.exists(slide_path):
+            try:
+                os.remove(slide_path)
+            except Exception:
+                pass  # Ignore file delete errors
+        module.slide_url = None
+        db.session.commit()
+        return jsonify({'success': True})
+    return jsonify({'success': False, 'error': 'Module or slide not found'}), 404
 
 if __name__ == '__main__':
     app.run(debug=True)

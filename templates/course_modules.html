@@ -17,11 +17,11 @@
         <span class="font-semibold text-xs bg-blue-100 text-blue-800 rounded px-2 py-1 mb-2 inline-block">{{ module.series_number }} | {{ module.module_type }}</span>
         <div class="progress-bar-container w-full h-4 bg-gray-200 rounded-full overflow-hidden mt-2">
           {% set progress = user_progress.get(module.module_id) %}
-          <div class="progress-bar h-4 rounded-full" style="width: {{ progress.score|round(0) if progress and progress.is_completed else 50 }}%; background: linear-gradient(270deg, #3498db, #2980b9, #3498db); background-size: 400% 100%; animation: loading 2s linear infinite;"></div>
+          <div class="progress-bar h-4 rounded-full" style="width: {{ progress.score|round(0) if progress and progress.is_completed else 0 }}%; background: linear-gradient(270deg, #3498db, #2980b9, #3498db); background-size: 400% 100%; animation: loading 2s linear infinite;"></div>
         </div>
         <div class="flex justify-between items-center mt-1">
           <span class="progress-label font-semibold text-gray-100">Progress</span>
-          <span class="progress-percent font-bold text-white">{{ progress.score|round(0) if progress and progress.is_completed else 50 }}%</span>
+          <span class="progress-percent font-bold text-white">{{ progress.score|round(0) if progress and progress.is_completed else 0 }}%</span>
         </div>
       </div>
       <div>
@@ -59,21 +59,19 @@
           <div class="bg-gray-100 p-4 rounded-lg">
             <h4 class="text-lg font-semibold mb-2">Module Slides</h4>
             {% if module.slide_url %}
+              {% set slide_url = '/static/uploads/' ~ module.slide_url %}
               {% if module.slide_url.endswith('.pdf') %}
-                <div class="max-w-4xl mx-auto">
-                  <div class="aspect-w-16 aspect-h-9">
-                    <iframe class="w-full h-full" src="https://docs.google.com/gview?url={{ module.slide_url }}&embedded=true" allowfullscreen></iframe>
-                  </div>
+                <div class="max-w-4xl mx-auto mb-2">
+                  <iframe class="w-full h-96 border rounded" src="{{ slide_url }}" allowfullscreen></iframe>
                 </div>
               {% elif module.slide_url.endswith('.pptx') %}
-                <div class="max-w-4xl mx-auto">
-                  <div class="aspect-w-16 aspect-h-9">
-                    <iframe class="w-full h-full" src="https://view.officeapps.live.com/op/embed.aspx?src={{ module.slide_url }}" allowfullscreen></iframe>
-                  </div>
+                <div class="max-w-4xl mx-auto mb-2">
+                  <iframe class="w-full h-96 border rounded" src="https://view.officeapps.live.com/op/embed.aspx?src={{ request.url_root | trim('/') }}/static/uploads/{{ module.slide_url }}" allowfullscreen></iframe>
                 </div>
               {% else %}
                 <p class="text-gray-600 mb-4">Unsupported slide format. Please use PDF or PPTX.</p>
               {% endif %}
+              <a href="{{ slide_url }}" class="btn btn-primary mt-2" download>Download Slide</a>
             {% else %}
               <p class="text-gray-600 mb-4">No slides available for this module.</p>
             {% endif %}
@@ -100,6 +98,11 @@
         <div class="tab-pane fade" id="quiz-{{ module.module_id }}" role="tabpanel" aria-labelledby="quiz-tab-{{ module.module_id }}">
           <div class="bg-gray-100 p-4 rounded-lg">
             <h4 class="text-lg font-semibold mb-2">Knowledge Check</h4>
+            {% if module.quiz_image and module.quiz_image|trim %}
+            <div class="mb-4 text-center" style="border:2px dashed #ccc; min-height:190px; display:flex; align-items:center; justify-content:center; background:#f8f9fa;">
+              <img src="{{ url_for('static', filename='uploads/' ~ module.quiz_image) }}" alt="Quiz Image" class="img-fluid rounded" style="max-height:180px;">
+            </div>
+            {% endif %}
             <div id="quiz-user-view-{{ module.module_id }}">
               <p class="text-gray-600 mb-4">Loading quiz...</p>
             </div>
@@ -179,6 +182,7 @@
               });
               html += '</div>';
             });
+            html += '<button type="button" class="btn btn-secondary me-2" id="clear-quiz-{{ module.module_id }}">Clear</button>';
             html += '<button type="submit" class="btn btn-success">Submit Quiz</button></form>';
             quizDiv.innerHTML = html;
             document.getElementById('user-quiz-form-{{ module.module_id }}').addEventListener('submit', function(e) {
@@ -198,6 +202,12 @@
               .catch(() => {
                 quizDiv.innerHTML = '<div class="alert alert-danger">Error submitting quiz. Please try again.</div>';
               });
+            });
+            document.getElementById('clear-quiz-{{ module.module_id }}').addEventListener('click', function() {
+              const form = document.getElementById('user-quiz-form-{{ module.module_id }}');
+              if (!form) return;
+              const radios = form.querySelectorAll('input[type=radio]');
+              radios.forEach(r => r.checked = false);
             });
           })
           .catch(() => {

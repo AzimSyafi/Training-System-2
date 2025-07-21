@@ -41,6 +41,29 @@
         </div>
       </div>
     </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-center bg-secondary text-white shadow">
+        <div class="card-body">
+          <i class="fas fa-star fa-2x mb-2"></i>
+          <h4>
+            {% for i in range(1, 6) %}
+              {% if i <= user.rating_star %}
+                <i class="fas fa-star text-warning"></i>
+              {% else %}
+                <i class="far fa-star text-white-50"></i>
+              {% endif %}
+            {% endfor %}
+            {% if user.rating_label %}
+              <span class="ml-2 font-semibold"
+                style="color: {% if user.rating_star == 1 %}#dc2626{% elif user.rating_star == 3 %}#2563eb{% elif user.rating_star == 5 %}#16a34a{% else %}#6b7280{% endif %};">
+                {{ user.rating_label }}
+              </span>
+            {% endif %}
+          </h4>
+          <p>Star Rating</p>
+        </div>
+      </div>
+    </div>
   </div>
   <!-- Profile Section -->
   <div class="card mb-4 shadow">

@@ -23,6 +23,13 @@
                                 </h5>
                             </div>
                             <div class="card-body">
+                                <!-- Modified image section: Only show if image exists -->
+                                {% if certificate.module.quiz_image and certificate.module.quiz_image|trim %}
+                                <div class="mb-3 text-center" style="border:2px dashed #ccc; min-height:190px; display:flex; align-items:center; justify-content:center; background:#f8f9fa;">
+                                    <img src="{{ url_for('static', filename='uploads/' ~ certificate.module.quiz_image) }}" alt="Quiz Image" class="img-fluid rounded" style="max-height:180px;">
+                                </div>
+                                {% endif %}
+
                                 <h6 class="card-title">{{ certificate.module.module_name }}</h6>
                                 <p class="card-text">
                                     <strong>Module Type:</strong> {{ certificate.module_type }}<br>
@@ -35,6 +42,12 @@
                                             <i class="far fa-star text-muted"></i>
                                         {% endif %}
                                     {% endfor %}
+                                    {% if certificate.user_new and certificate.user_new.rating_label %}
+                                        <span class="ml-2 font-semibold"
+                                            style="color: {% if certificate.user_new.rating_star == 1 %}#dc2626{% elif certificate.user_new.rating_star == 3 %}#2563eb{% elif certificate.user_new.rating_star == 5 %}#16a34a{% else %}#6b7280{% endif %};">
+                                            {{ certificate.user_new.rating_label }}
+                                        </span>
+                                    {% endif %}
                                 </p>
                                 <a href="{{ certificate.certificate_url }}" class="btn btn-primary" target="_blank">
                                     <i class="fas fa-download"></i> Download Certificate
