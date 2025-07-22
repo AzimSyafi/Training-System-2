@@ -117,7 +117,8 @@ class User(UserMixin, db.Model):
     remarks = db.Column(db.Text)
     rating_star = db.Column(db.Integer, default=0)
     rating_label = db.Column(db.String(50), default='')
-    trainer = db.Column(db.String(255))
+    trainer_id = db.Column(db.Integer, db.ForeignKey('trainer.trainer_id'), nullable=True)
+    trainer = db.relationship('Trainer', backref='users', lazy=True)
     agency_id = db.Column(db.Integer, db.ForeignKey('agency.agency_id'), nullable=False)
     address = db.Column(db.Text)
     visa_number = db.Column(db.String(50))
@@ -163,15 +164,28 @@ class User(UserMixin, db.Model):
                 setattr(self, key, value)
         db.session.commit()
 
-    def EligibleForCertificate(self):
-        completed_modules = UserModule.query.filter_by(
-            user_id=self.User_id,
-            is_completed=True
-        ).all()
+    def EligibleForCertificate(self, course_type=None):
+        """
+        Returns True if the user has completed ALL modules of the given course_type with score > 50.
+        If course_type is None, returns False.
+        """
+        if not course_type:
+            return False
+        from models import Module, UserModule  # Use absolute import to avoid ImportError
+        # Get all modules for the course_type
+        all_modules = Module.query.filter_by(module_type=course_type).all()
+        if not all_modules:
+            return False
+        all_module_ids = [m.module_id for m in all_modules]
+        # Get all completed modules for this user in this course_type
+        completed_modules = UserModule.query.filter_by(user_id=self.User_id, is_completed=True).filter(UserModule.module_id.in_(all_module_ids)).all()
+        if len(completed_modules) != len(all_modules):
+            return False
+        # Check all completed modules have score > 50
         for module in completed_modules:
             if module.score <= 50:
                 return False
-        return len(completed_modules) > 0
+        return True
 
     def generateUserid(self):
         last_user = User.query.filter_by(agency_id=self.agency_id).order_by(User.User_id.desc()).first()
@@ -327,6 +341,7 @@ class UserModule(db.Model):
     is_completed = db.Column(db.Boolean, default=False)
     score = db.Column(db.Float, default=0.0)
     completion_date = db.Column(db.DateTime)
+    quiz_answers = db.Column(db.Text)  # Store user's quiz answers as JSON string
 
     def complete_module(self, score):
         self.is_completed = True
@@ -395,8 +410,11 @@ class Management(db.Model):
 class Registration:
     @staticmethod
     def registerUser(user_data):
+        # Remove 'password' from user_data before creating User
+        password = user_data.pop('password', None)
         user = User(**user_data)
-        user.set_password(user_data['password'])
+        if password:
+            user.set_password(password)
         db.session.add(user)
         db.session.commit()
         return user
@@ -459,3 +477,19 @@ class WorkHistory(db.Model):
             'start_date': self.start_date,
             'end_date': self.end_date
         }
+
+class UserCourseProgress(db.Model):
+    __tablename__ = 'user_course_progress'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.User_id'), nullable=False)
+    course_id = db.Column(db.Integer, nullable=False)  # Adjust if you have a Course model
+    completed = db.Column(db.Boolean, default=False)
+    completion_date = db.Column(db.DateTime)
+    certificate_url = db.Column(db.String(255))
+
+    def mark_complete(self, certificate_url=None):
+        self.completed = True
+        self.completion_date = datetime.now()
+        if certificate_url:
+            self.certificate_url = certificate_url
+        db.session.commit()

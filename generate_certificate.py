@@ -1,0 +1,100 @@
+import os
+from datetime import datetime
+from PyPDF2 import PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
+from io import BytesIO
+from models import User, Certificate, Module, UserModule  # Assuming you have a User and Certificate model
+from app import db  # Assuming you use SQLAlchemy
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase import pdfmetrics
+
+def generate_certificate(user_id, course_type, cert_id=None):
+    # Fetch user info from database
+    user = User.query.get(user_id)
+    if not user:
+        raise ValueError("User not found")
+    name = user.full_name or f"User {user_id}"
+    date_str = datetime.now().strftime('%B %d, %Y')
+    cert_id = cert_id or f"CERT-{user_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    # Paths
+    template_path = os.path.join('static', 'cert_templates', 'Training_cert.pdf')
+    output_dir = os.path.join('static', 'certificates')
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, f"certificate_{user_id}_{course_type}.pdf")
+
+    # Find the module name for the certificate (first module of this type)
+    module = Module.query.filter_by(module_type=course_type.upper()).first()
+    module_name = module.module_name if module else course_type
+    # Create overlay PDF with user info
+    packet = BytesIO()
+    can = canvas.Canvas(packet, pagesize=letter)
+    # Fetch user's score for this module
+    user_module = UserModule.query.filter_by(user_id=user_id, module_id=module.module_id).first() if module else None
+    score = user_module.score if user_module else 0
+    # Convert score (0-100) to stars (1-5)
+    stars = max(1, min(5, int(round(score / 20))))
+    # Place Name (centered at 425, 260), Bold, 28pt, Navy
+    can.setFont("Helvetica-Bold", 28)
+    can.setFillColorRGB(0.0, 0.0, 0.5)  # Navy
+    can.drawCentredString(425, 260, name)
+    # Place Module Type (centered at 425, 230), 20pt, Tosca
+    can.setFont("Helvetica", 20)
+    can.setFillColorRGB(0.82, 0.36, 0.36)  # Tosca (approx RGB: #D15B5B)
+    can.drawCentredString(425, 230, course_type.upper())
+
+    # Register DejaVuSans font for star rendering (use correct path)
+    font_path = os.path.join('static', 'cert_templates', 'dejavu-fonts-ttf-2.37', 'ttf', 'DejaVuSans.ttf')
+    if os.path.exists(font_path):
+        pdfmetrics.registerFont(TTFont('DejaVuSans', font_path))
+        star_font = 'DejaVuSans'
+    else:
+        star_font = 'Helvetica'
+    # Place Stars (centered at 425, 200) with star font
+    can.setFont(star_font, 20)
+    can.setFillColorRGB(0, 0, 0)
+    can.drawCentredString(425, 200, '\u2605' * stars)
+
+    # Place Date (left at 50, 100), 12pt, Dark Gray
+    can.setFont("Helvetica", 12)
+    can.setFillColorRGB(0.33, 0.33, 0.33)  # Dark Gray
+    can.drawString(50, 100, date_str)
+    can.setFillColorRGB(0, 0, 0)  # Reset color
+    can.save()
+    packet.seek(0)
+
+    # Merge overlay with template
+    template_pdf = PdfReader(template_path)
+    overlay_pdf = PdfReader(packet)
+    output_pdf = PdfWriter()
+    page = template_pdf.pages[0]
+    page.merge_page(overlay_pdf.pages[0])
+    output_pdf.add_page(page)
+    with open(output_path, "wb") as f:
+        output_pdf.write(f)
+
+    # After generating the certificate, save it in the Certificate table
+    module = Module.query.filter_by(module_type=course_type.upper()).first()
+    module_id = module.module_id if module else None
+    cert_url = output_path.replace('static/', '/static/')
+    cert = Certificate(
+        user_id=user_id,
+        module_type=course_type,
+        module_id=module_id or 0,
+        issue_date=datetime.now().date(),
+        certificate_url=cert_url
+    )
+    db.session.add(cert)
+    db.session.commit()
+    return output_path
+
+if __name__ == "__main__":
+    from app import app
+    with app.app_context():
+        try:
+            cert_path = generate_certificate(1, 'TNG')
+            print(f"Certificate generated at: {cert_path}")
+        except Exception as e:
+            print(f"Error generating certificate: {e}")

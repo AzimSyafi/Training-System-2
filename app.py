@@ -1,3 +1,6 @@
+import sys
+print("Python executable:", sys.executable)
+
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash
@@ -130,9 +133,8 @@ def signup():
             'full_name': request.form['full_name'],
             'email': request.form['email'],
             'password': request.form['password'],
-            'agency_id': request.form['agency_id'],
-            'recruitment_date': datetime.now().date(),
-            'number_series': f"SG{datetime.now().year}{Registration.generateUserid():04d}"
+            # Assign a default agency_id, e.g., 1
+            'agency_id': 1
         }
 
         # Check if user already exists
@@ -261,6 +263,30 @@ def complete_module(module_id):
                 certificate = admin.issueCerticate(current_user.User_id, module_id)
                 flash('Certificate issued successfully!')
 
+        # Check if user completed all modules of this course type
+        module = Module.query.get(module_id)
+        if module:
+            course_type = module.module_type
+            # Debug output for certificate eligibility
+            import sys
+            print(f"[DEBUG] Checking certificate eligibility for user {current_user.User_id}", file=sys.stderr)
+            print(f"[DEBUG] Module ID: {module_id}", file=sys.stderr)
+            if module:
+                course_type = module.module_type
+                print(f"[DEBUG] Course type: {course_type}", file=sys.stderr)
+                all_course_modules = Module.query.filter_by(module_type=course_type).all()
+                all_module_ids = [m.module_id for m in all_course_modules]
+                print(f"[DEBUG] All module IDs for course: {all_module_ids}", file=sys.stderr)
+                completed_modules = UserModule.query.filter_by(user_id=current_user.User_id, is_completed=True).filter(UserModule.module_id.in_(all_module_ids)).all()
+                print(f"[DEBUG] Completed modules: {[{'id': um.module_id, 'score': um.score} for um in completed_modules]}", file=sys.stderr)
+                eligible = current_user.EligibleForCertificate(course_type)
+                print(f"[DEBUG] Eligible for certificate: {eligible}", file=sys.stderr)
+                if eligible:
+                    from generate_certificate import generate_certificate
+                    cert_path = generate_certificate(current_user.User_id, course_type)
+                    print(f"[DEBUG] Certificate generated at: {cert_path}", file=sys.stderr)
+                    flash(f'Congratulations! You have completed all modules for {course_type}. Certificate generated.')
+
     return redirect(url_for('user_dashboard'))
 
 @app.route('/my_certificates')
@@ -274,6 +300,11 @@ def my_certificates():
         return redirect(url_for('login'))
 
     certificates = Certificate.query.filter_by(user_id=current_user.User_id).all()
+    from models import UserModule
+    for cert in certificates:
+        user_module = UserModule.query.filter_by(user_id=cert.user_id, module_id=cert.module_id).first()
+        score = user_module.score if user_module else 0
+        cert.star_rating = max(1, min(5, int(round(score / 20))))
     return render_template('my_certificates.html', certificates=certificates)
 
 # Admin Dashboard and Workflow
@@ -447,6 +478,11 @@ def admin_certificates():
         return redirect(url_for('login'))
 
     certificates = current_user.viewIssueCerticate()
+    from models import UserModule
+    for cert in certificates:
+        user_module = UserModule.query.filter_by(user_id=cert.user_id, module_id=cert.module_id).first()
+        score = user_module.score if user_module else 0
+        cert.star_rating = max(1, min(5, int(round(score / 20))))
     return render_template('admin_certificates.html', certificates=certificates)
 
 @app.route('/agency')
@@ -962,7 +998,7 @@ def insert_profile():
                 for whf in wh_required:
                     if whf not in wh:
                         raise ValueError(f'Missing work history field: {whf}')
-                work_history = WorkHistory(
+                work_history =  WorkHistory(
                     user_id=user.User_id,
                     company_name=wh['company_name'],
                     position_title=wh.get('position_title'),
@@ -1060,6 +1096,17 @@ def api_submit_quiz(module_id):
     answers = data.get('answers', [])
     correct = 0
     total = len(quiz)
+    # --- Prevent resubmission if already completed ---
+    user_id = None
+    if hasattr(current_user, 'User_id'):
+        user_id = current_user.User_id
+    elif hasattr(current_user, 'id'):
+        user_id = current_user.id
+    if user_id:
+        user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
+        if user_module and user_module.is_completed:
+            return jsonify({'score': user_module.score, 'feedback': 'Quiz already completed. You cannot submit again.'}), 403
+    # --- End prevent resubmission ---
     for idx, q in enumerate(quiz):
         if idx < len(answers):
             ans_idx = answers[idx]
@@ -1080,6 +1127,7 @@ def api_submit_quiz(module_id):
             user_module.score = score
             user_module.is_completed = True
             user_module.completion_date = datetime.now()
+            user_module.quiz_answers = json.dumps(answers)  # Save user's answers
             db.session.commit()
         # Update user's star rating based on average score
         user_modules = UserModule.query.filter_by(user_id=user_id, is_completed=True).all()
@@ -1187,6 +1235,110 @@ def clear_slide(module_id):
         db.session.commit()
         return jsonify({'success': True})
     return jsonify({'success': False, 'error': 'Module or slide not found'}), 404
+
+@app.route('/api/user_quiz_answers/<int:module_id>', methods=['GET'])
+@login_required
+def api_user_quiz_answers(module_id):
+    from models import UserModule
+    user_id = None
+    if hasattr(current_user, 'User_id'):
+        user_id = current_user.User_id
+    elif hasattr(current_user, 'id'):
+        user_id = current_user.id
+    if not user_id:
+        return jsonify([])
+    user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
+    if user_module and user_module.quiz_answers:
+        try:
+            return jsonify(json.loads(user_module.quiz_answers))
+        except Exception:
+            return jsonify([])
+    return jsonify([])
+
+@app.route('/api/save_quiz_progress/<int:module_id>', methods=['POST'])
+@login_required
+def api_save_quiz_progress(module_id):
+    data = request.get_json()
+    partial_answers = data.get('partial_answers', [])
+    user_id = getattr(current_user, 'User_id', getattr(current_user, 'id', None))
+    if not user_id:
+        return jsonify({'success': False, 'error': 'User not found'}), 403
+    user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
+    if not user_module:
+        user_module = UserModule(user_id=user_id, module_id=module_id)
+        db.session.add(user_module)
+    user_module.quiz_partial_answers = json.dumps(partial_answers)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/get_quiz_progress/<int:module_id>', methods=['GET'])
+@login_required
+def api_get_quiz_progress(module_id):
+    user_id = getattr(current_user, 'User_id', getattr(current_user, 'id', None))
+    if not user_id:
+        return jsonify([])
+    user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
+    if user_module and user_module.quiz_partial_answers:
+        try:
+            return jsonify(json.loads(user_module.quiz_partial_answers))
+        except Exception:
+            return jsonify([])
+    return jsonify([])
+
+@app.route('/api/complete_quiz', methods=['POST'])
+def api_complete_quiz():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    module_id = data.get('module_id')
+    correct = data.get('correct')
+    total = data.get('total')
+    from models import UserModule
+    from datetime import datetime
+    if not user_id or not module_id:
+        return jsonify({'status': 'error', 'message': 'Missing user_id or module_id'}), 400
+    user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
+    if not user_module:
+        user_module = UserModule(user_id=user_id, module_id=module_id)
+        from models import db
+        db.session.add(user_module)
+    user_module.is_completed = True
+    user_module.score = int((correct / total) * 100) if total else 0
+    user_module.completion_date = datetime.now()
+    from models import db
+    db.session.commit()
+    return jsonify({'status': 'success', 'message': 'Quiz results saved.', 'correct': correct, 'total': total})
+
+@app.route('/admin/upload_cert_template', methods=['POST'])
+@login_required
+def upload_cert_template():
+    from werkzeug.utils import secure_filename
+    if not hasattr(current_user, 'role') or current_user.role != 'admin':
+        flash('Unauthorized', 'danger')
+        return redirect(url_for('admin_certificates'))
+    file = request.files.get('cert_template')
+    if not file:
+        flash('No file selected', 'danger')
+        return redirect(url_for('admin_certificates'))
+    filename = secure_filename(file.filename)
+    cert_folder = os.path.join('static', 'cert_templates')
+    os.makedirs(cert_folder, exist_ok=True)
+    save_path = os.path.join(cert_folder, 'Training_cert.pdf')
+    file.save(save_path)
+    flash('Certificate template uploaded successfully!', 'success')
+    return redirect(url_for('admin_certificates'))
+
+@app.route('/admin/delete_certificate/<int:cert_id>', methods=['POST'])
+@login_required
+def delete_certificate(cert_id):
+    if not isinstance(current_user, Admin):
+        flash('Unauthorized action.')
+        return redirect(url_for('admin_certificates'))
+    from models import Certificate, db
+    certificate = Certificate.query.get_or_404(cert_id)
+    db.session.delete(certificate)
+    db.session.commit()
+    flash('Certificate deleted successfully!')
+    return redirect(url_for('admin_certificates'))
 
 if __name__ == '__main__':
     app.run(debug=True)

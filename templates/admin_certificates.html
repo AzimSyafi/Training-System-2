@@ -5,6 +5,23 @@
     <div class="p-4">
         <h2><i class="fas fa-certificate"></i> Certificate Management</h2>
 
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5>Upload Certificate Template</h5>
+                <form action="{{ url_for('upload_cert_template') }}" method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <input type="file" name="cert_template" accept="application/pdf,image/*" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Upload Template</button>
+                </form>
+                {% if cert_template_url %}
+                    <div class="mt-2">
+                        <strong>Current Template:</strong> <a href="{{ cert_template_url }}" target="_blank">View Template</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
         {% if certificates %}
             <div class="card">
                 <div class="card-body">
@@ -42,6 +59,9 @@
                                         <a href="{{ certificate.certificate_url }}" class="btn btn-sm btn-outline-primary" target="_blank">
                                             <i class="fas fa-download"></i> Download
                                         </a>
+                                        <form action="{{ url_for('delete_certificate', cert_id=certificate.certificate_id) }}" method="post" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this certificate?');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i> Delete</button>
+                                        </form>
                                     </td>
                                 </tr>
                                 {% endfor %}
