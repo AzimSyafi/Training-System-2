@@ -20,11 +20,11 @@
           <span class="font-semibold text-xs bg-blue-100 text-blue-800 rounded px-2 py-1 mb-2 inline-block">{{ module.series_number }}</span>
           <div class="progress-bar-container w-full h-4 bg-gray-200 rounded-full overflow-hidden mt-2">
             {% set progress = user_progress.get(module.module_id) %}
-            <div class="progress-bar h-4 rounded-full" style="width: {{ progress.score|round(0) if progress and progress.is_completed else 0 }}%; background: linear-gradient(270deg, #3498db, #2980b9, #3498db); background-size: 400% 100%; animation: loading 2s linear infinite;"></div>
+            <div class="progress-bar h-4 rounded-full" style="width: {{ 100 if progress and progress.is_completed else 0 }}%; background: linear-gradient(270deg, #3498db, #2980b9, #3498db); background-size: 400% 100%; animation: loading 2s linear infinite;"></div>
           </div>
           <div class="flex justify-between items-center mt-1">
             <span class="progress-label font-semibold text-gray-100">Progress</span>
-            <span class="progress-percent font-bold text-white">{{ progress.score|round(0) if progress and progress.is_completed else 0 }}%</span>
+            <span class="progress-percent font-bold text-white">{{ 100 if progress and progress.is_completed else 0 }}%</span>
           </div>
         </div>
         <div>
@@ -48,7 +48,7 @@
             </button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="quiz-tab-{{ module.module_id }}" data-bs-toggle="tab" data-bs-target="#quiz-{{ module.module_id }}" type="button" role="tab" aria-controls="quiz" aria-selected="false" {% if user_module and user_module.is_completed %}disabled{% endif %}>
+            <button class="nav-link" id="quiz-tab-{{ module.module_id }}" data-bs-toggle="tab" data-bs-target="#quiz-{{ module.module_id }}" type="button" role="tab" aria-controls="quiz" aria-selected="false">
               <i class="fas fa-question-circle mr-2"></i>Quiz
             </button>
           </li>
@@ -122,18 +122,20 @@
                         let html = '';
                         quiz.forEach((q, idx) => {
                           html += `<div class='mb-3'><b>Q${idx+1}:</b> ${q.text}<ul style='list-style-type:none;padding-left:0;'>`;
+                          const userAnswered = userAnswers && typeof userAnswers[idx] !== 'undefined';
                           q.answers.forEach((a, aIdx) => {
-                            let isUser = userAnswers && userAnswers[idx] === aIdx;
+                            let isUser = userAnswered && userAnswers[idx] === aIdx;
                             let isCorrect = a.isCorrect;
                             let style = '';
                             if (isUser && isCorrect) style = 'background:#d4edda;font-weight:bold;'; // green for correct user answer
                             else if (isUser && !isCorrect) style = 'background:#f8d7da;font-weight:bold;'; // red for wrong user answer
-                            else if (isCorrect) style = 'background:#d1ecf1;'; // blue for correct answer
+                            else if (!userAnswered && isCorrect) style = 'background:#d1ecf1;'; // blue for correct answer only if user did not answer
                             html += `<li style='${style}padding:4px 8px;border-radius:4px;margin-bottom:2px;'>`;
                             if (isUser) html += `<i class='fas fa-user-check'></i> `;
                             html += `${a.text}`;
-                            if (isCorrect) html += ` <span style='color:green;font-weight:bold'>(Correct)</span>`;
+                            if (isUser && isCorrect) html += ` <span style='color:green;font-weight:bold'>(Your correct answer)</span>`;
                             if (isUser && !isCorrect) html += ` <span style='color:red;'>(Your answer)</span>`;
+                            if (!userAnswered && isCorrect) html += ` <span style='color:blue;font-weight:bold'>(Correct answer)</span>`;
                             html += `</li>`;
                           });
                           html += '</ul></div>';
@@ -161,15 +163,29 @@
                             });
                             html += `</div>`;
                           });
-                          html += `<button class='btn btn-primary' id='submit-quiz-btn-{{ module.module_id }}' onclick='submitUserQuiz({{ module.module_id }}, ${quiz.length})'>Submit Quiz</button>`;
+                          // Render submit button as disabled initially
+                          html += `<button class='btn btn-primary' id='submit-quiz-btn-{{ module.module_id }}' onclick='submitUserQuiz({{ module.module_id }}, ${quiz.length})' disabled>Submit Quiz</button>`;
                           document.getElementById('quiz-form-{{ module.module_id }}').innerHTML = html;
-                          // Add event listeners for progress update
+                          // Add event listeners for progress update and enabling submit
                           const radios = document.querySelectorAll('#quiz-form-{{ module.module_id }} .quiz-radio');
+                          function checkAllAnswered() {
+                            let allAnswered = true;
+                            for (let i = 0; i < quiz.length; i++) {
+                              if (!document.querySelector(`input[name='quiz-q${i}-m{{ module.module_id }}']:checked`)) {
+                                allAnswered = false;
+                                break;
+                              }
+                            }
+                            const submitBtn = document.getElementById('submit-quiz-btn-{{ module.module_id }}');
+                            if (submitBtn) submitBtn.disabled = !allAnswered;
+                          }
                           radios.forEach(radio => {
                             radio.addEventListener('change', function() {
                               updateQuizProgress({{ module.module_id }}, quiz.length);
+                              checkAllAnswered();
                             });
                           });
+                          checkAllAnswered(); // Initial check
                         });
                     });
                   </script>
@@ -178,10 +194,6 @@
             </div>
           </div>
         </div>
-        <form action="{{ url_for('complete_module', module_id=module.module_id) }}" method="post" style="margin-top: 1rem;">
-          <input type="hidden" name="score" value="100">
-          <button type="submit" class="btn btn-success">Complete Module (Test)</button>
-        </form>
       </div>
     </div>
   {% endfor %}
@@ -198,6 +210,8 @@
       }
     }
 
+    // This function only updates the bar visually before submission
+    // After reload, the template uses backend score
     function updateQuizProgress(moduleId, qCount) {
       let answered = 0;
       for (let i = 0; i < qCount; i++) {
@@ -212,31 +226,35 @@
 
     function submitUserQuiz(moduleId, qCount) {
       let correct = 0, total = qCount;
+      let userAnswers = [];
       fetch(`/api/load_quiz/${moduleId}`)
         .then(res => res.json())
         .then(quiz => {
-          console.log('Module:', moduleId, 'Quiz:', quiz); // Debug: log quiz data
           quiz.forEach((q, qIdx) => {
             const selected = document.querySelector(`input[name='quiz-q${qIdx}-m${moduleId}']:checked`);
             if (selected) {
               const idx = parseInt(selected.value);
-              console.log('Q', qIdx, 'Selected idx:', idx, 'Answer:', q.answers[idx]); // Debug: log selected answer
+              userAnswers[qIdx] = idx;
               if (q.answers && q.answers[idx] && (q.answers[idx].isCorrect === true || q.answers[idx].isCorrect === 'true')) correct++;
+            } else {
+              userAnswers[qIdx] = undefined;
             }
           });
-          const root = document.getElementById('quiz-user-view-' + moduleId);
-          root.innerHTML += `<div class='mt-4 alert alert-info'>You got ${correct} out of ${total} correct.</div>`;
-          // Progress Bar Update
-          const progressBar = document.querySelector(`#module-content-${moduleId} .progress-bar`);
-          const progressPercent = document.querySelector(`#module-content-${moduleId} .progress-percent`);
-          let answered = 0;
-          quiz.forEach((q, qIdx) => {
-            if (document.querySelector(`input[name='quiz-q${qIdx}-m${moduleId}']:checked`)) answered++;
-          });
-          let percent = Math.round((answered / total) * 100);
-          if (progressBar) progressBar.style.width = percent + '%';
-          if (progressPercent) progressPercent.textContent = percent + '%';
-          // Mark quiz as completed in backend
+          // Progress bar reflects completion only
+          const card = document.getElementById(`module-content-${moduleId}`).closest('.card');
+          if (card) {
+            const progressBar = card.querySelector('.progress-bar');
+            const progressPercent = card.querySelector('.progress-percent');
+            if (progressBar) {
+              progressBar.style.width = '100%';
+              progressBar.style.background = 'linear-gradient(270deg, #3498db, #2980b9, #3498db)'; // Always blue
+            }
+            if (progressPercent) {
+              progressPercent.textContent = '100%';
+              progressPercent.style.color = '#3498db'; // Blue percent text
+            }
+          }
+          // Submit to backend - mark as completed regardless of score
           fetch('/api/complete_quiz', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -244,14 +262,12 @@
               user_id: {{ current_user.User_id|default('null') }},
               module_id: moduleId,
               correct: correct,
-              total: total
+              total: total,
+              is_completed: true,
+              user_answers: userAnswers // <-- Send user's selected answers
             })
-          })
-          .then(res => res.json())
-          .then(resp => {
-            if (resp.status === 'success') {
-              setTimeout(() => { location.reload(); }, 1000);
-            }
+          }).then(() => {
+            setTimeout(() => { location.reload(); }, 1000);
           });
         });
     }
@@ -278,15 +294,29 @@
                 });
                 html += `</div>`;
               });
-              html += `<button class='btn btn-primary' id='submit-quiz-btn-${moduleId}' onclick='submitUserQuiz(${moduleId}, ${quiz.length})'>Submit Quiz</button>`;
+              // Render submit button as disabled initially
+              html += `<button class='btn btn-primary' id='submit-quiz-btn-${moduleId}' onclick='submitUserQuiz(${moduleId}, ${quiz.length})' disabled>Submit Quiz</button>`;
               quizDiv.innerHTML = html;
-              // Add event listeners for progress update
+              // Add event listeners for progress update and enabling submit
               const radios = quizDiv.querySelectorAll('.quiz-radio');
+              function checkAllAnswered() {
+                let allAnswered = true;
+                for (let i = 0; i < quiz.length; i++) {
+                  if (!document.querySelector(`input[name='quiz-q${i}-m${moduleId}']:checked`)) {
+                    allAnswered = false;
+                    break;
+                  }
+                }
+                const submitBtn = document.getElementById('submit-quiz-btn-' + moduleId);
+                if (submitBtn) submitBtn.disabled = !allAnswered;
+              }
               radios.forEach(radio => {
                 radio.addEventListener('change', function() {
                   updateQuizProgress(moduleId, quiz.length);
+                  checkAllAnswered();
                 });
               });
+              checkAllAnswered(); // Initial check
             }
           });
       });

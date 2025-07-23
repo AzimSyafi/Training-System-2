@@ -175,7 +175,8 @@ def user_dashboard():
     return render_template('user_dashboard.html',
                          user=current_user,
                          user_modules=user_modules,
-                         available_modules=available_modules)
+                         available_modules=available_modules,
+                         rating_star=current_user.rating_star)
 
 @app.route('/enroll_course')
 @login_required
@@ -852,7 +853,6 @@ def init_db():
                 postcode='90210',
                 remarks='Excellent trainee with strong work ethic',
                 rating_star=4,
-                trainer='Sarah Johnson',
                 agency_id=default_agency.agency_id if default_agency else 1,
                 number_series='SG20240001'
             )
@@ -873,7 +873,6 @@ def init_db():
                 postcode='90211',
                 remarks='Quick learner with good communication skills',
                 rating_star=5,
-                trainer='Mike Thompson',
                 agency_id=default_agency.agency_id if default_agency else 1,
                 number_series='SG20240002'
             )
@@ -894,7 +893,6 @@ def init_db():
                 postcode='90212',
                 remarks='Dedicated worker with attention to detail',
                 rating_star=3,
-                trainer='Sarah Johnson',
                 agency_id=default_agency.agency_id if default_agency else 1,
                 number_series='SG20240003'
             )
@@ -1127,7 +1125,9 @@ def api_submit_quiz(module_id):
             user_module.score = score
             user_module.is_completed = True
             user_module.completion_date = datetime.now()
-            user_module.quiz_answers = json.dumps(answers)  # Save user's answers
+            # Save user's selected answers for review
+            if 'answers' in data:
+                user_module.quiz_answers = json.dumps(data['answers'])
             db.session.commit()
         # Update user's star rating based on average score
         user_modules = UserModule.query.filter_by(user_id=user_id, is_completed=True).all()
@@ -1292,6 +1292,7 @@ def api_complete_quiz():
     module_id = data.get('module_id')
     correct = data.get('correct')
     total = data.get('total')
+    user_answers = data.get('user_answers')  # <-- Add this line to get user's answers
     from models import UserModule
     from datetime import datetime
     if not user_id or not module_id:
@@ -1304,8 +1305,41 @@ def api_complete_quiz():
     user_module.is_completed = True
     user_module.score = int((correct / total) * 100) if total else 0
     user_module.completion_date = datetime.now()
-    from models import db
+    if user_answers is not None:
+        user_module.quiz_answers = json.dumps(user_answers)
+    from models import db, Module, Certificate, User
     db.session.commit()
+    # --- Certificate issuance logic ---
+    # Check if all modules in the course are completed
+    module = Module.query.get(module_id)
+    if module:
+        course_type = module.module_type
+        all_course_modules = Module.query.filter_by(module_type=course_type).all()
+        all_module_ids = [m.module_id for m in all_course_modules]
+        completed_modules = UserModule.query.filter_by(user_id=user_id, is_completed=True).filter(UserModule.module_id.in_(all_module_ids)).all()
+        if len(completed_modules) == len(all_course_modules):
+            # Calculate average score for star rating
+            avg_score = sum([um.score for um in completed_modules]) / len(completed_modules)
+            if avg_score <= 50:
+                stars = 1
+                label = 'Needs Improvement'
+            elif avg_score > 75:
+                stars = 5
+                label = 'Great Job'
+            else:
+                stars = 3
+                label = 'Keep Practicing'
+            user = User.query.get(user_id)
+            if user:
+                user.rating_star = stars
+                user.rating_label = label
+                db.session.commit()
+            # Issue certificate if not already issued
+            cert_exists = Certificate.query.filter_by(user_id=user_id, course_type=course_type).first()
+            if not cert_exists:
+                cert = Certificate(user_id=user_id, course_type=course_type, issue_date=datetime.now(), star_rating=stars)
+                db.session.add(cert)
+                db.session.commit()
     return jsonify({'status': 'success', 'message': 'Quiz results saved.', 'correct': correct, 'total': total})
 
 @app.route('/admin/upload_cert_template', methods=['POST'])
@@ -1340,5 +1374,72 @@ def delete_certificate(cert_id):
     flash('Certificate deleted successfully!')
     return redirect(url_for('admin_certificates'))
 
+@app.route('/admin/assign_trainer', methods=['GET', 'POST'])
+@login_required
+def assign_trainer():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    from models import User, Trainer
+    users = User.query.all()
+    trainers = Trainer.query.all()
+    if request.method == 'POST':
+        user_id = request.form.get('user_id')
+        trainer_id = request.form.get('trainer_id')
+        user = User.query.get(user_id)
+        if user and trainer_id:
+            user.trainer_id = trainer_id
+            from models import db
+            db.session.commit()
+            flash('Trainer assigned successfully!', 'success')
+        return redirect(url_for('assign_trainer'))
+    return render_template('assign_trainer.html', users=users, trainers=trainers)
+
+@app.route('/admin/recalculate_ratings')
+@login_required
+def recalculate_ratings():
+    if not hasattr(current_user, 'role') or current_user.role != 'admin':
+        return 'Unauthorized', 403
+    from models import User, UserModule, db
+    users = User.query.all()
+    updated = 0
+    for user in users:
+        user_modules = UserModule.query.filter_by(user_id=user.User_id, is_completed=True).all()
+        if user_modules:
+            avg_score = sum([um.score for um in user_modules]) / len(user_modules)
+            if avg_score <= 50:
+                stars = 1
+                label = 'Needs Improvement'
+            elif avg_score > 75:
+                stars = 5
+                label = 'Great Job'
+            else:
+                stars = 3
+                label = 'Keep Practicing'
+            user.rating_star = stars
+            user.rating_label = label
+            updated += 1
+    db.session.commit()
+    flash(f"Recalculated ratings for {updated} users.", "success")
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/api/complete_course', methods=['POST'])
+@login_required
+def api_complete_course():
+    data = request.get_json()
+    course_code = data.get('course_code')
+    user_id = current_user.get_id()
+    # Find course type from course_code (assuming course_code is module_type)
+    course_type = course_code.upper()
+    try:
+        # Generate certificate
+        from generate_certificate import generate_certificate
+        generate_certificate(user_id, course_type)
+        # Optionally, mark course as completed in your DB (if you track this)
+        # ...add logic here if needed...
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 if __name__ == '__main__':
+    print('\nOpen your browser and go to: http://127.0.0.1:5000/')
     app.run(debug=True)

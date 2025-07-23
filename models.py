@@ -117,8 +117,6 @@ class User(UserMixin, db.Model):
     remarks = db.Column(db.Text)
     rating_star = db.Column(db.Integer, default=0)
     rating_label = db.Column(db.String(50), default='')
-    trainer_id = db.Column(db.Integer, db.ForeignKey('trainer.trainer_id'), nullable=True)
-    trainer = db.relationship('Trainer', backref='users', lazy=True)
     agency_id = db.Column(db.Integer, db.ForeignKey('agency.agency_id'), nullable=False)
     address = db.Column(db.Text)
     visa_number = db.Column(db.String(50))

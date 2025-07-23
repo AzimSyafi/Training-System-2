@@ -18,9 +18,28 @@
           <div class="ml-2 text-xs text-gray-600 whitespace-nowrap">{{ course.percent }}% complete</div>
         </div>
         <a href="/modules/{{ course.code }}" class="block w-full text-center border border-blue-700 bg-white text-blue-700 hover:bg-blue-700 hover:text-white font-semibold py-2 rounded-lg transition mb-2">Access Course</a>
+        <button class="block w-full text-center border border-green-700 bg-green-700 text-white font-semibold py-2 rounded-lg transition mb-2 {% if course.percent < 100 %}opacity-50 cursor-not-allowed{% endif %}" onclick="if({{ course.percent }} === 100){completeCourse('{{ course.code }}')}" {% if course.percent < 100 %}disabled{% endif %}>Complete Course</button>
       </div>
     </div>
     {% endfor %}
   </div>
 </div>
+<script>
+function completeCourse(courseCode) {
+  fetch('/api/complete_course', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ course_code: courseCode })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      alert('Course completed! Certificate issued and star rating updated.');
+      location.reload();
+    } else {
+      alert('Error: ' + (data.message || 'Could not complete course.'));
+    }
+  });
+}
+</script>
 {% endblock %}
