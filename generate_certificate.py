@@ -36,15 +36,15 @@ def generate_certificate(user_id, course_type, cert_id=None):
     score = user_module.score if user_module else 0
     # Convert score (0-100) to stars (1-5)
     stars = max(1, min(5, int(round(score / 20))))
-    # Place Name (centered at 425, 260), Bold, 28pt, Navy
-    can.setFont("Helvetica-Bold", 28)
-    can.setFillColorRGB(0.0, 0.0, 0.5)  # Navy
-    can.drawCentredString(425, 260, name)
-    # Place Module Type (centered at 425, 230), 20pt, Tosca
-    can.setFont("Helvetica", 20)
-    can.setFillColorRGB(0.82, 0.36, 0.36)  # Tosca (approx RGB: #D15B5B)
+    passport_ic = getattr(user, 'passport_number', None) or getattr(user, 'ic_number', None) or getattr(user, 'number_series', None) or 'N/A'
+    # Place Name (centered at 425, 290), Times New Roman, 28pt, Black
+    can.setFont("Times-Roman", 28)
+    can.setFillColorRGB(0, 0, 0)
+    can.drawCentredString(425, 290, name)
+    # Passport/IC, Module, Stars, Date text, Date all Times New Roman, 14pt, Black
+    can.setFont("Times-Roman", 14)
+    can.drawCentredString(425, 260, f"Passport/IC: {passport_ic}")
     can.drawCentredString(425, 230, course_type.upper())
-
     # Register DejaVuSans font for star rendering (use correct path)
     font_path = os.path.join('static', 'cert_templates', 'dejavu-fonts-ttf-2.37', 'ttf', 'DejaVuSans.ttf')
     if os.path.exists(font_path):
@@ -56,12 +56,10 @@ def generate_certificate(user_id, course_type, cert_id=None):
     can.setFont(star_font, 20)
     can.setFillColorRGB(0, 0, 0)
     can.drawCentredString(425, 200, '\u2605' * stars)
-
-    # Place Date (left at 50, 100), 12pt, Dark Gray
-    can.setFont("Helvetica", 12)
-    can.setFillColorRGB(0.33, 0.33, 0.33)  # Dark Gray
-    can.drawString(50, 100, date_str)
-    can.setFillColorRGB(0, 0, 0)  # Reset color
+    # Set font size for text and date to 12
+    can.setFont("Times-Roman", 12)
+    can.drawCentredString(425, 170, "received training and fulfilled the requirements on")
+    can.drawCentredString(425, 140, date_str)
     can.save()
     packet.seek(0)
 

@@ -1,31 +1,34 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="max-w-5xl mx-auto p-4">
-  <!-- Profile Picture and Profile Number in Personal Information -->
+  <!-- Personal Information -->
   <div class="bg-white rounded-xl shadow p-6 mb-8" id="personal-info-section">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-xl font-bold text-blue-900">Personal Information</h2>
     </div>
-    <div class="flex justify-center mb-4">
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="flex flex-col items-center">
+    <div class="flex justify-start mb-4">
+      <div class="flex gap-6">
+        <!-- Profile Picture -->
+        <div class="w-32 flex flex-col items-start">
           <img id="profile-img" src="{{ url_for('static', filename='profile_pics/' ~ user.Profile_picture) if user.Profile_picture else url_for('static', filename='default_avatar.png') }}" alt="Profile Picture" class="w-28 h-28 rounded-full object-cover border-4 border-blue-200 mb-2">
         </div>
-        <div id="personal-info-fields">
+
+        <!-- Info Fields -->
+        <div id="personal-info-fields" class="text-left">
           <div class="text-gray-500 text-sm">Full Name</div>
           <div class="font-semibold text-lg" id="full_name_display">{{ user.full_name }}</div>
           <div class="text-gray-500 text-sm mt-2">User ID</div>
           <div class="font-semibold text-lg">{{ user.user_id }}</div>
-          <div class="text-gray-500 text-sm">Email</div>
+          <div class="text-gray-500 text-sm mt-2">Email</div>
           <div class="font-semibold text-lg" id="email_display">{{ user.email }}</div>
-          <div class="text-gray-500 text-sm">Address</div>
+          <div class="text-gray-500 text-sm mt-2">Address</div>
           <div class="font-semibold text-lg" id="address_display">{{ user.address }}</div>
-          <div class="text-gray-500 text-sm">Postcode</div>
+          <div class="text-gray-500 text-sm mt-2">Postcode</div>
           <div class="font-semibold text-lg" id="postcode_display">{{ user.postcode }}</div>
-          <div class="text-gray-500 text-sm">State</div>
+          <div class="text-gray-500 text-sm mt-2">State</div>
           <div class="font-semibold text-lg" id="state_display">{{ user.state }}</div>
         </div>
-      </div> <!-- end of personal info grid -->
+      </div>
     </div>
     <div class="flex justify-end mt-4">
       <button id="open-profile-modal" class="px-6 py-2 bg-blue-700 text-white rounded shadow hover:bg-blue-800 font-bold">Edit Profile</button>
@@ -132,9 +135,9 @@
   <div id="profile-success" class="hidden bg-green-100 text-green-800 px-4 py-2 rounded mb-4"></div>
   <div id="profile-error" class="hidden bg-red-100 text-red-800 px-4 py-2 rounded mb-4"></div>
 </div>
+
 <script src="{{ url_for('static', filename='profile_edit.js') }}"></script>
 <script>
-// Modal open/close logic
 const openModalBtn = document.getElementById('open-profile-modal');
 const modal = document.getElementById('profile-modal');
 const closeModalBtn = document.getElementById('close-profile-modal');
@@ -148,7 +151,6 @@ if (closeModalBtn && modal) {
 if (cancelModalBtn && modal) {
   cancelModalBtn.onclick = () => { modal.classList.add('hidden'); };
 }
-// Save button logic
 const saveProfileBtn = document.getElementById('save-profile-modal');
 if (saveProfileBtn) {
   saveProfileBtn.onclick = saveProfileModal;
