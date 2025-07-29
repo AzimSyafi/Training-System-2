@@ -30,9 +30,14 @@
                                 </div>
                                 {% endif %}
 
-                                <h6 class="card-title">{{ certificate.module.module_name }}</h6>
+                                {# <h6 class="card-title">{{ certificate.module.module_name }}</h6> #}
                                 <p class="card-text">
-                                    <strong>Module Type:</strong> {{ certificate.module_type }}<br>
+                                    {# Display full module type name based on value #}
+                                    {% set module_type_map = {
+                                        'TNG': 'NEPAL SECURITY GUARD TRAINING (TNG)',
+                                        'CSG': 'CERTIFIED SECURITY GUARD (CSG)',
+                                    } %}
+                                    <strong>{{ module_type_map.get(certificate.module_type, certificate.module_type) }}</strong><br>
                                     <strong>Issue Date:</strong> {{ certificate.issue_date.strftime('%B %d, %Y') }}<br>
                                     <strong>Rating:</strong>
                                     {% for i in range(1, 6) %}
@@ -42,6 +47,10 @@
                                             <i class="far fa-star text-muted"></i>
                                         {% endif %}
                                     {% endfor %}
+                                    {# Show overall score if available #}
+                                    {% if certificate.overall_score is defined %}
+                                        <span class="ml-2">score: {{ certificate.overall_score }}/100</span>
+                                    {% endif %}
                                     {% if certificate.user_new and certificate.user_new.rating_label %}
                                         <span class="ml-2 font-semibold"
                                             style="color: {% if certificate.user_new.rating_star == 1 %}#dc2626{% elif certificate.user_new.rating_star == 3 %}#2563eb{% elif certificate.user_new.rating_star == 5 %}#16a34a{% else %}#6b7280{% endif %};">
@@ -49,7 +58,7 @@
                                         </span>
                                     {% endif %}
                                 </p>
-                                <a href="{{ certificate.certificate_url }}" class="btn btn-primary" target="_blank">
+                                <a href="#" class="btn btn-primary" onclick="confirmDownload('{{ certificate.certificate_url }}'); return false;">
                                     <i class="fas fa-download"></i> Download Certificate
                                 </a>
                             </div>
@@ -68,4 +77,12 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+function confirmDownload(url) {
+    if (confirm('Download as PDF?')) {
+        window.open(url, '_blank');
+    }
+}
+</script>
 {% endblock %}

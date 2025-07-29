@@ -1,96 +1,117 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="max-w-5xl mx-auto p-4">
-  <!-- Personal Information -->
-  <div class="bg-white rounded-xl shadow p-6 mb-8" id="personal-info-section">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl font-bold text-blue-900">Personal Information</h2>
-    </div>
-    <div class="flex justify-start mb-4">
-      <div class="flex gap-6">
-        <!-- Profile Picture -->
-        <div class="w-32 flex flex-col items-start">
-          <img id="profile-img" src="{{ url_for('static', filename='profile_pics/' ~ user.Profile_picture) if user.Profile_picture else url_for('static', filename='default_avatar.png') }}" alt="Profile Picture" class="w-28 h-28 rounded-full object-cover border-4 border-blue-200 mb-2">
+  <!-- Header -->
+  <div class="flex justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold">My Profile</h1>
+    <div class="flex gap-2 relative">
+      <div class="relative inline-block text-left">
+        <button id="exportDropdownBtn" type="button" class="px-4 py-2 bg-green-600 text-white rounded shadow hover:bg-green-700 font-bold flex items-center" tabindex="0">
+          <span>Export</span>
+          <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+        <div id="exportDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded shadow-lg z-10">
+          <button onclick="printProfileSection()" class="block w-full text-left px-4 py-2 hover:bg-gray-100">Print</button>
+          <button onclick="downloadProfilePDF()" class="block w-full text-left px-4 py-2 hover:bg-gray-100">Download PDF</button>
         </div>
-
-        <!-- Info Fields -->
-        <div id="personal-info-fields" class="text-left">
-          <div class="text-gray-500 text-sm">Full Name</div>
-          <div class="font-semibold text-lg" id="full_name_display">{{ user.full_name }}</div>
-          <div class="text-gray-500 text-sm mt-2">User ID</div>
-          <div class="font-semibold text-lg">{{ user.user_id }}</div>
-          <div class="text-gray-500 text-sm mt-2">Email</div>
-          <div class="font-semibold text-lg" id="email_display">{{ user.email }}</div>
-          <div class="text-gray-500 text-sm mt-2">Address</div>
-          <div class="font-semibold text-lg" id="address_display">{{ user.address }}</div>
-          <div class="text-gray-500 text-sm mt-2">Postcode</div>
-          <div class="font-semibold text-lg" id="postcode_display">{{ user.postcode }}</div>
-          <div class="text-gray-500 text-sm mt-2">State</div>
-          <div class="font-semibold text-lg" id="state_display">{{ user.state }}</div>
-        </div>
+        <!-- Add a visible debug span to confirm JS loads -->
+        <span id="export-debug-msg" class="text-xs text-red-600 ml-2"></span>
       </div>
     </div>
-    <div class="flex justify-end mt-4">
-      <button id="open-profile-modal" class="px-6 py-2 bg-blue-700 text-white rounded shadow hover:bg-blue-800 font-bold">Edit Profile</button>
-    </div>
-    <div id="personal-info-errors" class="mt-2 text-red-600 text-sm"></div>
   </div>
 
-  <!-- Working Info -->
-  <div class="bg-white rounded-xl shadow p-6 mb-8" id="working-info-section">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl font-bold text-blue-900">Working Info</h2>
-    </div>
-    <div id="working-info-fields">
-      <div class="text-gray-500 text-sm">Working Experience</div>
-      <div class="font-semibold text-lg" id="working_experience_display">{{ user.working_experience }}</div>
-      <div class="text-gray-500 text-sm">Recruitment Date</div>
-      <div class="font-semibold text-lg" id="recruitment_date_display">{{ user.recruitment_date }}</div>
-      <div class="text-gray-500 text-sm">Rating Star</div>
-      <div class="font-semibold text-lg" id="rating_star_display">{{ user.rating_star }}</div>
-      <div class="text-gray-500 text-sm">Visa Number</div>
-      <div class="font-semibold text-lg" id="visa_number_display">{{ user.visa_number }}</div>
-      <div class="text-gray-500 text-sm">Visa Expiry Date</div>
-      <div class="font-semibold text-lg" id="visa_expiry_date_display">{{ user.visa_expiry_date }}</div>
-    </div>
-  </div>
+  <div id="profile-export-section">
+    <!-- Personal Information -->
+    <div class="bg-white rounded-xl shadow p-6 mb-8" id="personal-info-section">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-blue-900">Personal Information</h2>
+      </div>
+      <div class="flex justify-start mb-4">
+        <div class="flex gap-6">
+          <!-- Profile Picture -->
+          <div class="w-32 flex flex-col items-start">
+            <img id="profile-img" src="{{ url_for('static', filename='profile_pics/' ~ user.Profile_picture) if user.Profile_picture else url_for('static', filename='default_avatar.png') }}" alt="Profile Picture" class="w-28 h-28 rounded-full object-cover border-4 border-blue-200 mb-2">
+          </div>
 
-  <!-- Current Workplace & Agency Info -->
-  <div class="bg-white rounded-xl shadow p-6 mb-8" id="workplace-section">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl font-bold text-blue-900">Current Workplace & Agency Info</h2>
+          <!-- Info Fields -->
+          <div id="personal-info-fields" class="text-left">
+            <div class="text-gray-500 text-sm">Full Name</div>
+            <div class="font-semibold text-lg" id="full_name_display">{{ user.full_name }}</div>
+            <div class="text-gray-500 text-sm mt-2">User ID</div>
+            <div class="font-semibold text-lg">{{ user.user_id }}</div>
+            <div class="text-gray-500 text-sm mt-2">Email</div>
+            <div class="font-semibold text-lg" id="email_display">{{ user.email }}</div>
+            <div class="text-gray-500 text-sm mt-2">Address</div>
+            <div class="font-semibold text-lg" id="address_display">{{ user.address }}</div>
+            <div class="text-gray-500 text-sm mt-2">Postcode</div>
+            <div class="font-semibold text-lg" id="postcode_display">{{ user.postcode }}</div>
+            <div class="text-gray-500 text-sm mt-2">State</div>
+            <div class="font-semibold text-lg" id="state_display">{{ user.state }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-end mt-4">
+        <button id="open-profile-modal" class="px-6 py-2 bg-blue-700 text-white rounded shadow hover:bg-blue-800 font-bold">Edit Profile</button>
+      </div>
+      <div id="personal-info-errors" class="mt-2 text-red-600 text-sm"></div>
     </div>
-    <div id="workplace-fields">
-      <div class="text-gray-500 text-sm">Current Workplace</div>
-      <div class="font-semibold text-lg" id="current_workplace_display">{{ user.current_workplace }}</div>
-      <div class="text-gray-500 text-sm">Agency ID</div>
-      <div class="font-semibold text-lg" id="agency_id_display">{{ user.agency_id }}</div>
-      <div class="text-gray-500 text-sm">Agency Name</div>
-      <div class="font-semibold text-lg" id="agency_name_display">{{ user.agency.agency_name if user.agency else '' }}</div>
-    </div>
-    <div id="workplace-edit-actions" class="hidden flex gap-2 mt-4 justify-end">
-      <button type="button" class="save-btn bg-blue-700 text-white px-4 py-2 rounded shadow hover:bg-blue-800 font-bold" data-section="workplace">Save</button>
-      <button type="button" class="cancel-btn bg-gray-200 text-gray-700 px-4 py-2 rounded shadow hover:bg-gray-300 font-bold" data-section="workplace">Cancel</button>
-    </div>
-    <div id="workplace-errors" class="mt-2 text-red-600 text-sm"></div>
-  </div>
 
-  <!-- Emergency Contact -->
-  <div class="bg-white rounded-xl shadow p-6 mb-8" id="emergency-section">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl font-bold text-blue-900">Emergency Contact</h2>
+    <!-- Working Info -->
+    <div class="bg-white rounded-xl shadow p-6 mb-8" id="working-info-section">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-blue-900">Working Info</h2>
+      </div>
+      <div id="working-info-fields">
+        <div class="text-gray-500 text-sm">Working Experience</div>
+        <div class="font-semibold text-lg" id="working_experience_display">{{ user.working_experience }}</div>
+        <div class="text-gray-500 text-sm">Recruitment Date</div>
+        <div class="font-semibold text-lg" id="recruitment_date_display">{{ user.recruitment_date }}</div>
+        <div class="text-gray-500 text-sm">Rating Star</div>
+        <div class="font-semibold text-lg" id="rating_star_display">{{ user.rating_star }}</div>
+        <div class="text-gray-500 text-sm">Visa Number</div>
+        <div class="font-semibold text-lg" id="visa_number_display">{{ user.visa_number }}</div>
+        <div class="text-gray-500 text-sm">Visa Expiry Date</div>
+        <div class="font-semibold text-lg" id="visa_expiry_date_display">{{ user.visa_expiry_date }}</div>
+      </div>
     </div>
-    <div id="emergency-fields">
-      <div class="text-gray-500 text-sm">Emergency Contact</div>
-      <div class="font-semibold text-lg" id="emergency_contact_display">{{ user.emergency_contact }}</div>
-      <div class="text-gray-500 text-sm">Emergency Relationship</div>
-      <div class="font-semibold text-lg" id="emergency_relationship_display">{{ user.emergency_relationship }}</div>
+
+    <!-- Current Workplace & Agency Info -->
+    <div class="bg-white rounded-xl shadow p-6 mb-8" id="workplace-section">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-blue-900">Current Workplace & Agency Info</h2>
+      </div>
+      <div id="workplace-fields">
+        <div class="text-gray-500 text-sm">Current Workplace</div>
+        <div class="font-semibold text-lg" id="current_workplace_display">{{ user.current_workplace }}</div>
+        <div class="text-gray-500 text-sm">Agency ID</div>
+        <div class="font-semibold text-lg" id="agency_id_display">{{ user.agency_id }}</div>
+        <div class="text-gray-500 text-sm">Agency Name</div>
+        <div class="font-semibold text-lg" id="agency_name_display">{{ user.agency.agency_name if user.agency else '' }}</div>
+      </div>
+      <div id="workplace-edit-actions" class="hidden flex gap-2 mt-4 justify-end">
+        <button type="button" class="save-btn bg-blue-700 text-white px-4 py-2 rounded shadow hover:bg-blue-800 font-bold" data-section="workplace">Save</button>
+        <button type="button" class="cancel-btn bg-gray-200 text-gray-700 px-4 py-2 rounded shadow hover:bg-gray-300 font-bold" data-section="workplace">Cancel</button>
+      </div>
+      <div id="workplace-errors" class="mt-2 text-red-600 text-sm"></div>
     </div>
-    <div id="emergency-edit-actions" class="hidden flex gap-2 mt-4 justify-end">
-      <button type="button" class="save-btn bg-blue-700 text-white px-4 py-2 rounded shadow hover:bg-blue-800 font-bold" data-section="emergency">Save</button>
-      <button type="button" class="cancel-btn bg-gray-200 text-gray-700 px-4 py-2 rounded shadow hover:bg-gray-300 font-bold" data-section="emergency">Cancel</button>
+
+    <!-- Emergency Contact -->
+    <div class="bg-white rounded-xl shadow p-6 mb-8" id="emergency-section">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-blue-900">Emergency Contact</h2>
+      </div>
+      <div id="emergency-fields">
+        <div class="text-gray-500 text-sm">Emergency Contact</div>
+        <div class="font-semibold text-lg" id="emergency_contact_display">{{ user.emergency_contact }}</div>
+        <div class="text-gray-500 text-sm">Emergency Relationship</div>
+        <div class="font-semibold text-lg" id="emergency_relationship_display">{{ user.emergency_relationship }}</div>
+      </div>
+      <div id="emergency-edit-actions" class="hidden flex gap-2 mt-4 justify-end">
+        <button type="button" class="save-btn bg-blue-700 text-white px-4 py-2 rounded shadow hover:bg-blue-800 font-bold" data-section="emergency">Save</button>
+        <button type="button" class="cancel-btn bg-gray-200 text-gray-700 px-4 py-2 rounded shadow hover:bg-gray-300 font-bold" data-section="emergency">Cancel</button>
+      </div>
+      <div id="emergency-errors" class="mt-2 text-red-600 text-sm"></div>
     </div>
-    <div id="emergency-errors" class="mt-2 text-red-600 text-sm"></div>
   </div>
 
   <!-- Profile Edit Modal -->
@@ -137,23 +158,79 @@
 </div>
 
 <script src="{{ url_for('static', filename='profile_edit.js') }}"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- Inline script moved to ensure html2pdf is loaded first -->
 <script>
-const openModalBtn = document.getElementById('open-profile-modal');
-const modal = document.getElementById('profile-modal');
-const closeModalBtn = document.getElementById('close-profile-modal');
-const cancelModalBtn = document.getElementById('cancel-profile-modal');
-if (openModalBtn && modal) {
-  openModalBtn.onclick = () => { modal.classList.remove('hidden'); };
+function printProfileSection() {
+  const printContents = document.getElementById('profile-export-section').outerHTML;
+  const win = window.open('', '', 'height=700,width=900');
+  win.document.write('<html><head><title>Print Profile</title>');
+  win.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">');
+  win.document.write('</head><body>');
+  win.document.write(printContents);
+  win.document.write('</body></html>');
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); win.close(); }, 500);
 }
-if (closeModalBtn && modal) {
-  closeModalBtn.onclick = () => { modal.classList.add('hidden'); };
+
+function downloadProfilePDF() {
+  if (confirm('Download as PDF?')) {
+    const element = document.getElementById('profile-export-section');
+    html2pdf().set({
+      margin: 0.5,
+      filename: 'profile.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+    }).from(element).save();
+  }
 }
-if (cancelModalBtn && modal) {
-  cancelModalBtn.onclick = () => { modal.classList.add('hidden'); };
+
+function saveProfileModal() {
+  // Placeholder: implement profile saving logic here
+  alert('Profile saved! (placeholder)');
 }
-const saveProfileBtn = document.getElementById('save-profile-modal');
-if (saveProfileBtn) {
-  saveProfileBtn.onclick = saveProfileModal;
-}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const openModalBtn = document.getElementById('open-profile-modal');
+  const modal = document.getElementById('profile-modal');
+  const closeModalBtn = document.getElementById('close-profile-modal');
+  const cancelModalBtn = document.getElementById('cancel-profile-modal');
+  if (openModalBtn && modal) {
+    openModalBtn.onclick = () => { modal.classList.remove('hidden'); };
+  }
+  if (closeModalBtn && modal) {
+    closeModalBtn.onclick = () => { modal.classList.add('hidden'); };
+  }
+  if (cancelModalBtn && modal) {
+    cancelModalBtn.onclick = () => { modal.classList.add('hidden'); };
+  }
+  const saveProfileBtn = document.getElementById('save-profile-modal');
+  if (saveProfileBtn) {
+    saveProfileBtn.onclick = saveProfileModal;
+  }
+  // Dropdown functionality
+  const exportDropdownBtn = document.getElementById('exportDropdownBtn');
+  const exportDropdown = document.getElementById('exportDropdown');
+  if (exportDropdownBtn && exportDropdown) {
+    exportDropdownBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (exportDropdown.classList.contains('hidden')) {
+        exportDropdown.classList.remove('hidden');
+      } else {
+        exportDropdown.classList.add('hidden');
+      }
+    });
+    exportDropdown.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+    document.addEventListener('click', function(e) {
+      if (!exportDropdown.classList.contains('hidden')) {
+        exportDropdown.classList.add('hidden');
+      }
+    });
+  }
+});
 </script>
 {% endblock %}

@@ -291,4 +291,3 @@ function cancelEdit(section) {
 function validateEmail(email) {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
 }
-// ...expand for other sections as needed...

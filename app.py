@@ -306,6 +306,7 @@ def my_certificates():
         user_module = UserModule.query.filter_by(user_id=cert.user_id, module_id=cert.module_id).first()
         score = user_module.score if user_module else 0
         cert.star_rating = max(1, min(5, int(round(score / 20))))
+        cert.overall_score = int(score) if user_module else 0
     return render_template('my_certificates.html', certificates=certificates)
 
 # Admin Dashboard and Workflow
