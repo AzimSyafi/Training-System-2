@@ -13,6 +13,7 @@ import re
 import urllib.parse
 from flask import request, jsonify
 import json
+import logging
 
 app = Flask(__name__, static_url_path='/static')
 app.config['SECRET_KEY'] = 'your-secret-key-here'
@@ -28,6 +29,9 @@ app.config['UPLOAD_FOLDER'] = 'static/profile_pics'
 # Change upload content folder to static/uploads for public access
 UPLOAD_CONTENT_FOLDER = os.path.join('static', 'uploads')
 os.makedirs(UPLOAD_CONTENT_FOLDER, exist_ok=True)
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 
 def extract_youtube_id(url):
     """Extracts YouTube video ID from a URL."""
@@ -301,13 +305,35 @@ def my_certificates():
         return redirect(url_for('login'))
 
     certificates = Certificate.query.filter_by(user_id=current_user.User_id).all()
-    from models import UserModule
+    from models import UserModule, Module
+    import json
+    user_modules = UserModule.query.filter_by(user_id=current_user.User_id).all()
+    total_correct = 0
+    total_questions = 0
+    for um in user_modules:
+        if um.quiz_answers:
+            try:
+                # quiz_answers is a list of selected answer indices
+                selected_indices = json.loads(um.quiz_answers)
+                module = Module.query.get(um.module_id)
+                if module and module.quiz_json:
+                    quiz = json.loads(module.quiz_json)
+                    for idx, selected in enumerate(selected_indices):
+                        if idx < len(quiz):
+                            total_questions += 1
+                            answers = quiz[idx].get('answers', [])
+                            if isinstance(selected, int) and 0 <= selected < len(answers):
+                                if answers[selected].get('isCorrect') in [True, 'true', 'True', 1, '1']:
+                                    total_correct += 1
+            except Exception:
+                continue
+    overall_percentage = int((total_correct / total_questions) * 100) if total_questions > 0 else 0
     for cert in certificates:
         user_module = UserModule.query.filter_by(user_id=cert.user_id, module_id=cert.module_id).first()
         score = user_module.score if user_module else 0
         cert.star_rating = max(1, min(5, int(round(score / 20))))
         cert.overall_score = int(score) if user_module else 0
-    return render_template('my_certificates.html', certificates=certificates)
+    return render_template('my_certificates.html', certificates=certificates, overall_percentage=overall_percentage)
 
 # Admin Dashboard and Workflow
 @app.route('/admin_dashboard')
@@ -665,7 +691,7 @@ def course_modules(course_code):
         return redirect(url_for('login'))
 
     # Filter modules based on the course code (e.g., 'TNG' or 'CSG')
-    modules = Module.query.filter(Module.module_type == course_code.upper()).all()
+    modules = Module.query.filter(Module.module_type == course_code.upper()).order_by(Module.series_number).all()
 
     if not modules:
         flash('No modules found for this course.')
@@ -678,6 +704,21 @@ def course_modules(course_code):
             UserModule.module_id.in_([m.module_id for m in modules])
         ).all()
     }
+
+    # Sequential unlocking logic
+    unlocked_modules = set()
+    for idx, module in enumerate(modules):
+        if idx == 0:
+            unlocked_modules.add(module.module_id)
+        else:
+            prev_module = modules[idx - 1]
+            prev_progress = user_progress.get(prev_module.module_id)
+            if prev_progress and prev_progress.is_completed:
+                unlocked_modules.add(module.module_id)
+
+    # Attach unlocked status to each module
+    for module in modules:
+        module.unlocked = module.module_id in unlocked_modules
 
     course_name = "NEPAL SECURITY GUARD TRAINING (TNG)" if course_code.lower() == 'tng' else "CERTIFIED SECURITY GUARD (CSG)"
 
@@ -1109,9 +1150,12 @@ def api_submit_quiz(module_id):
     for idx, q in enumerate(quiz):
         if idx < len(answers):
             ans_idx = answers[idx]
+            logging.debug(f"Q{idx+1}: User answer index: {ans_idx}, isCorrect: {q['answers'][ans_idx].get('isCorrect', False)}")
             if 0 <= ans_idx < len(q['answers']) and q['answers'][ans_idx].get('isCorrect'):
                 correct += 1
+    logging.debug(f"Total correct: {correct} / {total}")
     score = int((correct / total) * 100) if total > 0 else 0
+    logging.debug(f"Calculated score: {score}")
     feedback = 'Great job!' if score >= 75 else ('Keep practicing.' if score >= 50 else 'Needs improvement.')
 
     # Update UserModule score and is_completed
@@ -1291,24 +1335,36 @@ def api_complete_quiz():
     data = request.get_json()
     user_id = data.get('user_id')
     module_id = data.get('module_id')
-    correct = data.get('correct')
-    total = data.get('total')
-    user_answers = data.get('user_answers')  # <-- Add this line to get user's answers
-    from models import UserModule
+    user_answers = data.get('user_answers')
+    from models import UserModule, Module, db
     from datetime import datetime
     if not user_id or not module_id:
         return jsonify({'status': 'error', 'message': 'Missing user_id or module_id'}), 400
     user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
     if not user_module:
         user_module = UserModule(user_id=user_id, module_id=module_id)
-        from models import db
         db.session.add(user_module)
     user_module.is_completed = True
-    user_module.score = int((correct / total) * 100) if total else 0
     user_module.completion_date = datetime.now()
+    # Securely recalculate score from quiz data
+    module = Module.query.get(module_id)
+    quiz = []
+    if module and module.quiz_json:
+        import json as pyjson
+        quiz = pyjson.loads(module.quiz_json)
+    correct = 0
+    total = len(quiz)
+    if user_answers and quiz:
+        for idx, q in enumerate(quiz):
+            if idx < len(user_answers):
+                ans_idx = user_answers[idx]
+                if isinstance(ans_idx, int) and 0 <= ans_idx < len(q['answers']):
+                    if q['answers'][ans_idx].get('isCorrect') in [True, 'true', 'True', 1, '1']:
+                        correct += 1
+    user_module.score = int((correct / total) * 100) if total else 0
     if user_answers is not None:
-        user_module.quiz_answers = json.dumps(user_answers)
-    from models import db, Module, Certificate, User
+        import json as pyjson
+        user_module.quiz_answers = pyjson.dumps(user_answers)
     db.session.commit()
     # --- Certificate issuance logic ---
     # Check if all modules in the course are completed
@@ -1373,6 +1429,27 @@ def delete_certificate(cert_id):
     db.session.delete(certificate)
     db.session.commit()
     flash('Certificate deleted successfully!')
+    return redirect(url_for('admin_certificates'))
+
+@app.route('/admin/delete_certificates_bulk', methods=['POST'])
+@login_required
+def delete_certificates_bulk():
+    if not hasattr(current_user, 'role') or current_user.role != 'admin':
+        flash('Unauthorized action.')
+        return redirect(url_for('admin_certificates'))
+    from models import Certificate, db
+    cert_ids = request.form.getlist('cert_ids')
+    if not cert_ids:
+        flash('No certificates selected.', 'warning')
+        return redirect(url_for('admin_certificates'))
+    deleted = 0
+    for cert_id in cert_ids:
+        cert = Certificate.query.get(cert_id)
+        if cert:
+            db.session.delete(cert)
+            deleted += 1
+    db.session.commit()
+    flash(f'{deleted} certificate(s) deleted successfully!', 'success')
     return redirect(url_for('admin_certificates'))
 
 @app.route('/admin/assign_trainer', methods=['GET', 'POST'])

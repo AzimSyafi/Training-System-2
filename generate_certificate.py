@@ -56,6 +56,9 @@ def generate_certificate(user_id, course_type, cert_id=None):
     can.setFont(star_font, 20)
     can.setFillColorRGB(0, 0, 0)
     can.drawCentredString(425, 200, '\u2605' * stars)
+    # Draw score under the stars
+    can.setFont("Times-Roman", 14)
+    can.drawCentredString(425, 180, f"Score: {score}")
     # Set font size for text and date to 12
     can.setFont("Times-Roman", 12)
     can.drawCentredString(425, 170, "received training and fulfilled the requirements on")

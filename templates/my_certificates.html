@@ -39,26 +39,37 @@
                                     } %}
                                     <strong>{{ module_type_map.get(certificate.module_type, certificate.module_type) }}</strong><br>
                                     <strong>Issue Date:</strong> {{ certificate.issue_date.strftime('%B %d, %Y') }}<br>
-                                    <strong>Rating:</strong>
+                                    <strong>Star Rating:</strong>
+                                    {% set percent = overall_percentage %}
+                                    {% if percent < 20 %}
+                                        {% set stars = 1 %}
+                                    {% elif percent < 40 %}
+                                        {% set stars = 2 %}
+                                    {% elif percent < 50 %}
+                                        {% set stars = 3 %}
+                                    {% elif percent < 60 %}
+                                        {% set stars = 3 %}
+                                    {% elif percent < 70 %}
+                                        {% set stars = 4 %}
+                                    {% else %}
+                                        {% set stars = 5 %}
+                                    {% endif %}
+                                    <span>
                                     {% for i in range(1, 6) %}
-                                        {% if i <= certificate.star_rating %}
-                                            <i class="fas fa-star text-warning"></i>
+                                        {% if i <= stars %}
+                                            <span style="color: gold; font-size: 2rem;">&#9733;</span>
                                         {% else %}
-                                            <i class="far fa-star text-muted"></i>
+                                            <span style="color: #ccc; font-size: 2rem;">&#9733;</span>
                                         {% endif %}
                                     {% endfor %}
-                                    {# Show overall score if available #}
-                                    {% if certificate.overall_score is defined %}
-                                        <span class="ml-2">score: {{ certificate.overall_score }}/100</span>
-                                    {% endif %}
-                                    {% if certificate.user_new and certificate.user_new.rating_label %}
-                                        <span class="ml-2 font-semibold"
-                                            style="color: {% if certificate.user_new.rating_star == 1 %}#dc2626{% elif certificate.user_new.rating_star == 3 %}#2563eb{% elif certificate.user_new.rating_star == 5 %}#16a34a{% else %}#6b7280{% endif %};">
-                                            {{ certificate.user_new.rating_label }}
-                                        </span>
-                                    {% endif %}
+                                    <span style="font-size: 1.3rem; margin-left: 10px; vertical-align: middle;">({{ overall_percentage }}%)</span>
+                                    </span>
                                 </p>
-                                <a href="#" class="btn btn-primary" onclick="confirmDownload('{{ certificate.certificate_url }}'); return false;">
+                                {% set raw_cert_url = certificate.certificate_url if certificate.certificate_url else 'certificate_' ~ certificate.user_id ~ '_' ~ certificate.module_type ~ '.pdf' %}
+                                {% set clean_cert_url = raw_cert_url.replace('static/certificates/', '').replace('static\\certificates\\', '').replace('static\\certificates/', '').replace('static/certificates\\', '').replace('static/', '').replace('static\\', '').replace('certificates/', '').replace('certificates\\', '') %}
+                                {% set clean_cert_url = clean_cert_url.replace('\\', '/') %}
+                                {% set cert_url = url_for('static', filename='certificates/' ~ clean_cert_url) %}
+                                <a href="{{ cert_url }}" class="btn btn-primary" target="_blank">
                                     <i class="fas fa-download"></i> Download Certificate
                                 </a>
                             </div>

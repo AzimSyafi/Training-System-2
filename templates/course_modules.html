@@ -14,26 +14,24 @@
     {% set user_module = user_progress.get(module.module_id) %}
     {% set open_module = False %} {# Always closed by default #}
     <div class="card shadow mb-6">
-      <div class="card-header bg-blue-800 text-white p-4 flex justify-between items-center cursor-pointer" onclick="toggleModule('{{ module.module_id }}')">
-        <div>
-          <h3 class="text-xl font-bold">{{ module.module_name }}</h3>
+      <div class="card-header bg-blue-800 text-white p-4 flex justify-between items-center {% if not module.unlocked %}opacity-60 cursor-not-allowed{% else %}cursor-pointer{% endif %}" {% if module.unlocked %}onclick="toggleModule('{{ module.module_id }}')"{% endif %}>
+        <div class="flex items-center">
+          <h3 class="text-xl font-bold mr-2">{{ module.module_name }}</h3>
           <span class="font-semibold text-xs bg-blue-100 text-blue-800 rounded px-2 py-1 mb-2 inline-block">{{ module.series_number }}</span>
-          <div class="progress-bar-container w-full h-4 bg-gray-200 rounded-full overflow-hidden mt-2">
-            {% set progress = user_progress.get(module.module_id) %}
-            <div class="progress-bar h-4 rounded-full" style="width: {{ 100 if progress and progress.is_completed else 0 }}%; background: linear-gradient(270deg, #3498db, #2980b9, #3498db); background-size: 400% 100%; animation: loading 2s linear infinite;"></div>
-          </div>
-          <div class="flex justify-between items-center mt-1">
-            <span class="progress-label font-semibold text-gray-100">Progress</span>
-            <span class="progress-percent font-bold text-white">{{ 100 if progress and progress.is_completed else 0 }}%</span>
-          </div>
+          {% if not module.unlocked %}
+            <span class="ml-2 text-red-500" title="Locked"><i class="fas fa-lock"></i> Locked</span>
+          {% endif %}
         </div>
         <div>
           {% set progress = user_progress.get(module.module_id) %}
-          {# Removed completed/in progress status bar #}
         </div>
         <i class="fas fa-chevron-down text-xl transition-transform duration-300" id="chevron-{{ module.module_id }}"></i>
       </div>
-      <div class="card-body p-6" id="module-content-{{ module.module_id }}" style="display:{{ 'block' if open_module else 'none' }};">
+      <div class="card-body p-6" id="module-content-{{ module.module_id }}" style="display:{{ 'block' if open_module else 'none' }}; {% if not module.unlocked %}pointer-events:none;opacity:0.5;{% endif %}">
+        {% if not module.unlocked %}
+          <div class="text-center text-red-500 font-bold mb-4">This module is locked. Complete the previous module to unlock.</div>
+        {% endif %}
+        {% if module.unlocked %}
         <p class="text-gray-700 mb-6">{{ module.content }}</p>
         <!-- Tab Navigation -->
         <ul class="nav nav-tabs mb-4" id="myTab-{{ module.module_id }}" role="tablist">
@@ -196,6 +194,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
   {% endfor %}
   <script>
     function toggleModule(moduleId) {
