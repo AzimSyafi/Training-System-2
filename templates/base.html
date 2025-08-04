@@ -23,6 +23,8 @@
             display: flex;
             flex-direction: column;
             transition: width 0.3s;
+            overflow-y: auto; /* Make sidebar scrollable */
+            max-height: 100vh; /* Prevent overflow beyond viewport */
         }
         .sidebar.collapsed {
             width: 80px;

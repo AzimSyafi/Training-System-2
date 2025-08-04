@@ -192,146 +192,29 @@
             </div>
           </div>
         </div>
+        {% endif %}
       </div>
     </div>
-    {% endif %}
-  {% endfor %}
-  <script>
-    function toggleModule(moduleId) {
-      const content = document.getElementById('module-content-' + moduleId);
-      const chevron = document.getElementById('chevron-' + moduleId);
-      if (content.style.display === 'none') {
-        content.style.display = 'block';
-        chevron.style.transform = 'rotate(180deg)';
-      } else {
-        content.style.display = 'none';
-        chevron.style.transform = 'rotate(0deg)';
-      }
-    }
-
-    // This function only updates the bar visually before submission
-    // After reload, the template uses backend score
-    function updateQuizProgress(moduleId, qCount) {
-      let answered = 0;
-      for (let i = 0; i < qCount; i++) {
-        if (document.querySelector(`input[name='quiz-q${i}-m${moduleId}']:checked`)) answered++;
-      }
-      let percent = Math.round((answered / qCount) * 100);
-      const progressBar = document.querySelector(`#module-content-${moduleId} .progress-bar`);
-      const progressPercent = document.querySelector(`#module-content-${moduleId} .progress-percent`);
-      if (progressBar) progressBar.style.width = percent + '%';
-      if (progressPercent) progressPercent.textContent = percent + '%';
-    }
-
-    function submitUserQuiz(moduleId, qCount) {
-      let correct = 0, total = qCount;
-      let userAnswers = [];
-      fetch(`/api/load_quiz/${moduleId}`)
-        .then(res => res.json())
-        .then(quiz => {
-          quiz.forEach((q, qIdx) => {
-            const selected = document.querySelector(`input[name='quiz-q${qIdx}-m${moduleId}']:checked`);
-            if (selected) {
-              const idx = parseInt(selected.value);
-              userAnswers[qIdx] = idx;
-              if (q.answers && q.answers[idx] && (q.answers[idx].isCorrect === true || q.answers[idx].isCorrect === 'true')) correct++;
-            } else {
-              userAnswers[qIdx] = undefined;
-            }
-          });
-          // Progress bar reflects completion only
-          const card = document.getElementById(`module-content-${moduleId}`).closest('.card');
-          if (card) {
-            const progressBar = card.querySelector('.progress-bar');
-            const progressPercent = card.querySelector('.progress-percent');
-            if (progressBar) {
-              progressBar.style.width = '100%';
-              progressBar.style.background = 'linear-gradient(270deg, #3498db, #2980b9, #3498db)'; // Always blue
-            }
-            if (progressPercent) {
-              progressPercent.textContent = '100%';
-              progressPercent.style.color = '#3498db'; // Blue percent text
-            }
-          }
-          // Submit to backend - mark as completed regardless of score
-          fetch('/api/complete_quiz', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              user_id: {{ current_user.User_id|default('null') }},
-              module_id: moduleId,
-              correct: correct,
-              total: total,
-              is_completed: true,
-              user_answers: userAnswers // <-- Send user's selected answers
-            })
-          }).then(() => {
-            setTimeout(() => { location.reload(); }, 1000);
-          });
-        });
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-      // Loop through all modules and attach quiz logic
-      document.querySelectorAll('[id^="quiz-user-view-"]').forEach(function(quizDiv) {
-        const moduleId = quizDiv.id.replace('quiz-user-view-', '');
-        fetch(`/api/load_quiz/${moduleId}`)
-          .then(res => res.json())
-          .then(quiz => {
-            if (!quiz || !Array.isArray(quiz) || quiz.length === 0) {
-              quizDiv.innerHTML = '<div class="alert alert-info">No quiz available for this module.</div>';
-              return;
-            }
-            // Only render quiz form if not completed
-            const isCompleted = quizDiv.closest('.card-body').querySelector('.alert-success');
-            if (!isCompleted) {
-              let html = '';
-              quiz.forEach((q, qIdx) => {
-                html += `<div class='mb-6 p-4 bg-white border rounded'><div class='font-semibold mb-2'>Q${qIdx+1}: ${q.text}</div>`;
-                q.answers.forEach((a, aIdx) => {
-                  html += `<div class='flex items-center mb-1'><input type='radio' name='quiz-q${qIdx}-m${moduleId}' id='quiz-q${qIdx}-a${aIdx}-m${moduleId}' value='${aIdx}' class='mr-2 quiz-radio' data-qidx='${qIdx}' data-moduleid='${moduleId}'> <label for='quiz-q${qIdx}-a${aIdx}-m${moduleId}'>${a.text}</label></div>`;
-                });
-                html += `</div>`;
-              });
-              // Render submit button as disabled initially
-              html += `<button class='btn btn-primary' id='submit-quiz-btn-${moduleId}' onclick='submitUserQuiz(${moduleId}, ${quiz.length})' disabled>Submit Quiz</button>`;
-              quizDiv.innerHTML = html;
-              // Add event listeners for progress update and enabling submit
-              const radios = quizDiv.querySelectorAll('.quiz-radio');
-              function checkAllAnswered() {
-                let allAnswered = true;
-                for (let i = 0; i < quiz.length; i++) {
-                  if (!document.querySelector(`input[name='quiz-q${i}-m${moduleId}']:checked`)) {
-                    allAnswered = false;
-                    break;
-                  }
-                }
-                const submitBtn = document.getElementById('submit-quiz-btn-' + moduleId);
-                if (submitBtn) submitBtn.disabled = !allAnswered;
-              }
-              radios.forEach(radio => {
-                radio.addEventListener('change', function() {
-                  updateQuizProgress(moduleId, quiz.length);
-                  checkAllAnswered();
-                });
-              });
-              checkAllAnswered(); // Initial check
-            }
-          });
-      });
-    });
-  </script>
-  <style>
-    .progress-bar-container { min-width: 120px; max-width: 100%; }
-    .progress-bar { transition: width 1s cubic-bezier(.4,2,.3,1); }
-    @keyframes loading {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
-    .progress-label, .progress-percent { font-size: 1rem; }
-    @media (max-width: 600px) {
-      .progress-label, .progress-percent { font-size: 0.95rem; }
-    }
-  </style>
+    {% endfor %}
+  </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleModule(moduleId) {
+  var content = document.getElementById('module-content-' + moduleId);
+  var chevron = document.getElementById('chevron-' + moduleId);
+  if (!content || !chevron) return;
+  if (content.style.display === 'block') {
+    content.style.display = 'none';
+    chevron.classList.remove('fa-chevron-up');
+    chevron.classList.add('fa-chevron-down');
+  } else {
+    content.style.display = 'block';
+    chevron.classList.remove('fa-chevron-down');
+    chevron.classList.add('fa-chevron-up');
+  }
+}
+</script>
 {% endblock %}

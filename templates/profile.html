@@ -4,7 +4,7 @@
   <!-- Header -->
   <div class="flex justify-between items-center mb-4">
     <h1 class="text-2xl font-bold">My Profile</h1>
-    <div class="flex gap-2 relative">
+    <div class="flex flex-col gap-2 relative">
       <div class="relative inline-block text-left">
         <button id="exportDropdownBtn" type="button" class="px-4 py-2 bg-green-600 text-white rounded shadow hover:bg-green-700 font-bold flex items-center" tabindex="0">
           <span>Export</span>
@@ -17,6 +17,7 @@
         <!-- Add a visible debug span to confirm JS loads -->
         <span id="export-debug-msg" class="text-xs text-red-600 ml-2"></span>
       </div>
+      <button id="open-profile-modal" class="px-6 py-2 bg-blue-700 text-white rounded shadow hover:bg-blue-800 font-bold">Edit Profile</button>
     </div>
   </div>
 
@@ -47,11 +48,15 @@
             <div class="font-semibold text-lg" id="postcode_display">{{ user.postcode }}</div>
             <div class="text-gray-500 text-sm mt-2">State</div>
             <div class="font-semibold text-lg" id="state_display">{{ user.state }}</div>
+            <div class="text-gray-500 text-sm mt-2">IC Number</div>
+            <div class="font-semibold text-lg" id="ic_number_display">{{ user.ic_number }}</div>
+            <div class="text-gray-500 text-sm mt-2">Passport Number</div>
+            <div class="font-semibold text-lg" id="passport_number_display">{{ user.passport_number }}</div>
           </div>
         </div>
       </div>
       <div class="flex justify-end mt-4">
-        <button id="open-profile-modal" class="px-6 py-2 bg-blue-700 text-white rounded shadow hover:bg-blue-800 font-bold">Edit Profile</button>
+        <!-- Removed Edit Profile button from here -->
       </div>
       <div id="personal-info-errors" class="mt-2 text-red-600 text-sm"></div>
     </div>
@@ -116,7 +121,7 @@
 
   <!-- Profile Edit Modal -->
   <div id="profile-modal" class="fixed inset-0 bg-gray-900 bg-opacity-40 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-6 relative">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
       <button id="close-profile-modal" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700">&times;</button>
       <h2 class="text-xl font-bold mb-4">Edit Personal Information</h2>
       <form id="edit-profile-form" method="POST" action="/profile" enctype="multipart/form-data">
@@ -143,6 +148,46 @@
         <div class="mb-2">
           <label class="block text-gray-500 text-sm">State</label>
           <input type="text" name="state" value="{{ user.state }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Working Experience</label>
+          <input type="text" name="working_experience" value="{{ user.working_experience }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Recruitment Date</label>
+          <input type="date" name="recruitment_date" value="{{ user.recruitment_date }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Rating Star</label>
+          <input type="number" name="rating_star" value="{{ user.rating_star }}" class="w-full border rounded px-2 py-1" min="0" max="5" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Visa Number</label>
+          <input type="text" name="visa_number" value="{{ user.visa_number }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Visa Expiry Date</label>
+          <input type="date" name="visa_expiry_date" value="{{ user.visa_expiry_date }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Current Workplace</label>
+          <input type="text" name="current_workplace" value="{{ user.current_workplace }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Agency ID</label>
+          <input type="text" name="agency_id" value="{{ user.agency_id }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Agency Name</label>
+          <input type="text" name="agency_name" value="{{ user.agency.agency_name if user.agency else '' }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Emergency Contact</label>
+          <input type="text" name="emergency_contact" value="{{ user.emergency_contact }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Emergency Relationship</label>
+          <input type="text" name="emergency_relationship" value="{{ user.emergency_relationship }}" class="w-full border rounded px-2 py-1" />
         </div>
         <div id="modal-profile-errors" class="text-red-600 text-sm mb-2"></div>
         <div class="flex justify-end gap-2 mt-4">
@@ -233,3 +278,4 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
+{% endblock %}

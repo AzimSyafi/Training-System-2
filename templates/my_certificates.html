@@ -45,8 +45,6 @@
                                         {% set stars = 1 %}
                                     {% elif percent < 40 %}
                                         {% set stars = 2 %}
-                                    {% elif percent < 50 %}
-                                        {% set stars = 3 %}
                                     {% elif percent < 60 %}
                                         {% set stars = 3 %}
                                     {% elif percent < 70 %}
@@ -55,14 +53,12 @@
                                         {% set stars = 5 %}
                                     {% endif %}
                                     <span>
-                                    {% for i in range(1, 6) %}
-                                        {% if i <= stars %}
-                                            <span style="color: gold; font-size: 2rem;">&#9733;</span>
-                                        {% else %}
-                                            <span style="color: #ccc; font-size: 2rem;">&#9733;</span>
-                                        {% endif %}
-                                    {% endfor %}
-                                    <span style="font-size: 1.3rem; margin-left: 10px; vertical-align: middle;">({{ overall_percentage }}%)</span>
+                                        {% for i in range(stars) %}
+                                            <span style="color: gold; font-size: 1.2em;">&#9733;</span>
+                                        {% endfor %}
+                                        {% for i in range(5 - stars) %}
+                                            <span style="color: #ccc; font-size: 1.2em;">&#9733;</span>
+                                        {% endfor %}
                                     </span>
                                 </p>
                                 {% set raw_cert_url = certificate.certificate_url if certificate.certificate_url else 'certificate_' ~ certificate.user_id ~ '_' ~ certificate.module_type ~ '.pdf' %}

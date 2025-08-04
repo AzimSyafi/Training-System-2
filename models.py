@@ -59,17 +59,11 @@ class Admin(UserMixin, db.Model):
         return Module.query.all()
 
     def issueCerticate(self, user_id, module_id):
-        certificate = Certificate(
-            user_id=user_id,
-            module_id=module_id,
-            issue_date=datetime.now().date(),
-            certificate_url=f"/certificates/{user_id}_{module_id}.pdf"
-        )
+        certificate_url = f"/certificates/{user_id}_{module_id}.pdf"
+        # Assuming Certificate is a model and you want to create and add it
+        certificate = Certificate(user_id=user_id, module_id=module_id, certificate_url=certificate_url)
         db.session.add(certificate)
         db.session.commit()
-        return certificate
-
-    def viewIssueCerticate(self):
         return Certificate.query.all()
 
 class Agency(db.Model):
@@ -120,6 +114,8 @@ class User(UserMixin, db.Model):
     agency_id = db.Column(db.Integer, db.ForeignKey('agency.agency_id'), nullable=False)
     address = db.Column(db.Text)
     visa_number = db.Column(db.String(50))
+    ic_number = db.Column(db.String(50), nullable=True)  # Required for citizens
+    passport_number = db.Column(db.String(50), nullable=True)  # Required for foreigners
 
     # Relationship
     certificates = db.relationship('Certificate', backref='user', lazy=True)
@@ -262,6 +258,7 @@ class Certificate(db.Model):
     module_id = db.Column(db.Integer, db.ForeignKey('module.module_id'), nullable=False)
     issue_date = db.Column(db.Date, nullable=False)
     star_rating = db.Column(db.Integer, default=0)
+    score = db.Column(db.Float, default=0.0)
     certificate_url = db.Column(db.String(255))
 
     def generateCertificate(self):

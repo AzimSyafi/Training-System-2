@@ -287,8 +287,32 @@ def complete_module(module_id):
                 eligible = current_user.EligibleForCertificate(course_type)
                 print(f"[DEBUG] Eligible for certificate: {eligible}", file=sys.stderr)
                 if eligible:
+                    # Calculate overall_percentage for this user and course_type
+                    all_course_modules = Module.query.filter_by(module_type=course_type).all()
+                    all_module_ids = [m.module_id for m in all_course_modules]
+                    completed_modules = UserModule.query.filter_by(user_id=current_user.User_id, is_completed=True).filter(UserModule.module_id.in_(all_module_ids)).all()
+                    total_correct = 0
+                    total_questions = 0
+                    import json
+                    for um in completed_modules:
+                        if um.quiz_answers:
+                            try:
+                                selected_indices = json.loads(um.quiz_answers)
+                                module = Module.query.get(um.module_id)
+                                if module and module.quiz_json:
+                                    quiz = json.loads(module.quiz_json)
+                                    for idx, selected in enumerate(selected_indices):
+                                        if idx < len(quiz):
+                                            total_questions += 1
+                                            answers = quiz[idx].get('answers', [])
+                                            if isinstance(selected, int) and 0 <= selected < len(answers):
+                                                if answers[selected].get('isCorrect') in [True, 'true', 'True', 1, '1']:
+                                                    total_correct += 1
+                            except Exception:
+                                continue
+                    overall_percentage = int((total_correct / total_questions) * 100) if total_questions > 0 else 0
                     from generate_certificate import generate_certificate
-                    cert_path = generate_certificate(current_user.User_id, course_type)
+                    cert_path = generate_certificate(current_user.User_id, course_type, overall_percentage)
                     print(f"[DEBUG] Certificate generated at: {cert_path}", file=sys.stderr)
                     flash(f'Congratulations! You have completed all modules for {course_type}. Certificate generated.')
 
@@ -1098,8 +1122,20 @@ def user_courses_dashboard():
         return redirect(url_for('trainer_portal'))
     if not isinstance(current_user, User):
         return redirect(url_for('login'))
-    # You can customize the data passed to the template as needed
-    return render_template('user_courses_dashboard.html', user=current_user)
+    from models import UserCourseProgress
+    # Query all course progress for the current user
+    user_course_progress = UserCourseProgress.query.filter_by(user_id=current_user.user_id).all()
+    # Build a list of course dicts with progress and details
+    user_courses = []
+    for progress in user_course_progress:
+        # For now, use course_id as name/id, since no Course model exists
+        user_courses.append({
+            'id': progress.course_id,
+            'name': f'Course {progress.course_id}',
+            'progress': 100 if progress.completed else 0,
+            'module_type': 'TNG' if 'TNG' in str(progress.course_id) else 'CSG'  # Example logic
+        })
+    return render_template('user_courses_dashboard.html', user=current_user, user_courses=user_courses)
 
 @app.route('/api/save_quiz', methods=['POST'])
 def api_save_quiz():
@@ -1511,7 +1547,32 @@ def api_complete_course():
     try:
         # Generate certificate
         from generate_certificate import generate_certificate
-        generate_certificate(user_id, course_type)
+        # Calculate overall_percentage for this user and course_type
+        from models import UserModule, Module
+        all_course_modules = Module.query.filter_by(module_type=course_type).all()
+        all_module_ids = [m.module_id for m in all_course_modules]
+        completed_modules = UserModule.query.filter_by(user_id=user_id, is_completed=True).filter(UserModule.module_id.in_(all_module_ids)).all()
+        total_correct = 0
+        total_questions = 0
+        import json
+        for um in completed_modules:
+            if um.quiz_answers:
+                try:
+                    selected_indices = json.loads(um.quiz_answers)
+                    module = Module.query.get(um.module_id)
+                    if module and module.quiz_json:
+                        quiz = json.loads(module.quiz_json)
+                        for idx, selected in enumerate(selected_indices):
+                            if idx < len(quiz):
+                                total_questions += 1
+                                answers = quiz[idx].get('answers', [])
+                                if isinstance(selected, int) and 0 <= selected < len(answers):
+                                    if answers[selected].get('isCorrect') in [True, 'true', 'True', 1, '1']:
+                                        total_correct += 1
+                except Exception:
+                    continue
+        overall_percentage = int((total_correct / total_questions) * 100) if total_questions > 0 else 0
+        generate_certificate(user_id, course_type, overall_percentage)
         # Optionally, mark course as completed in your DB (if you track this)
         # ...add logic here if needed...
         return jsonify({'success': True})

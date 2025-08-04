@@ -10,7 +10,7 @@ from app import db  # Assuming you use SQLAlchemy
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 
-def generate_certificate(user_id, course_type, cert_id=None):
+def generate_certificate(user_id, course_type, overall_percentage, cert_id=None):
     # Fetch user info from database
     user = User.query.get(user_id)
     if not user:
@@ -31,11 +31,20 @@ def generate_certificate(user_id, course_type, cert_id=None):
     # Create overlay PDF with user info
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
-    # Fetch user's score for this module
-    user_module = UserModule.query.filter_by(user_id=user_id, module_id=module.module_id).first() if module else None
-    score = user_module.score if user_module else 0
-    # Convert score (0-100) to stars (1-5)
-    stars = max(1, min(5, int(round(score / 20))))
+    # Use overall_percentage for stars
+    percent = overall_percentage
+    if percent < 20:
+        stars = 1
+    elif percent < 40:
+        stars = 2
+    elif percent < 60:
+        stars = 3
+    elif percent < 70:
+        stars = 4
+    else:
+        stars = 5
+    # Try to fetch existing certificate for this user/module
+    cert = Certificate.query.filter_by(user_id=user_id, module_id=module.module_id).order_by(Certificate.issue_date.desc()).first() if module else None
     passport_ic = getattr(user, 'passport_number', None) or getattr(user, 'ic_number', None) or getattr(user, 'number_series', None) or 'N/A'
     # Place Name (centered at 425, 290), Times New Roman, 28pt, Black
     can.setFont("Times-Roman", 28)
@@ -56,9 +65,9 @@ def generate_certificate(user_id, course_type, cert_id=None):
     can.setFont(star_font, 20)
     can.setFillColorRGB(0, 0, 0)
     can.drawCentredString(425, 200, '\u2605' * stars)
-    # Draw score under the stars
+    # Display overall percentage under the stars
     can.setFont("Times-Roman", 14)
-    can.drawCentredString(425, 180, f"Score: {score}")
+    can.drawCentredString(425, 185, f"Overall Percentage: {percent}%")
     # Set font size for text and date to 12
     can.setFont("Times-Roman", 12)
     can.drawCentredString(425, 170, "received training and fulfilled the requirements on")
@@ -77,18 +86,18 @@ def generate_certificate(user_id, course_type, cert_id=None):
         output_pdf.write(f)
 
     # After generating the certificate, save it in the Certificate table
-    module = Module.query.filter_by(module_type=course_type.upper()).first()
-    module_id = module.module_id if module else None
-    cert_url = output_path.replace('static/', '/static/')
-    cert = Certificate(
-        user_id=user_id,
-        module_type=course_type,
-        module_id=module_id or 0,
-        issue_date=datetime.now().date(),
-        certificate_url=cert_url
-    )
-    db.session.add(cert)
-    db.session.commit()
+    if not cert:
+        cert = Certificate(
+            user_id=user_id,
+            module_type=course_type,
+            module_id=module.module_id if module else None,
+            issue_date=datetime.now().date(),
+            star_rating=stars,
+            score=overall_percentage,  # Save overall_percentage as score for reference
+            certificate_url=output_path.replace('static/', '/static/')
+        )
+        db.session.add(cert)
+        db.session.commit()
     return output_path
 
 if __name__ == "__main__":
