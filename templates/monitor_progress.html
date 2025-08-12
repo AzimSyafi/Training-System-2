@@ -5,7 +5,7 @@
     <div class="p-4">
         <h2><i class="fas fa-chart-line"></i> Progress Monitoring</h2>
 
-        {% if user_modules %}
+        {% if user_course_progress %}
             <div class="card">
                 <div class="card-body">
                     <div class="table-responsive">
@@ -13,52 +13,50 @@
                             <thead>
                                 <tr>
                                     <th>User</th>
-                                    <th>Module</th>
+                                    <th>Course</th>
                                     <th>Agency</th>
                                     <th>Status</th>
                                     <th>Score</th>
                                     <th>Completion Date</th>
-                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for user_module, user, module in user_modules %}
+                                {% for user, module_type, total_modules, completed_modules, avg_score, latest_completion in user_course_progress %}
                                 <tr>
                                     <td>{{ user.full_name }}</td>
-                                    <td>{{ module.module_name }}</td>
+                                    <td>
+                                        {% if module_type == 'TNG' %}
+                                            Nepal Security Guard Training (TNG)
+                                        {% elif module_type == 'CSG' %}
+                                            Certified Security Guard (CSG)
+                                        {% else %}
+                                            {{ module_type }}
+                                        {% endif %}
+                                    </td>
                                     <td>{{ user.agency.agency_name }}</td>
                                     <td>
-                                        {% if user_module.is_completed %}
+                                        {% if completed_modules == total_modules %}
                                             <span class="badge bg-success">Completed</span>
+                                        {% elif completed_modules > 0 %}
+                                            <span class="badge bg-warning">In Progress ({{ completed_modules }}/{{ total_modules }})</span>
                                         {% else %}
-                                            <span class="badge bg-warning">In Progress</span>
+                                            <span class="badge bg-secondary">Not Started</span>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if user_module.is_completed %}
-                                            <span class="{% if user_module.score <= 50 %}score-red{% elif user_module.score > 75 %}score-green{% else %}score-blue{% endif %}">
-                                                {{ user_module.score }}%
+                                        {% if avg_score %}
+                                            <span class="{% if avg_score <= 50 %}score-red{% elif avg_score > 75 %}score-green{% else %}score-blue{% endif %}">
+                                                {{ "%.1f"|format(avg_score) }}%
                                             </span>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if user_module.completion_date %}
-                                            {{ user_module.completion_date.strftime('%Y-%m-%d %I:%M %p') }}
+                                        {% if latest_completion %}
+                                            {{ latest_completion.strftime('%Y-%m-%d %I:%M %p') }}
                                         {% else %}
                                             <span class="text-muted">N/A</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if user_module.is_completed and user_module.score > 50 %}
-                                            <form method="POST" action="{{ url_for('issue_certificate') }}" class="d-inline">
-                                                <input type="hidden" name="user_id" value="{{ user.User_id }}">
-                                                <input type="hidden" name="module_id" value="{{ module.module_id }}">
-                                                <button type="submit" class="btn btn-sm btn-outline-success">
-                                                    <i class="fas fa-certificate"></i> Issue Certificate
-                                                </button>
-                                            </form>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -71,10 +69,25 @@
         {% else %}
             <div class="alert alert-info">
                 <h5><i class="fas fa-info-circle"></i> No Progress Data Available</h5>
-                <p>No users have enrolled in any modules yet.</p>
+                <p>No users have enrolled in any courses yet.</p>
             </div>
         {% endif %}
         </div>
     </div>
 </div>
+
+<style>
+.score-red {
+    color: #dc3545;
+    font-weight: bold;
+}
+.score-green {
+    color: #28a745;
+    font-weight: bold;
+}
+.score-blue {
+    color: #007bff;
+    font-weight: bold;
+}
+</style>
 {% endblock %}

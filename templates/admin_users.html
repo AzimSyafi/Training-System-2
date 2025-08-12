@@ -111,7 +111,7 @@ function viewUserProgress(userId) {
                     <td>${module.module_name}</td>
                     <td>${statusBadge}</td>
                     <td><span class="${scoreClass}">${module.score}%</span></td>
-                    <td>${module.completion_date ? new Date(module.completion_date).toLocaleDateString() : 'N/A'}</td>
+                    <td>${module.completion_date && module.completion_date.trim() ? new Date(module.completion_date).toLocaleDateString() : 'N/A'}</td>
                 </tr>`;
             });
 

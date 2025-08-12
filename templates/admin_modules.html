@@ -5,45 +5,51 @@
     <div class="p-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2><i class="fas fa-book"></i> Module Management</h2>
+            <a href="{{ url_for('create_module') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Create New Module
+            </a>
         </div>
 
         {% if modules %}
-            <div class="row">
-                {% for module in modules %}
-                    <div class="col-md-6 mb-3">
-                        <div class="card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h5 class="mb-0">{{ module.module_name }}</h5>
-                                <span class="badge bg-secondary">{{ module.module_type }}</span>
-                            </div>
-                            <div class="card-body">
-                                <p class="card-text">
-                                    <strong>Series:</strong> {{ module.series_number }}<br>
-                                    <strong>Rating:</strong>
-                                    {% for i in range(1, 6) %}
-                                        {% if i <= module.star_rating %}
-                                            <i class="fas fa-star text-warning"></i>
-                                        {% else %}
-                                            <i class="far fa-star text-muted"></i>
-                                        {% endif %}
-                                    {% endfor %}
-                                </p>
-                                <p class="card-text">{{ module.content[:100] }}{% if module.content|length > 100 %}...{% endif %}</p>
-
-                                <div class="btn-group" role="group">
-                                    <a href="{{ url_for('edit_module', module_id=module.module_id) }}" class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </a>
-                                    <form method="POST" action="{{ url_for('delete_module', module_id=module.module_id) }}" class="d-inline">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to delete this module?')">
-                                            <i class="fas fa-trash"></i> Delete
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                {% endfor %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">Module Name</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Series</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for module in modules %}
+                            <tr>
+                                <td>
+                                    <strong>{{ module.module_name }}</strong>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ module.module_type }}</span>
+                                </td>
+                                <td>{{ module.series_number }}</td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ url_for('edit_module', module_id=module.module_id) }}"
+                                           class="btn btn-sm btn-outline-primary" title="Edit Module">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <form method="POST" action="{{ url_for('delete_module', module_id=module.module_id) }}" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                    title="Delete Module"
+                                                    onclick="return confirm('Are you sure you want to delete this module?')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         {% else %}
             <div class="alert alert-info">
@@ -54,7 +60,6 @@
                 </a>
             </div>
         {% endif %}
-        </div>
     </div>
 </div>
 {% endblock %}

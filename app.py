@@ -531,9 +531,21 @@ def monitor_progress():
             return redirect(url_for('trainer_portal'))
         return redirect(url_for('login'))
 
-    # Get all user modules with progress
-    user_modules = db.session.query(UserModule, User, Module).join(User).join(Module).all()
-    return render_template('monitor_progress.html', user_modules=user_modules)
+    # Get user progress grouped by course (module_type)
+    # We'll get users and their overall progress for each course
+    user_course_progress = db.session.query(
+        User,
+        Module.module_type,
+        db.func.count(UserModule.id).label('total_modules'),
+        db.func.count(db.case((UserModule.is_completed == True, 1))).label('completed_modules'),
+        db.func.avg(UserModule.score).label('avg_score'),
+        db.func.max(UserModule.completion_date).label('latest_completion')
+    ).join(UserModule, User.User_id == UserModule.user_id)\
+     .join(Module, UserModule.module_id == Module.module_id)\
+     .group_by(User.User_id, Module.module_type)\
+     .all()
+    
+    return render_template('monitor_progress.html', user_course_progress=user_course_progress)
 
 @app.route('/admin/certificates')
 @login_required

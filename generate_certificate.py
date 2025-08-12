@@ -70,7 +70,7 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None)
     can.drawCentredString(425, 185, f"Overall Percentage: {percent}%")
     # Set font size for text and date to 12
     can.setFont("Times-Roman", 12)
-    can.drawCentredString(425, 170, "received training and fulfilled the requirements on")
+     can.drawCentredString(425, 170, "received training and fulfilled the requirements on")
     can.drawCentredString(425, 140, date_str)
     can.save()
     packet.seek(0)
