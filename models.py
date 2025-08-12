@@ -58,12 +58,15 @@ class Admin(UserMixin, db.Model):
     def viewAllModules(self):
         return Module.query.all()
 
-    def issueCerticate(self, user_id, module_id):
+    def issueCertificate(self, user_id, module_id):
         certificate_url = f"/certificates/{user_id}_{module_id}.pdf"
         # Assuming Certificate is a model and you want to create and add it
         certificate = Certificate(user_id=user_id, module_id=module_id, certificate_url=certificate_url)
         db.session.add(certificate)
         db.session.commit()
+        return Certificate.query.all()
+
+    def viewIssuedCertificates(self):
         return Certificate.query.all()
 
 class Agency(db.Model):
@@ -100,6 +103,7 @@ class User(UserMixin, db.Model):
     full_name = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    user_category = db.Column(db.String(20), nullable=False, default='citizen')  # 'citizen' or 'foreigner'
     visa_expiry_date = db.Column(db.Date)
     emergency_contact = db.Column(db.String(20))
     emergency_relationship = db.Column(db.String(100))
@@ -194,6 +198,37 @@ class User(UserMixin, db.Model):
             return 'green'
         else:
             return 'blue'
+
+    def has_completed_all_modules_in_course(self, course_type):
+        """Check if user has completed ALL modules in a given course type"""
+        all_modules = Module.query.filter_by(module_type=course_type).all()
+        if not all_modules:
+            return False
+
+        completed_modules = UserModule.query.filter_by(
+            user_id=self.User_id,
+            is_completed=True
+        ).filter(UserModule.module_id.in_([m.module_id for m in all_modules])).all()
+
+        return len(completed_modules) == len(all_modules)
+
+    def get_overall_grade_for_course(self, course_type):
+        """Get the overall grade (A, B, C, etc.) based on the highest reattempt count across all modules in the course"""
+        all_modules = Module.query.filter_by(module_type=course_type).all()
+        if not all_modules:
+            return 'N/A'
+
+        user_modules = UserModule.query.filter_by(user_id=self.User_id).filter(
+            UserModule.module_id.in_([m.module_id for m in all_modules])
+        ).all()
+
+        if not user_modules:
+            return 'N/A'
+
+        max_reattempts = max(um.reattempt_count for um in user_modules)
+        if max_reattempts >= 26:
+            return 'Z+'
+        return chr(ord('A') + max_reattempts)
 
 class Module(db.Model):
     __tablename__ = 'module'
@@ -337,12 +372,19 @@ class UserModule(db.Model):
     score = db.Column(db.Float, default=0.0)
     completion_date = db.Column(db.DateTime)
     quiz_answers = db.Column(db.Text)  # Store user's quiz answers as JSON string
+    reattempt_count = db.Column(db.Integer, default=0)  # Track number of reattempts
 
     def complete_module(self, score):
         self.is_completed = True
         self.score = score
         self.completion_date = datetime.now()
         db.session.commit()
+
+    def get_grade_letter(self):
+        """Get grade letter based on reattempt count: A=0, B=1, C=2, etc."""
+        if self.reattempt_count >= 26:
+            return 'Z+'
+        return chr(ord('A') + self.reattempt_count)
 
 class Management(db.Model):
     __tablename__ = 'management'

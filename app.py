@@ -133,13 +133,29 @@ def trainer_portal():
 def signup():
     if request.method == 'POST':
         # Get form data
+        user_category = request.form.get('user_category', 'citizen')
+
         user_data = {
             'full_name': request.form['full_name'],
             'email': request.form['email'],
             'password': request.form['password'],
-            # Assign a default agency_id, e.g., 1
-            'agency_id': 1
+            'user_category': user_category,
+            'agency_id': 1  # Assign a default agency_id
         }
+
+        # Add IC number or passport number based on user category
+        if user_category == 'citizen':
+            ic_number = request.form.get('ic_number')
+            if not ic_number:
+                flash('IC Number is required for Malaysian citizens')
+                return render_template('signup.html', agencies=Agency.query.all())
+            user_data['ic_number'] = ic_number
+        else:  # foreigner
+            passport_number = request.form.get('passport_number')
+            if not passport_number:
+                flash('Passport Number is required for foreigners')
+                return render_template('signup.html', agencies=Agency.query.all())
+            user_data['passport_number'] = passport_number
 
         # Check if user already exists
         if User.query.filter_by(email=user_data['email']).first():
@@ -529,7 +545,7 @@ def admin_certificates():
             return redirect(url_for('trainer_portal'))
         return redirect(url_for('login'))
 
-    certificates = current_user.viewIssueCerticate()
+    certificates = current_user.viewIssuedCertificates()
     from models import UserModule
     for cert in certificates:
         user_module = UserModule.query.filter_by(user_id=cert.user_id, module_id=cert.module_id).first()
@@ -668,7 +684,7 @@ def get_user_progress(user_id):
             'module_name': um.module.module_name,
             'is_completed': um.is_completed,
             'score': um.score,
-            'completion_date': um.completion_date.isoformat() if um.completion_date else None
+            'completion_date': um.completion_date.isoformat() if um.completion_date and str(um.completion_date).strip() else None
         })
 
     return jsonify(progress_data)
@@ -683,11 +699,20 @@ def courses():
     if not isinstance(current_user, User):
         return redirect(url_for('login'))
 
-    # Define course codes and names
-    course_defs = [
-        {"code": "tng", "name": "NEPAL SECURITY GUARD TRAINING (TNG)"},
-        {"code": "csg", "name": "CERTIFIED SECURITY GUARD (CSG)"}
-    ]
+    # Filter courses based on user category
+    user_category = getattr(current_user, 'user_category', 'citizen')
+
+    if user_category == 'citizen':
+        # Citizens can only access CSG courses
+        course_defs = [
+            {"code": "csg", "name": "CERTIFIED SECURITY GUARD (CSG)"}
+        ]
+    else:  # foreigner
+        # Foreigners can only access TNG courses
+        course_defs = [
+            {"code": "tng", "name": "NEPAL SECURITY GUARD TRAINING (TNG)"}
+        ]
+
     course_progress = []
     for course in course_defs:
         modules = Module.query.filter(Module.module_type == course["code"].upper()).all()
@@ -1066,7 +1091,7 @@ def insert_profile():
                     user_id=user.User_id,
                     company_name=wh['company_name'],
                     position_title=wh.get('position_title'),
-                    start_date=datetime.strptime(wh['start_date'], '%Y-%m-%d').date(),
+                    start_date=datetime.strptime(wh['start_date'], '%Y-%m-%d').date() if wh.get('start_date') else None,
                     end_date=datetime.strptime(wh['end_date'], '%Y-%m-%d').date() if wh.get('end_date') else None,
                     location=wh.get('location')
                 )
@@ -1166,72 +1191,67 @@ def api_load_quiz(module_id):
 def api_submit_quiz(module_id):
     module = Module.query.get(module_id)
     if not module or not module.quiz_json:
-        return jsonify({'score': 0, 'feedback': 'No quiz found.'})
+        return jsonify({'success': False, 'message': 'No quiz found.'})
     quiz = json.loads(module.quiz_json)
     data = request.get_json()
     answers = data.get('answers', [])
+    is_reattempt = data.get('is_reattempt', False)
     correct = 0
     total = len(quiz)
-    # --- Prevent resubmission if already completed ---
+    
+    # Get user ID
     user_id = None
     if hasattr(current_user, 'User_id'):
         user_id = current_user.User_id
     elif hasattr(current_user, 'id'):
         user_id = current_user.id
-    if user_id:
-        user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
-        if user_module and user_module.is_completed:
-            return jsonify({'score': user_module.score, 'feedback': 'Quiz already completed. You cannot submit again.'}), 403
-    # --- End prevent resubmission ---
+    
+    if not user_id:
+        return jsonify({'success': False, 'message': 'User not found.'}), 403
+    
+    # Check existing completion status
+    user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
+    
+    # Prevent resubmission unless it's a reattempt
+    if user_module and user_module.is_completed and not is_reattempt:
+        return jsonify({'success': False, 'message': 'Quiz already completed. You cannot submit again.', 'score': user_module.score, 'feedback': 'Quiz already completed.'}), 403
+    
+    # Calculate score
     for idx, q in enumerate(quiz):
         if idx < len(answers):
             ans_idx = answers[idx]
-            logging.debug(f"Q{idx+1}: User answer index: {ans_idx}, isCorrect: {q['answers'][ans_idx].get('isCorrect', False)}")
-            if 0 <= ans_idx < len(q['answers']) and q['answers'][ans_idx].get('isCorrect'):
+            if ans_idx is not None and 0 <= ans_idx < len(q['answers']) and q['answers'][ans_idx].get('isCorrect'):
                 correct += 1
-    logging.debug(f"Total correct: {correct} / {total}")
+    
     score = int((correct / total) * 100) if total > 0 else 0
-    logging.debug(f"Calculated score: {score}")
     feedback = 'Great job!' if score >= 75 else ('Keep practicing.' if score >= 50 else 'Needs improvement.')
-
-    # Update UserModule score and is_completed
-    user_id = None
-    if hasattr(current_user, 'User_id'):
-        user_id = current_user.User_id
-    elif hasattr(current_user, 'id'):
-        user_id = current_user.id
-    if user_id:
-        user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
-        if user_module:
-            user_module.score = score
-            user_module.is_completed = True
-            user_module.completion_date = datetime.now()
-            # Save user's selected answers for review
-            if 'answers' in data:
-                user_module.quiz_answers = json.dumps(data['answers'])
-            db.session.commit()
-        # Update user's star rating based on average score
-        user_modules = UserModule.query.filter_by(user_id=user_id, is_completed=True).all()
-        if user_modules:
-            avg_score = sum([um.score for um in user_modules]) / len(user_modules)
-            if avg_score <= 50:
-                stars = 1
-                label = 'Needs Improvement'
-                color = 'red'
-            elif avg_score > 75:
-                stars = 5
-                label = 'Great Job'
-                color = 'green'
-            else:
-                stars = 3
-                label = 'Keep Practicing'
-                color = 'blue'
-            user = User.query.get(user_id)
-            if user:
-                user.rating_star = stars
-                user.rating_label = label
-                db.session.commit()
-    return jsonify({'score': score, 'feedback': feedback, 'star_rating': stars if user_id else None, 'star_label': label if user_id else None, 'star_color': color if user_id else None})
+    
+    # Save result to UserModule
+    from datetime import datetime
+    if not user_module:
+        user_module = UserModule(user_id=user_id, module_id=module_id, reattempt_count=0)
+        db.session.add(user_module)
+    
+    # If this is a reattempt, increment the count
+    if is_reattempt and user_module.is_completed:
+        user_module.reattempt_count += 1
+    
+    user_module.is_completed = True
+    user_module.score = score
+    user_module.completion_date = datetime.now()
+    import json as pyjson
+    user_module.quiz_answers = pyjson.dumps(answers)
+    db.session.commit()
+    
+    grade_letter = user_module.get_grade_letter()
+    
+    return jsonify({
+        'success': True, 
+        'score': score, 
+        'feedback': feedback,
+        'reattempt_count': user_module.reattempt_count,
+        'grade_letter': grade_letter
+    })
 
 @app.route('/admin/agencies')
 @login_required
@@ -1577,6 +1597,49 @@ def api_complete_course():
         # ...add logic here if needed...
         return jsonify({'success': True})
     except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/reattempt_course/<string:course_code>', methods=['POST'])
+@login_required
+def reattempt_course(course_code):
+    """Reset all user progress for a course to allow reattempt"""
+    if not isinstance(current_user, User):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+    course_type = course_code.upper()
+    user_id = current_user.User_id
+
+    # Check if user has completed all modules in this course
+    if not current_user.has_completed_all_modules_in_course(course_type):
+        return jsonify({'success': False, 'message': 'You must complete all modules before reattempting'}), 400
+
+    try:
+        # Get all modules for this course
+        all_modules = Module.query.filter_by(module_type=course_type).all()
+        module_ids = [m.module_id for m in all_modules]
+
+        # Update reattempt count for all user modules in this course
+        user_modules = UserModule.query.filter_by(user_id=user_id).filter(
+            UserModule.module_id.in_(module_ids)
+        ).all()
+
+        for user_module in user_modules:
+            user_module.reattempt_count += 1
+            user_module.is_completed = False
+            user_module.score = 0.0
+            user_module.completion_date = None
+            user_module.quiz_answers = None
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Course reset for reattempt. You can now retake all quizzes.',
+            'reattempt_count': user_modules[0].reattempt_count if user_modules else 0
+        })
+
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 if __name__ == '__main__':

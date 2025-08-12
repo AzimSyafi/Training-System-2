@@ -2,10 +2,18 @@
 
 {% block content %}
 <div class="container mx-auto p-4">
-  <div class="mb-4">
+  <div class="mb-4 flex justify-between items-center">
     <a href="{{ url_for('courses') }}" class="btn btn-secondary">
       <i class="fas fa-arrow-left"></i> Back to Courses
     </a>
+
+    <!-- Reattempt Button - Only show if user has completed all modules -->
+    {% set course_type = modules[0].module_type if modules else '' %}
+    {% if current_user.has_completed_all_modules_in_course(course_type) %}
+    <button id="reattemptBtn" class="btn btn-warning" onclick="reattemptCourse('{{ course_type.lower() }}')">
+      <i class="fas fa-redo"></i> Reattempt Course
+    </button>
+    {% endif %}
   </div>
   <h2 class="text-3xl font-bold mb-6 text-blue-900">{{ course_name }}</h2>
 
@@ -24,6 +32,7 @@
         </div>
         <div>
           {% set progress = user_progress.get(module.module_id) %}
+          {# Removed completion status display entirely #}
         </div>
         <i class="fas fa-chevron-down text-xl transition-transform duration-300" id="chevron-{{ module.module_id }}"></i>
       </div>
@@ -166,24 +175,29 @@
                           document.getElementById('quiz-form-{{ module.module_id }}').innerHTML = html;
                           // Add event listeners for progress update and enabling submit
                           const radios = document.querySelectorAll('#quiz-form-{{ module.module_id }} .quiz-radio');
-                          function checkAllAnswered() {
-                            let allAnswered = true;
-                            for (let i = 0; i < quiz.length; i++) {
-                              if (!document.querySelector(`input[name='quiz-q${i}-m{{ module.module_id }}']:checked`)) {
-                                allAnswered = false;
-                                break;
-                              }
-                            }
-                            const submitBtn = document.getElementById('submit-quiz-btn-{{ module.module_id }}');
-                            if (submitBtn) submitBtn.disabled = !allAnswered;
-                          }
+                          const submitBtn = document.getElementById('submit-quiz-btn-{{ module.module_id }}');
+                          console.log('Quiz radios found:', radios.length);
+                          console.log('Submit button found:', !!submitBtn);
                           radios.forEach(radio => {
                             radio.addEventListener('change', function() {
-                              updateQuizProgress({{ module.module_id }}, quiz.length);
-                              checkAllAnswered();
+                              // updateQuizProgress({{ module.module_id }}, quiz.length); // Removed undefined function
+                              // Check if all questions have an answer selected
+                              let allAnswered = true;
+                              for (let i = 0; i < quiz.length; i++) {
+                                const name = `quiz-q${i}-m{{ module.module_id }}`;
+                                const checked = document.querySelector(`#quiz-form-{{ module.module_id }} input[name='${name}']:checked`);
+                                console.log(`Question ${i} checked:`, !!checked);
+                                if (!checked) {
+                                  allAnswered = false;
+                                  break;
+                                }
+                              }
+                              if (submitBtn) {
+                                submitBtn.disabled = !allAnswered;
+                                console.log('Submit button disabled:', submitBtn.disabled);
+                              }
                             });
                           });
-                          checkAllAnswered(); // Initial check
                         });
                     });
                   </script>
@@ -214,6 +228,66 @@ function toggleModule(moduleId) {
     content.style.display = 'block';
     chevron.classList.remove('fa-chevron-down');
     chevron.classList.add('fa-chevron-up');
+  }
+}
+
+function submitUserQuiz(moduleId, questionCount) {
+  // Collect answers
+  const answers = [];
+  for (let i = 0; i < questionCount; i++) {
+    const name = `quiz-q${i}-m${moduleId}`;
+    // Use querySelectorAll to avoid duplicate IDs/names issues
+    const checked = document.querySelector(`#quiz-form-${moduleId} input[name='${name}']:checked`);
+    if (checked) {
+      answers.push(parseInt(checked.value));
+    } else {
+      answers.push(null);
+    }
+  }
+  // Send answers to backend
+  fetch(`/api/submit_quiz/${moduleId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ answers }),
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        alert('Quiz submitted successfully!');
+        location.reload();
+      } else {
+        alert('Quiz submission failed: ' + (data.message || 'Unknown error'));
+      }
+    })
+    .catch(err => {
+      alert('Error submitting quiz: ' + err);
+    });
+}
+
+// Reattempt course function
+function reattemptCourse(courseType) {
+  if (confirm('Are you sure you want to reattempt this course? All your progress will be reset.')) {
+    fetch(`/api/reattempt_course/${courseType}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert('Course reattempted successfully!');
+          location.reload();
+        } else {
+          alert('Reattempt failed: ' + (data.message || 'Unknown error'));
+        }
+      })
+      .catch(err => {
+        alert('Error reattempting course: ' + err);
+      });
   }
 }
 </script>
