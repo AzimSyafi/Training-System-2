@@ -26,15 +26,29 @@ if os.environ.get('DATABASE_URL'):
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 else:
     # Development SQLite database
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DB_PATH = os.path.join(BASE_DIR, 'instance', 'security_training.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
+    if os.environ.get('RENDER'):
+        # Production environment - use a temporary SQLite database
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/security_training.db'
+    else:
+        # Local development
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        DB_PATH = os.path.join(BASE_DIR, 'instance', 'security_training.db')
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['UPLOAD_FOLDER'] = 'static/profile_pics'
 
-# Change upload content folder to static/uploads for public access
-UPLOAD_CONTENT_FOLDER = os.path.join('static', 'uploads')
+# Configure upload folders for production
+if os.environ.get('RENDER'):
+    # Production - use temporary directories
+    app.config['UPLOAD_FOLDER'] = '/tmp/profile_pics'
+    UPLOAD_CONTENT_FOLDER = '/tmp/uploads'
+else:
+    # Development - use static folders
+    app.config['UPLOAD_FOLDER'] = 'static/profile_pics'
+    UPLOAD_CONTENT_FOLDER = os.path.join('static', 'uploads')
+
+# Ensure upload directories exist
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(UPLOAD_CONTENT_FOLDER, exist_ok=True)
 
 # Configure logging
