@@ -16,12 +16,19 @@ import json
 import logging
 
 app = Flask(__name__, static_url_path='/static')
-app.config['SECRET_KEY'] = 'your-secret-key-here'
 
-# Use absolute path for SQLite DB
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, 'instance', 'security_training.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
+# Configuration
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
+
+# Database configuration - handle both development and production
+if os.environ.get('DATABASE_URL'):
+    # Production database (if you want to use PostgreSQL on Render)
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+else:
+    # Development SQLite database
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    DB_PATH = os.path.join(BASE_DIR, 'instance', 'security_training.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/profile_pics'
@@ -544,7 +551,7 @@ def monitor_progress():
      .join(Module, UserModule.module_id == Module.module_id)\
      .group_by(User.User_id, Module.module_type)\
      .all()
-    
+
     return render_template('monitor_progress.html', user_course_progress=user_course_progress)
 
 @app.route('/admin/certificates')
