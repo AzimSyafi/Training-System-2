@@ -3,118 +3,190 @@
 {% block title %}Sign Up - Training System{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="text-center">Create Account</h3>
-                </div>
-                <div class="card-body">
-                    {% with messages = get_flashed_messages() %}
-                        {% if messages %}
-                            {% for message in messages %}
-                                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                                    {{ message }}
-                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
-
-                    <form method="POST">
-                        <!-- Full Name -->
-                        <div class="mb-3">
-                            <label for="full_name" class="form-label">Full Name</label>
-                            <input type="text" class="form-control" id="full_name" name="full_name" required>
-                        </div>
-
-                        <!-- Email Address -->
-                        <div class="mb-3">
-                            <label for="email" class="form-label">Email Address</label>
-                            <input type="email" class="form-control" id="email" name="email" required>
-                        </div>
-
-                        <!-- Password -->
-                        <div class="mb-3">
-                            <label for="password" class="form-label">Password</label>
-                            <input type="password" class="form-control" id="password" name="password" required>
-                        </div>
-
-                        <!-- User Type -->
-                        <div class="mb-3">
-                            <label class="form-label">Citizenship</label>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="user_category" id="citizen" value="citizen" required onchange="toggleIdField()">
-                                <label class="form-check-label" for="citizen">
-                                    Malaysian Citizen
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="user_category" id="foreigner" value="foreigner" required onchange="toggleIdField()">
-                                <label class="form-check-label" for="foreigner">
-                                    Foreigner
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- IC Number (for Citizens) -->
-                        <div class="mb-3" id="ic_field" style="display: none;">
-                            <label for="ic_number" class="form-label">IC Number</label>
-                            <input type="text" class="form-control" id="ic_number" name="ic_number" placeholder="e.g. 123456-78-9012">
-                        </div>
-
-                        <!-- Passport Number (for Foreigners) -->
-                        <div class="mb-3" id="passport_field" style="display: none;">
-                            <label for="passport_number" class="form-label">Passport Number</label>
-                            <input type="text" class="form-control" id="passport_number" name="passport_number" placeholder="e.g. A12345678">
-                        </div>
-
-                        <!-- Submit Button -->
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-primary">Create Account</button>
-                        </div>
-                    </form>
-
-                    <div class="text-center mt-3">
-                        <p>Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
-                    </div>
-                </div>
-            </div>
-        </div>
+<!-- Top Navbar with Login and Sign Up buttons only -->
+<nav class="navbar navbar-light bg-light shadow-sm">
+  <div class="container d-flex justify-content-between align-items-center">
+    <a class="navbar-brand fw-bold" href="/">TRAINING SYSTEM</a>
+    <div>
+      <a href="{{ url_for('login') }}" class="btn btn-outline-primary me-2">Login</a>
+      <a href="{{ url_for('signup') }}" class="btn btn-outline-primary">Sign Up</a>
     </div>
+  </div>
+</nav>
+
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  body.signup-bg {
+    background: linear-gradient(120deg, #f8fafc 0%, #f3f4f6 100%);
+    overflow-x: hidden;
+  }
+  .blurred-shape {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.3;
+    z-index: 0;
+  }
+  .shape-orange { width: 300px; height: 300px; background: #fd7e14; bottom: -100px; left: -100px; }
+  .shape-blue { width: 200px; height: 200px; background: #0d6efd; top: -80px; right: -80px; }
+  .auth-wrapper {
+    min-height: calc(100vh - 0px);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 1;
+  }
+  .auth-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  .main-content {
+    flex: 1;
+  }
+  .footer {
+    width: 100%;
+    margin-top: auto;
+    left: 0;
+    right: 0;
+    box-shadow: 0 -2px 16px rgba(0,0,0,0.07);
+    background: linear-gradient(90deg, #f8fafc 0%, #e3e7ed 100%);
+  }
+  @media (max-width: 768px) {
+    .footer .container {
+      flex-direction: column !important;
+      text-align: center !important;
+      gap: 1rem;
+    }
+  }
+</style>
+
+<div class="blurred-shape shape-orange"></div>
+<div class="blurred-shape shape-blue"></div>
+
+<div class="main-content">
+  <div class="auth-wrapper d-flex flex-column position-relative" style="height: 100%;">
+    <div class="w-100 text-center mb-3">
+      <h1 class="fw-bold" style="color: black; font-size: 2.5rem;">Sign up with email</h1>
+      <p class="mt-2">
+        Already have an account?
+        <a href="{{ url_for('login') }}" style="color: #0d6efd; text-decoration: underline; font-size: 1.25rem; font-weight: 500;">Login here</a>
+      </p>
+    </div>
+    <div class="auth-main">
+      <div class="card shadow-lg p-4 rounded-4" style="max-width: 420px; width: 100%;">
+        <div class="card-header text-center bg-white border-0">
+          <h3 class="mb-0">Create Account</h3>
+        </div>
+        <div class="card-body">
+          {% with messages = get_flashed_messages() %}
+            {% if messages %}
+              {% for message in messages %}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                  {{ message }}
+                  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+              {% endfor %}
+            {% endif %}
+          {% endwith %}
+          <form method="POST">
+            <div class="mb-3">
+              <label for="full_name" class="form-label">Full Name</label>
+              <input type="text" class="form-control" id="full_name" name="full_name" required>
+            </div>
+            <div class="mb-3">
+              <label for="email" class="form-label">Email Address</label>
+              <input type="email" class="form-control" id="email" name="email" required>
+            </div>
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Citizenship</label>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="user_category" id="citizen" value="citizen" required onchange="toggleIdField()">
+                <label class="form-check-label" for="citizen">Malaysian Citizen</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="user_category" id="foreigner" value="foreigner" required onchange="toggleIdField()">
+                <label class="form-check-label" for="foreigner">Foreigner</label>
+              </div>
+            </div>
+            <div class="mb-3" id="ic_field" style="display: none;">
+              <label for="ic_number" class="form-label">IC Number</label>
+              <input type="text" class="form-control" id="ic_number" name="ic_number" placeholder="e.g. 123456-78-9012">
+            </div>
+            <div class="mb-3" id="passport_field" style="display: none;">
+              <label for="passport_number" class="form-label">Passport Number</label>
+              <input type="text" class="form-control" id="passport_number" name="passport_number" placeholder="e.g. A12345678">
+            </div>
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">Create Account</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
+<footer class="footer bg-light border-top py-4">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center">
+    <div class="mb-2 mb-md-0 text-center text-md-start">
+      <span class="fw-bold" style="font-size: 1.1rem; color: #222;">&copy; 2025 SHAPADU SECURITY SDN BHD</span>
+      <span class="text-muted ms-2" style="font-size: 0.95rem;">All rights reserved.</span>
+    </div>
+    <div class="d-flex flex-column flex-md-row align-items-center gap-2 gap-md-3 text-center text-md-end">
+      <a href="#" class="text-decoration-none px-2 py-1 rounded-2" style="color: #0d6efd; transition: background 0.2s;" onmouseover="this.style.background='#e3e7ed'" onmouseout="this.style.background='transparent'">Privacy Policy</a>
+      <a href="#" class="text-decoration-none px-2 py-1 rounded-2" style="color: #0d6efd; transition: background 0.2s;" onmouseover="this.style.background='#e3e7ed'" onmouseout="this.style.background='transparent'">Terms of Service</a>
+      <a href="#" class="text-decoration-none px-2 py-1 rounded-2" style="color: #0d6efd; transition: background 0.2s;" onmouseover="this.style.background='#e3e7ed'" onmouseout="this.style.background='transparent'">Contact</a>
+      <span class="ms-md-3">
+        <a href="#" class="me-2" style="color: #495057;"><i class="bi bi-facebook"></i></a>
+        <a href="#" class="me-2" style="color: #495057;"><i class="bi bi-twitter"></i></a>
+        <a href="#" style="color: #495057;"><i class="bi bi-linkedin"></i></a>
+      </span>
+    </div>
+  </div>
+</footer>
+
 <script>
-function toggleIdField() {
+  document.body.classList.add('signup-bg');
+  function toggleIdField() {
     const userCategory = document.querySelector('input[name="user_category"]:checked');
     const icField = document.getElementById('ic_field');
     const passportField = document.getElementById('passport_field');
     const icInput = document.getElementById('ic_number');
     const passportInput = document.getElementById('passport_number');
-
     if (userCategory) {
-        if (userCategory.value === 'citizen') {
-            icField.style.display = 'block';
-            passportField.style.display = 'none';
-            icInput.required = true;
-            passportInput.required = false;
-            passportInput.value = '';
-        } else if (userCategory.value === 'foreigner') {
-            icField.style.display = 'none';
-            passportField.style.display = 'block';
-            icInput.required = false;
-            passportInput.required = true;
-            icInput.value = '';
-        }
-    } else {
-        icField.style.display = 'none';
+      if (userCategory.value === 'citizen') {
+        icField.style.display = 'block';
         passportField.style.display = 'none';
-        icInput.required = false;
+        icInput.required = true;
         passportInput.required = false;
-        icInput.value = '';
         passportInput.value = '';
+      } else if (userCategory.value === 'foreigner') {
+        icField.style.display = 'none';
+        passportField.style.display = 'block';
+        icInput.required = false;
+        passportInput.required = true;
+        icInput.value = '';
+      }
+    } else {
+      icField.style.display = 'none';
+      passportField.style.display = 'none';
+      icInput.required = false;
+      passportInput.required = false;
+      icInput.value = '';
+      passportInput.value = '';
     }
-}
+  }
 </script>
 {% endblock %}

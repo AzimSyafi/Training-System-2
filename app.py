@@ -7,7 +7,7 @@ from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime, date
 import os
-from models import db, Admin, User, Agency, Module, Certificate, Trainer, UserModule, Management, Registration
+from models import db, Admin, User, Agency, Module, Certificate, Trainer, UserModule, Management, Registration, Course
 from sqlalchemy.exc import IntegrityError
 import re
 import urllib.parse
@@ -22,15 +22,27 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
 # Database configuration - handle both development and production
 if os.environ.get('DATABASE_URL'):
-    # Production database (if you want to use PostgreSQL on Render)
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+    # Production database (PostgreSQL on Render)
+    database_url = os.environ.get('DATABASE_URL')
+    # Fix for newer SQLAlchemy versions - replace postgres:// with postgresql://
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 else:
-    # Development SQLite database
-    if os.environ.get('RENDER'):
-        # Production environment - use a temporary SQLite database
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/security_training.db'
+    # Local development - you can choose PostgreSQL or SQLite
+    use_local_postgresql = True  # Set to False if you want to use SQLite
+
+    if use_local_postgresql:
+        # Local PostgreSQL configuration
+        DB_USER = 'postgres'  # default postgres user
+        DB_PASSWORD = '7890'
+        DB_HOST = 'localhost'
+        DB_PORT = '5432'
+        DB_NAME = 'Training_system'
+
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
     else:
-        # Local development
+        # Local SQLite database (fallback)
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         DB_PATH = os.path.join(BASE_DIR, 'instance', 'security_training.db')
         app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
@@ -108,11 +120,27 @@ def serve_uploaded_slide(filename):
 # Home route
 @app.route('/')
 def index():
+    # Redirect authenticated users directly to their dashboard
+    if current_user.is_authenticated:
+        if isinstance(current_user, Admin):
+            return redirect(url_for('admin_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
     return render_template('index.html')
 
 # Authentication routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # If already logged in, skip login page
+    if request.method == 'GET' and current_user.is_authenticated:
+        if isinstance(current_user, Admin):
+            return redirect(url_for('admin_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
@@ -123,21 +151,24 @@ def login():
             login_user(user)
             session['user_type'] = 'admin'
             session['user_id'] = user.get_id()
-            return redirect(url_for('index'))
+            print(f"[DEBUG] Logged in as admin: {user.email}, session['user_type']: {session.get('user_type')}")
+            return redirect(url_for('admin_dashboard'))
         # If not admin, try Users
         user = User.query.filter_by(email=email).first()
         if user and user.check_password(password):
             login_user(user)
             session['user_type'] = 'user'
             session['user_id'] = user.get_id()
-            return redirect(url_for('index'))
+            print(f"[DEBUG] Logged in as user: {user.email}, session['user_type']: {session.get('user_type')}")
+            return redirect(url_for('user_dashboard'))
         # If not user, try Trainers
         user = Trainer.query.filter_by(email=email).first()
         if user and user.check_password(password):
             login_user(user)
             session['user_type'] = 'trainer'
             session['user_id'] = user.get_id()
-            return redirect(url_for('index'))
+            print(f"[DEBUG] Logged in as trainer: {user.email}, session['user_type']: {session.get('user_type')}")
+            return redirect(url_for('trainer_portal'))
         flash('Invalid email or password')
 
     return render_template('login.html')
@@ -302,7 +333,8 @@ def complete_module(module_id):
             # Issue certificate
             admin = Admin.query.first()  # Get any admin for certificate issuance
             if admin:
-                certificate = admin.issueCerticate(current_user.User_id, module_id)
+                # fixed method name
+                admin.issueCertificate(current_user.User_id, module_id)
                 flash('Certificate issued successfully!')
 
         # Check if user completed all modules of this course type
@@ -400,6 +432,7 @@ def my_certificates():
 @app.route('/admin_dashboard')
 @login_required
 def admin_dashboard():
+    print(f"[DEBUG] Accessing admin_dashboard, session['user_type']: {session.get('user_type')}, current_user: {type(current_user)}")
     if not isinstance(current_user, Admin):
         if isinstance(current_user, User):
             return redirect(url_for('user_dashboard'))
@@ -425,278 +458,200 @@ def admin_dashboard():
 @app.route('/admin/modules')
 @login_required
 def admin_modules():
+    # Deprecated: redirect to new course management page
     if not isinstance(current_user, Admin):
         if isinstance(current_user, User):
             return redirect(url_for('user_dashboard'))
         if isinstance(current_user, Trainer):
             return redirect(url_for('trainer_portal'))
         return redirect(url_for('login'))
+    return redirect(url_for('admin_course_management'))
 
-    modules = current_user.viewAllModules()
-    return render_template('admin_modules.html', modules=modules)
-
-@app.route('/admin/create_module', methods=['GET', 'POST'])
+# ------------------------
+# Course Management (New)
+# ------------------------
+@app.route('/admin/course_management')
 @login_required
-def create_module():
+def admin_course_management():
     if not isinstance(current_user, Admin):
         if isinstance(current_user, User):
             return redirect(url_for('user_dashboard'))
         if isinstance(current_user, Trainer):
             return redirect(url_for('trainer_portal'))
         return redirect(url_for('login'))
+    courses = Course.query.order_by(Course.name).all()
+    # Preload modules grouped by course
+    course_modules = {c.course_id: Module.query.filter_by(course_id=c.course_id).order_by(Module.series_number).all() for c in courses}
+    return render_template('admin_course_management.html', courses=courses, course_modules=course_modules)
 
-    if request.method == 'POST':
-        module_data = {
-            'module_name': request.form['module_name'],
-            'module_type': request.form['module_type'],
-            'series_number': request.form['series_number'],
-            'content': request.form['content']
-        }
-
-        module = current_user.createModule(module_data)
-        flash('Module created successfully!')
-        return redirect(url_for('admin_modules'))
-
-    return render_template('create_module.html')
-
-@app.route('/admin/edit_module/<int:module_id>', methods=['GET', 'POST'])
+@app.route('/admin/courses', methods=['POST'])
 @login_required
-def edit_module(module_id):
+def create_course():
     if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
         return redirect(url_for('login'))
+    name = request.form.get('name')
+    code = request.form.get('code')
+    description = request.form.get('description')
+    allowed_category = request.form.get('allowed_category', 'both')
+    if not name or not code:
+        flash('Name and Code are required', 'danger')
+        return redirect(url_for('admin_course_management'))
+    code = code.upper().strip()
+    if Course.query.filter_by(code=code).first():
+        flash('Course code already exists', 'danger')
+        return redirect(url_for('admin_course_management'))
+    course = Course(name=name, code=code, description=description, allowed_category=allowed_category)
+    db.session.add(course)
+    db.session.commit()
+    flash('Course created', 'success')
+    return redirect(url_for('admin_course_management'))
 
+@app.route('/admin/courses/<int:course_id>/update', methods=['POST'])
+@login_required
+def update_course(course_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    course = Course.query.get_or_404(course_id)
+    course.name = request.form.get('name', course.name)
+    course.description = request.form.get('description', course.description)
+    course.allowed_category = request.form.get('allowed_category', course.allowed_category)
+    db.session.commit()
+    flash('Course updated', 'success')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/admin/courses/<int:course_id>/delete', methods=['POST'])
+@login_required
+def delete_course(course_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    course = Course.query.get_or_404(course_id)
+    if course.modules and len(course.modules) > 0:
+        flash('Cannot delete course with existing modules. Remove modules first.', 'danger')
+        return redirect(url_for('admin_course_management'))
+    db.session.delete(course)
+    db.session.commit()
+    flash('Course deleted', 'success')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/admin/courses/<int:course_id>/modules', methods=['POST'])
+@login_required
+def add_course_module(course_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    course = Course.query.get_or_404(course_id)
+    module_name = request.form.get('module_name')
+    series_number = request.form.get('series_number')
+    content = request.form.get('content')
+    if not module_name:
+        flash('Module name required', 'danger')
+        return redirect(url_for('admin_course_management'))
+    module = Module(module_name=module_name,
+                    module_type=course.code.upper(),
+                    series_number=series_number,
+                    content=content,
+                    course_id=course.course_id)
+    db.session.add(module)
+    db.session.commit()
+    flash('Module added', 'success')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/admin/modules/<int:module_id>/update', methods=['POST'])
+@login_required
+def update_course_module(module_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
     module = Module.query.get_or_404(module_id)
+    # module_type enforced by course; don't allow change
+    module.module_name = request.form.get('module_name', module.module_name)
+    module.series_number = request.form.get('series_number', module.series_number)
+    module.content = request.form.get('content', module.content)
+    db.session.commit()
+    flash('Module updated', 'success')
+    return redirect(url_for('admin_course_management'))
 
-    if request.method == 'POST':
-        module_data = {
-            'module_name': request.form['module_name'],
-            'module_type': request.form['module_type'],
-            'series_number': request.form['series_number'],
-            'content': request.form['content']
-        }
-
-        current_user.updateModule(module_id, module_data)
-        flash('Module updated successfully!')
-        return redirect(url_for('admin_modules'))
-
-    return render_template('edit_module.html', module=module)
-
-@app.route('/admin/delete_module/<int:module_id>', methods=['POST'])
+@app.route('/admin/modules/<int:module_id>/delete', methods=['POST'])
 @login_required
-def delete_module(module_id):
+def delete_course_module(module_id):
     if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
         return redirect(url_for('login'))
+    module = Module.query.get_or_404(module_id)
+    db.session.delete(module)
+    db.session.commit()
+    flash('Module deleted', 'success')
+    return redirect(url_for('admin_course_management'))
 
-    if current_user.deleteModule(module_id):
-        flash('Module deleted successfully!')
-    else:
-        flash('Module not found!')
-
-    return redirect(url_for('admin_modules'))
-
-@app.route('/admin/users')
+@app.route('/admin/modules/<int:module_id>/content', methods=['POST'])
 @login_required
-def admin_users():
+def manage_module_content(module_id):
     if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
         return redirect(url_for('login'))
-
-    users = Registration.getUserList()
-    return render_template('admin_users.html', users=users)
-
-@app.route('/admin/create_user', methods=['GET', 'POST'])
-@login_required
-def create_user():
-    if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-
-    if request.method == 'POST':
-        user_data = {
-            'full_name': request.form['full_name'],
-            'email': request.form['email'],
-            'password': request.form['password'],
-            'agency_id': request.form['agency_id'],
-            'recruitment_date': datetime.now().date(),
-            'number_series': f"SG{datetime.now().year}{Registration.generateUserid():04d}"
-        }
-
-        user = Registration.registerUser(user_data)
-        flash('User created successfully!')
-        return redirect(url_for('admin_users'))
-
-    agencies = Registration.getAgencyList()
-    return render_template('create_user.html', agencies=agencies)
-
-@app.route('/admin/monitor_progress')
-@login_required
-def monitor_progress():
-    if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-
-    # Get user progress grouped by course (module_type)
-    # We'll get users and their overall progress for each course
-    user_course_progress = db.session.query(
-        User,
-        Module.module_type,
-        db.func.count(UserModule.id).label('total_modules'),
-        db.func.count(db.case((UserModule.is_completed == True, 1))).label('completed_modules'),
-        db.func.avg(UserModule.score).label('avg_score'),
-        db.func.max(UserModule.completion_date).label('latest_completion')
-    ).join(UserModule, User.User_id == UserModule.user_id)\
-     .join(Module, UserModule.module_id == Module.module_id)\
-     .group_by(User.User_id, Module.module_type)\
-     .all()
-
-    return render_template('monitor_progress.html', user_course_progress=user_course_progress)
-
-@app.route('/admin/certificates')
-@login_required
-def admin_certificates():
-    if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-
-    certificates = current_user.viewIssuedCertificates()
-    from models import UserModule
-    for cert in certificates:
-        user_module = UserModule.query.filter_by(user_id=cert.user_id, module_id=cert.module_id).first()
-        score = user_module.score if user_module else 0
-        cert.star_rating = max(1, min(5, int(round(score / 20))))
-    return render_template('admin_certificates.html', certificates=certificates)
-
-@app.route('/agency')
-@login_required
-def agency():
-    agencies = Agency.query.all()
-    return render_template('agency.html', agencies=agencies)
-
-@app.route('/admin/issue_certificate', methods=['POST'])
-@login_required
-def issue_certificate():
-    if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-
-    user_id = request.form['user_id']
-    module_id = request.form['module_id']
-
-    certificate = current_user.issueCerticate(user_id, module_id)
-    flash('Certificate issued successfully!')
-
-    return redirect(url_for('admin_certificates'))
-
-@app.route('/modules_by_type/<module_type>')
-def modules_by_type(module_type):
-    from models import Module
-    modules = Module.query.filter_by(module_type=module_type).all()
-    modules_data = [
-        {'module_id': m.module_id, 'module_name': m.module_name}
-        for m in modules
-    ]
-    return jsonify({'modules': modules_data})
-
-@app.route('/upload_content', methods=['GET', 'POST'])
-def upload_content():
-    from models import Module  # ensure import in case of circular import
-    # Get all unique module types for the dropdown
-    module_types = [row[0] for row in Module.query.with_entities(Module.module_type).distinct().all()]
-    modules = Module.query.all()
-    modules_data = [
-        {
-            'module_id': m.module_id,
-            'module_name': m.module_name,
-            'slide_url': m.slide_url
-        } for m in modules
-    ]
-    if request.method == 'POST':
-        title = request.form.get('title')
-        description = request.form.get('description')
-        content_type = request.form.get('content_type')
-        result = {'title': title, 'description': description, 'content_type': content_type}
-        if content_type == 'slide':
-            file = request.files.get('slide_file')
-            module_id = request.form.get('module_id')
-            if file and file.filename and file.filename.lower().endswith(('.pdf', '.pptx')) and module_id:
-                filename = secure_filename(file.filename)
-                filepath = os.path.join(UPLOAD_CONTENT_FOLDER, filename)
-                file.save(filepath)
-                # Save slide_url to the selected module
-                module = Module.query.get(module_id)
-                if module:
-                    module.slide_url = filename
-                    db.session.commit()
-                    flash('Slide uploaded and linked to module successfully!', 'success')
-                else:
-                    flash('Module not found.', 'danger')
-                    return render_template('upload_content.html', modules=modules)
-            else:
-                flash('Please upload a valid PDF or PPTX file and select a module.', 'danger')
-                return render_template('upload_content.html', modules=modules)
-        elif content_type == 'video':
-            youtube_url = request.form.get('youtube_url')
-            module_id = request.form.get('module_id')
-            module = Module.query.get(module_id)
-            if module:
-                module.youtube_url = youtube_url
-                db.session.commit()
-                flash('YouTube video saved!', 'success')
-            else:
-                flash('Module not found.', 'danger')
-            return redirect(url_for('upload_content'))
-        elif content_type == 'quiz':
-            module_id = request.form.get('module_id')
-            module = Module.query.get(module_id)
-            question = request.form.get('quiz_question')
-            answer1 = request.form.get('quiz_answer1')
-            answer2 = request.form.get('quiz_answer2')
-            answer3 = request.form.get('quiz_answer3')
-            quiz_image = request.files.get('quiz_image')
-            image_filename = None
-            if quiz_image and quiz_image.filename:
-                image_filename = secure_filename(quiz_image.filename)
-                image_path = os.path.join('static', 'uploads', image_filename)
-                os.makedirs(os.path.dirname(image_path), exist_ok=True)
-                quiz_image.save(image_path)
-                if module:
-                    module.quiz_image = image_filename
-                    db.session.commit()
-            result['quiz'] = {
-                'question': question,
-                'answers': [answer1, answer2, answer3],
-                'image': image_filename
-            }
-            flash('Quiz saved!' + (f' Image uploaded: {image_filename}' if image_filename else ''), 'success')
+    module = Module.query.get_or_404(module_id)
+    content_type = request.form.get('content_type')
+    if content_type == 'slide':
+        file = request.files.get('slide_file')
+        if file and file.filename and file.filename.lower().endswith(('.pdf', '.pptx')):
+            from werkzeug.utils import secure_filename
+            filename = secure_filename(file.filename)
+            # prevent collision
+            base, ext = os.path.splitext(filename)
+            counter = 1
+            target_path = os.path.join(UPLOAD_CONTENT_FOLDER, filename)
+            while os.path.exists(target_path):
+                filename = f"{base}_{counter}{ext}"
+                target_path = os.path.join(UPLOAD_CONTENT_FOLDER, filename)
+                counter += 1
+            file.save(target_path)
+            module.slide_url = filename
+            db.session.commit()
+            flash('Slide uploaded', 'success')
         else:
-            flash('Invalid content type.', 'danger')
-            return render_template('upload_content.html', modules=modules)
-        # TODO: Save 'result' to the database as needed
-        return redirect(url_for('upload_content'))
-    return render_template('upload_content.html', modules=modules, modules_data=modules_data, module_types=module_types)
+            flash('Invalid slide file', 'danger')
+    elif content_type == 'video':
+        youtube_url = request.form.get('youtube_url')
+        module.youtube_url = youtube_url
+        db.session.commit()
+        flash('Video URL saved', 'success')
+    elif content_type == 'quiz':
+        # Support up to 5 questions: quiz_question_1..5, answer_1_1..answer_5_5, correct_answer_1..5
+        quiz_payload = []
+        any_new_pattern = False
+        for qn in range(1, 6):
+            q_text = request.form.get(f'quiz_question_{qn}')
+            if q_text:
+                any_new_pattern = True
+                answers = []
+                correct_idx = request.form.get(f'correct_answer_{qn}')
+                for an in range(1, 6):
+                    ans_text = request.form.get(f'answer_{qn}_{an}')
+                    if ans_text:
+                        answers.append({
+                            'text': ans_text,
+                            'isCorrect': str(an) == str(correct_idx)
+                        })
+                if answers:
+                    quiz_payload.append({'question': q_text, 'answers': answers})
+        if not any_new_pattern:
+            # Fallback to legacy single-question field names
+            question = request.form.get('quiz_question')
+            if question:
+                answers = []
+                correct_index = request.form.get('correct_answer')
+                for i in range(1, 6):
+                    ans_text = request.form.get(f'answer_{i}')
+                    if ans_text:
+                        answers.append({'text': ans_text, 'isCorrect': str(i) == str(correct_index)})
+                if answers:
+                    quiz_payload.append({'question': question, 'answers': answers})
+        if quiz_payload:
+            import json as _json
+            module.quiz_json = _json.dumps(quiz_payload)
+            db.session.commit()
+            flash(f'Quiz saved ({len(quiz_payload)} question(s))', 'success')
+        else:
+            flash('Quiz data incomplete', 'danger')
+    else:
+        flash('Unknown content type', 'danger')
+    return redirect(url_for('admin_course_management'))
 
 # API endpoints for dynamic data
 @app.route('/api/user_progress/<int:user_id>')
@@ -1070,6 +1025,58 @@ def init_db():
             db.session.add(management)
             db.session.commit()
 
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        try:
+            module_columns = [c['name'] for c in inspector.get_columns('module')]
+        except Exception:
+            module_columns = []
+        # Add course_id column if missing
+        if 'course_id' not in module_columns:
+            try:
+                db.session.execute(text('ALTER TABLE module ADD COLUMN course_id INTEGER NULL'))
+                # Add FK constraint if course table exists
+                course_tables = inspector.get_table_names()
+                if 'course' in course_tables:
+                    # Attempt to add constraint (ignore if fails)
+                    try:
+                        db.session.execute(text('ALTER TABLE module ADD CONSTRAINT module_course_id_fkey FOREIGN KEY (course_id) REFERENCES course (course_id) ON DELETE SET NULL'))
+                    except Exception:
+                        pass
+                db.session.commit()
+                print('[INIT_DB] Added course_id column to module table.')
+            except Exception as e:
+                db.session.rollback()
+                print(f'[INIT_DB] Skipped adding course_id (possibly already in progress or permissions issue): {e}')
+        # Ensure default courses for existing module_type codes
+        try:
+            # Create course table if somehow not created (db.create_all should do this)
+            if 'course' not in inspector.get_table_names():
+                db.create_all()
+            existing_codes = {c.code for c in Course.query.all()}
+            distinct_types = [row[0] for row in db.session.query(Module.module_type).distinct().all() if row[0]]
+            for code in distinct_types:
+                ucode = code.upper()
+                if ucode not in existing_codes and len(ucode) <= 50:
+                    course = Course(name=f'{ucode} Course', code=ucode, description=f'Auto-generated course for {ucode}', allowed_category='both')
+                    db.session.add(course)
+            db.session.commit()
+            # Map modules without course_id
+            code_to_course = {c.code.upper(): c.course_id for c in Course.query.all()}
+            unmapped_modules = Module.query.filter(Module.course_id.is_(None)).all()
+            changed = 0
+            for m in unmapped_modules:
+                cid = code_to_course.get(m.module_type.upper())
+                if cid:
+                    m.course_id = cid
+                    changed += 1
+            if changed:
+                db.session.commit()
+                print(f'[INIT_DB] Linked {changed} existing modules to courses.')
+        except Exception as e:
+            db.session.rollback()
+            print(f'[INIT_DB] Course backfill skipped: {e}')
+
 # Call init_db when the app starts
 init_db()
 
@@ -1250,9 +1257,10 @@ def api_submit_quiz(module_id):
     for idx, q in enumerate(quiz):
         if idx < len(answers):
             ans_idx = answers[idx]
-            if ans_idx is not None and 0 <= ans_idx < len(q['answers']) and q['answers'][ans_idx].get('isCorrect'):
-                correct += 1
-    
+            if ans_idx is not None and 0 <= ans_idx < len(q['answers']):
+                if q['answers'][ans_idx].get('isCorrect') in [True, 'true', 'True', 1, '1']:
+                    correct += 1
+
     score = int((correct / total) * 100) if total > 0 else 0
     feedback = 'Great job!' if score >= 75 else ('Keep practicing.' if score >= 50 else 'Needs improvement.')
     
@@ -1478,9 +1486,14 @@ def api_complete_quiz():
                 user.rating_label = label
                 db.session.commit()
             # Issue certificate if not already issued
-            cert_exists = Certificate.query.filter_by(user_id=user_id, course_type=course_type).first()
+            cert_exists = Certificate.query.filter_by(user_id=user_id, module_id=module_id).first()
             if not cert_exists:
-                cert = Certificate(user_id=user_id, course_type=course_type, issue_date=datetime.now(), star_rating=stars)
+                cert = Certificate(user_id=user_id,
+                                   module_id=module.module_id,
+                                   module_type=module.module_type,
+                                   issue_date=datetime.now().date(),
+                                   star_rating=stars,
+                                   score=avg_score)
                 db.session.add(cert)
                 db.session.commit()
     return jsonify({'status': 'success', 'message': 'Quiz results saved.', 'correct': correct, 'total': total})
@@ -1672,6 +1685,191 @@ def reattempt_course(course_code):
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
+@app.route('/admin/users')
+@login_required
+def admin_users():
+    if not isinstance(current_user, Admin):
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
+    users = Registration.getUserList()
+    return render_template('admin_users.html', users=users)
+
+@app.route('/admin/certificates')
+@login_required
+def admin_certificates():
+    if not isinstance(current_user, Admin):
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
+    certificates = current_user.viewIssuedCertificates() if hasattr(current_user, 'viewIssuedCertificates') else []
+    from models import UserModule
+    for cert in certificates:
+        user_module = UserModule.query.filter_by(user_id=cert.user_id, module_id=cert.module_id).first()
+        score = user_module.score if user_module else 0
+        cert.star_rating = max(1, min(5, int(round(score / 20))))
+    return render_template('admin_certificates.html', certificates=certificates)
+
+@app.route('/monitor_progress')
+@login_required
+def monitor_progress():
+    """Admin view showing all users' module progress."""
+    if not isinstance(current_user, Admin):
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
+    # Query joined data
+    rows = db.session.query(UserModule, User, Module, Agency) \
+        .join(User, User.User_id == UserModule.user_id) \
+        .join(Module, Module.module_id == UserModule.module_id) \
+        .join(Agency, Agency.agency_id == User.agency_id) \
+        .order_by(User.full_name.asc(), Module.module_name.asc()).all()
+    # Existing certificates set for quick lookup
+    existing_certs = set((c.user_id, c.module_id) for c in Certificate.query.all())
+    return render_template('monitor_progress.html', user_modules=rows, existing_certs=existing_certs)
+
+@app.route('/issue_certificate', methods=['POST'])
+@login_required
+def issue_certificate():
+    if not isinstance(current_user, Admin):
+        flash('Unauthorized', 'danger')
+        return redirect(url_for('login'))
+    try:
+        user_id = int(request.form.get('user_id'))
+        module_id = int(request.form.get('module_id'))
+    except (TypeError, ValueError):
+        flash('Invalid request', 'danger')
+        return redirect(url_for('monitor_progress'))
+
+    um = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
+    if not um:
+        flash('Record not found', 'danger')
+        return redirect(url_for('monitor_progress'))
+    if not um.is_completed or um.score <= 50:
+        flash('Module not eligible for certificate (must be completed with score > 50)', 'warning')
+        return redirect(url_for('monitor_progress'))
+
+    existing = Certificate.query.filter_by(user_id=user_id, module_id=module_id).first()
+    if existing:
+        flash('Certificate already issued', 'info')
+        return redirect(url_for('monitor_progress'))
+
+    # Attempt to generate a course-level certificate PDF (optional)
+    try:
+        from generate_certificate import generate_certificate
+        # Use module_type as course_type and score as overall percentage fallback
+        course_type = um.module.module_type
+        overall_percentage = int(um.score)
+        generate_certificate(user_id, course_type, overall_percentage)
+        # If generation creates an entry already, re-fetch
+        existing = Certificate.query.filter_by(user_id=user_id, module_id=module_id).first()
+        if existing:
+            flash('Certificate generated', 'success')
+            return redirect(url_for('monitor_progress'))
+    except Exception as e:
+        # Fall back to simple DB creation
+        pass
+
+    from datetime import date as _date
+    stars = max(1, min(5, int(round(um.score / 20.0))))
+    cert = Certificate(user_id=user_id,
+                       module_id=module_id,
+                       issue_date=_date.today(),
+                       star_rating=stars,
+                       score=um.score,
+                       certificate_url=f"/static/certificates/certificate_{user_id}_{module_id}.pdf")
+    db.session.add(cert)
+    db.session.commit()
+    flash('Certificate issued (no PDF generated)', 'success')
+    return redirect(url_for('monitor_progress'))
+
+@app.route('/admin/create_module', methods=['GET', 'POST'])
+@login_required
+def create_module():
+    if not isinstance(current_user, Admin):
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
+    if request.method == 'POST':
+        name = request.form.get('module_name')
+        mtype = request.form.get('module_type')  # In legacy template this is a category (Theory/Practical...)
+        series = request.form.get('series_number')
+        content = request.form.get('content')
+        # Optional course_code to align with new course system
+        course_code = request.args.get('course_code')
+        course_id = None
+        if course_code:
+            from models import Course
+            course = Course.query.filter_by(code=course_code.upper()).first()
+            if course:
+                course_id = course.course_id
+                # If user selected a generic type (Theory/Practical) keep it in series_number suffix, but set module_type to course code
+                mtype = course.code.upper()
+        if not name or not mtype:
+            flash('Module Name and Type are required', 'danger')
+            return render_template('create_module.html')
+        module = Module(module_name=name, module_type=mtype.upper(), series_number=series, content=content, course_id=course_id)
+        db.session.add(module)
+        db.session.commit()
+        flash('Module created', 'success')
+        # Prefer redirect to new course management if course context provided
+        if course_id:
+            return redirect(url_for('admin_course_management'))
+        return redirect(url_for('admin_modules'))
+    return render_template('create_module.html')
+
+@app.route('/admin/create_user', methods=['GET', 'POST'])
+@login_required
+def create_user():
+    # Admin only; others redirected to landing page as requested fallback
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('index'))
+    agencies = Agency.query.all()
+    if request.method == 'POST':
+        full_name = request.form.get('full_name')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        agency_id = request.form.get('agency_id')
+        if not (full_name and email and password and agency_id):
+            flash('All fields are required.', 'danger')
+            return render_template('create_user.html', agencies=agencies)
+        # Ensure agency_id is int
+        try:
+            agency_id = int(agency_id)
+        except ValueError:
+            flash('Invalid agency selected.', 'danger')
+            return render_template('create_user.html', agencies=agencies)
+        # Check duplicate email (Users + Admin + Trainer to be safe)
+        if User.query.filter_by(email=email).first() or Admin.query.filter_by(email=email).first() or Trainer.query.filter_by(email=email).first():
+            flash('Email already exists.', 'warning')
+            return render_template('create_user.html', agencies=agencies)
+        try:
+            user_data = {
+                'full_name': full_name,
+                'email': email,
+                'password': password,
+                'agency_id': agency_id,
+                'user_category': 'citizen'  # default
+            }
+            Registration.registerUser(user_data)
+            flash('User created successfully.', 'success')
+            return redirect(url_for('admin_users'))
+        except IntegrityError:
+            db.session.rollback()
+            flash('Database integrity error creating user.', 'danger')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creating user: {e}', 'danger')
+    return render_template('create_user.html', agencies=agencies)
+
 if __name__ == '__main__':
     print('\nOpen your browser and go to: http://127.0.0.1:5000/')
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)

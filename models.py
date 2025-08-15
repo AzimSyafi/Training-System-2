@@ -230,6 +230,28 @@ class User(UserMixin, db.Model):
             return 'Z+'
         return chr(ord('A') + max_reattempts)
 
+class Course(db.Model):
+    __tablename__ = 'course'
+
+    course_id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    code = db.Column(db.String(50), unique=True, nullable=False)  # e.g., TNG, CSG
+    description = db.Column(db.Text)
+    allowed_category = db.Column(db.String(20), default='both')  # citizen / foreigner / both
+
+    # Relationship
+    modules = db.relationship('Module', backref='course', lazy=True)
+
+    def to_dict(self):
+        return {
+            'course_id': self.course_id,
+            'name': self.name,
+            'code': self.code,
+            'description': self.description,
+            'allowed_category': self.allowed_category,
+            'module_count': len(self.modules)
+        }
+
 class Module(db.Model):
     __tablename__ = 'module'
 
@@ -244,6 +266,7 @@ class Module(db.Model):
     quiz_json = db.Column(db.Text)  # New field for storing quiz as JSON
     quiz_image = db.Column(db.String(255))  # Filename for quiz image
     slide_url = db.Column(db.String(255))  # Field for uploaded slide filename/path
+    course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))  # Optional link to Course
 
     # Relationships
     certificates = db.relationship('Certificate', backref='module', lazy=True)
@@ -281,7 +304,8 @@ class Module(db.Model):
             'youtube_url': self.youtube_url,
             'quiz_json': self.quiz_json,
             'quiz_image': self.quiz_image,
-            'slide_url': self.slide_url
+            'slide_url': self.slide_url,
+            'course_id': self.course_id
         }
 
 class Certificate(db.Model):
