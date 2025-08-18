@@ -5,10 +5,11 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
-from datetime import datetime, date
+from datetime import datetime, date, UTC  # added UTC
 import os
 from models import db, Admin, User, Agency, Module, Certificate, Trainer, UserModule, Management, Registration, Course
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import text, inspect as sa_inspect
 import re
 import urllib.parse
 from flask import request, jsonify
@@ -94,28 +95,93 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+# --- One-time schema safeguard: ensure trainer.number_series exists & populated ---
+with app.app_context():
+    try:
+        inspector = sa_inspect(db.engine)
+        trainer_columns = {c['name'] for c in inspector.get_columns('trainer')}
+        if 'number_series' not in trainer_columns:
+            if db.engine.dialect.name == 'postgresql':
+                db.session.execute(text("ALTER TABLE trainer ADD COLUMN IF NOT EXISTS number_series VARCHAR(10) UNIQUE"))
+            else:
+                # SQLite fallback (requires table rebuild); skip automatic mutation to avoid data risk
+                print('[SCHEMA WARNING] trainer.number_series absent and non-PostgreSQL dialect; manual migration needed for SQLite.')
+            db.session.commit()
+        # Backfill any NULL/empty values using TRYYYYNNNN pattern
+        year = datetime.now(UTC).strftime('%Y')  # updated
+        if db.engine.dialect.name == 'postgresql':
+            seq_name = f'trainer_number_series_{year}_seq'
+            db.session.execute(text(f"CREATE SEQUENCE IF NOT EXISTS {seq_name}"))
+            db.session.execute(text(
+                f"UPDATE trainer SET number_series = 'TR{year}' || LPAD(nextval('{seq_name}')::text,4,'0') "
+                "WHERE (number_series IS NULL OR number_series = '')"))
+            db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"[SCHEMA GUARD ERROR] {e}")
+# -------------------------------------------------------------------------------
+
 @login_manager.user_loader
 def load_user(user_id):
     user_type = session.get('user_type')
+    # Admins keep numeric IDs
     if user_type == 'admin':
-        return Admin.query.get(int(user_id))
-    elif user_type == 'user':
-        return User.query.get(int(user_id))
-    elif user_type == 'trainer':
-        return Trainer.query.get(int(user_id))
-    admin = Admin.query.get(int(user_id))
-    if admin:
-        return admin
-    return User.query.get(int(user_id))
+        try:
+            return Admin.query.get(int(user_id))
+        except (TypeError, ValueError):
+            return None
+    # Users use SGYYYYNNNN number_series
+    if user_type == 'user':
+        if isinstance(user_id, str) and user_id.startswith('SG'):
+            u = User.query.filter_by(number_series=user_id).first()
+            if u:
+                return u
+        # Fallback numeric (legacy sessions)
+        try:
+            return User.query.get(int(user_id))
+        except (TypeError, ValueError):
+            return None
+    # Trainers use TRYYYYNNNN number_series
+    if user_type == 'trainer':
+        if isinstance(user_id, str) and user_id.startswith('TR'):
+            t = Trainer.query.filter_by(number_series=user_id).first()
+            if t:
+                return t
+        try:
+            return Trainer.query.get(int(user_id))
+        except (TypeError, ValueError):
+            return None
+    # Fallback detection if session user_type missing
+    if isinstance(user_id, str):
+        if user_id.startswith('SG'):
+            return User.query.filter_by(number_series=user_id).first()
+        if user_id.startswith('TR'):
+            return Trainer.query.filter_by(number_series=user_id).first()
+        # Try numeric admin then user
+        try:
+            num_id = int(user_id)
+            admin = Admin.query.get(num_id)
+            if admin:
+                return admin
+            return User.query.get(num_id)
+        except (TypeError, ValueError):
+            return None
+    return None
 
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-@app.route('/uploads/<filename>')
-def serve_uploaded_slide(filename):
-    uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
-    return send_from_directory(uploads_dir, filename)
+@app.route('/uploads/<path:filename>')  # unified route; path allows subdirectories if needed
+def serve_upload(filename):
+    """Serve uploaded profile pictures or module slide files from their respective directories.
+    Tries profile pictures folder first, then static/uploads. Returns 404 if not found."""
+    profile_dir = app.config.get('UPLOAD_FOLDER', 'static/profile_pics')
+    slides_dir = os.path.join(app.root_path, 'static', 'uploads')
+    candidate = os.path.join(profile_dir, filename)
+    if os.path.exists(candidate):
+        return send_from_directory(profile_dir, filename)
+    candidate = os.path.join(slides_dir, filename)
+    if os.path.exists(candidate):
+        return send_from_directory(slides_dir, filename)
+    from flask import abort
+    return abort(404)
 
 # Home route
 @app.route('/')
@@ -545,13 +611,39 @@ def add_course_module(course_id):
     if not module_name:
         flash('Module name required', 'danger')
         return redirect(url_for('admin_course_management'))
+
+    # Ensure PostgreSQL sequence is aligned with current max(module_id) to avoid duplicate key errors
+    def ensure_module_sequence():
+        try:
+            from sqlalchemy import text
+            max_id = db.session.execute(text("SELECT COALESCE(MAX(module_id),0) FROM module")).scalar() or 0
+            # Advance sequence only if it's behind
+            current_seq = db.session.execute(text("SELECT last_value FROM module_module_id_seq"))\
+                .scalar() if db.session.bind.dialect.name == 'postgresql' else None
+            if current_seq is None or current_seq < max_id:
+                db.session.execute(text("SELECT setval('module_module_id_seq', :new_val, true)"), {'new_val': max_id})
+                db.session.commit()
+        except Exception as e:
+            app.logger.warning(f"Module sequence sync skipped: {e}")
+
+    if db.session.bind and db.session.bind.dialect.name == 'postgresql':
+        ensure_module_sequence()
+
     module = Module(module_name=module_name,
                     module_type=course.code.upper(),
                     series_number=series_number,
                     content=content,
                     course_id=course.course_id)
     db.session.add(module)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        # Retry once after forcing sequence realignment
+        db.session.rollback()
+        if db.session.bind and db.session.bind.dialect.name == 'postgresql':
+            ensure_module_sequence()
+        db.session.add(module)
+        db.session.commit()
     flash('Module added', 'success')
     return redirect(url_for('admin_course_management'))
 
@@ -652,6 +744,89 @@ def manage_module_content(module_id):
     else:
         flash('Unknown content type', 'danger')
     return redirect(url_for('admin_course_management'))
+
+@app.route('/trainer/upload_content', methods=['GET', 'POST'])
+@login_required
+def upload_content():
+    """Trainer-facing content upload page (slides / video URL / quiz)."""
+    if not isinstance(current_user, Trainer):
+        # Only trainers permitted
+        return redirect(url_for('login'))
+    modules = Module.query.order_by(Module.module_type.asc(), Module.series_number.asc()).all()
+    if request.method == 'POST':
+        module_id = request.form.get('module_id')
+        content_type = request.form.get('content_type')
+        if not module_id or not content_type:
+            flash('Module and content type required', 'danger')
+            return redirect(url_for('upload_content'))
+        module = Module.query.get(module_id)
+        if not module:
+            flash('Selected module not found', 'danger')
+            return redirect(url_for('upload_content'))
+        try:
+            if content_type == 'slide':
+                file = request.files.get('slide_file')
+                if file and file.filename and file.filename.lower().endswith(('.pdf', '.pptx')):
+                    filename = secure_filename(file.filename)
+                    base, ext = os.path.splitext(filename)
+                    counter = 1
+                    target_path = os.path.join(UPLOAD_CONTENT_FOLDER, filename)
+                    while os.path.exists(target_path):
+                        filename = f"{base}_{counter}{ext}"
+                        target_path = os.path.join(UPLOAD_CONTENT_FOLDER, filename)
+                        counter += 1
+                    file.save(target_path)
+                    module.slide_url = filename
+                    db.session.commit()
+                    flash('Slide uploaded', 'success')
+                else:
+                    flash('Invalid slide file', 'danger')
+            elif content_type == 'video':
+                youtube_url = request.form.get('youtube_url')
+                module.youtube_url = youtube_url
+                db.session.commit()
+                flash('Video URL saved', 'success')
+            elif content_type == 'quiz':
+                quiz_payload = []
+                any_new_pattern = False
+                for qn in range(1, 6):
+                    q_text = request.form.get(f'quiz_question_{qn}')
+                    if q_text:
+                        any_new_pattern = True
+                        answers = []
+                        correct_idx = request.form.get(f'correct_answer_{qn}')
+                        for an in range(1, 6):
+                            ans_text = request.form.get(f'answer_{qn}_{an}')
+                            if ans_text:
+                                answers.append({'text': ans_text, 'isCorrect': str(an) == str(correct_idx)})
+                        if answers:
+                            quiz_payload.append({'question': q_text, 'answers': answers})
+                if not any_new_pattern:
+                    # Legacy single-question fallback
+                    question = request.form.get('quiz_question')
+                    if question:
+                        answers = []
+                        correct_index = request.form.get('correct_answer')
+                        for i in range(1, 6):
+                            ans_text = request.form.get(f'answer_{i}')
+                            if ans_text:
+                                answers.append({'text': ans_text, 'isCorrect': str(i) == str(correct_index)})
+                        if answers:
+                            quiz_payload.append({'question': question, 'answers': answers})
+                if quiz_payload:
+                    module.quiz_json = json.dumps(quiz_payload)
+                    db.session.commit()
+                    flash(f'Quiz saved ({len(quiz_payload)} question(s))', 'success')
+                else:
+                    flash('Quiz data incomplete', 'danger')
+            else:
+                flash('Unknown content type', 'danger')
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'Trainer content upload error: {e}')
+            flash(f'Error saving content: {e}', 'danger')
+        return redirect(url_for('upload_content'))
+    return render_template('upload_content.html', modules=modules)
 
 # API endpoints for dynamic data
 @app.route('/api/user_progress/<int:user_id>')
@@ -802,6 +977,26 @@ def profile():
 
     return render_template('profile.html', user=current_user)
 
+# New route to display agency info for regular users (fix for missing 'agency' endpoint)
+@app.route('/agency')
+@login_required
+def agency():
+    if isinstance(current_user, Admin):
+        return redirect(url_for('admin_agencies'))
+    if isinstance(current_user, Trainer):
+        return redirect(url_for('trainer_portal'))
+    if not isinstance(current_user, User):
+        return redirect(url_for('login'))
+    agencies = []
+    user_agency_id = getattr(current_user, 'agency_id', None)
+    if user_agency_id:
+        ag = Agency.query.get(user_agency_id)
+        if ag:
+            agencies = [ag]
+    if not agencies:
+        agencies = Agency.query.all()
+    return render_template('agency.html', agencies=agencies)
+
 # Initialize database function
 def init_db():
     with app.app_context():
@@ -814,7 +1009,7 @@ def init_db():
                 contact_number='+1234567890',
                 address='123 Security Street, Safety City',
                 Reg_of_Company='REG123456',
-                PIC='John Doe',
+                PIC='Default PIC',  # was 'John Doe'
                 email='contact@defaultagency.com'
             )
             db.session.add(agency)
@@ -913,107 +1108,6 @@ def init_db():
 
             db.session.commit()
 
-        # Create mock user accounts
-        if not User.query.filter_by(email='john.doe@trainee.com').first():
-            # Get the default agency
-            default_agency = Agency.query.first()
-
-            # Mock User 1
-            user1 = User(
-                full_name='John Doe',
-                email='john.doe@trainee.com',
-                visa_expiry_date=date(2025, 12, 31),
-                emergency_contact='+1234567892',
-                emergency_relationship='Spouse',
-                recruitment_date=date(2024, 1, 15),
-                current_workplace='Downtown Mall',
-                state='California',
-                postcode='90210',
-                remarks='Excellent trainee with strong work ethic',
-                rating_star=4,
-                agency_id=default_agency.agency_id if default_agency else 1,
-                number_series='SG20240001'
-            )
-            user1.set_password('john123')
-            db.session.add(user1)
-
-            # Mock User 2
-            user2 = User(
-                full_name='Jane Smith',
-                email='jane.smith@trainee.com',
-                visa_expiry_date=date(2026, 6, 30),
-                emergency_contact='+1234567893',
-                emergency_relationship='Parent',
-                recruitment_date=date(2024, 2, 1),
-                current_workplace='Office Complex',
-                state='California',
-                postcode='90211',
-                remarks='Quick learner with good communication skills',
-                rating_star=5,
-                agency_id=default_agency.agency_id if default_agency else 1,
-                number_series='SG20240002'
-            )
-            user2.set_password('jane123')
-            db.session.add(user2)
-
-            # Mock User 3
-            user3 = User(
-                full_name='Robert Wilson',
-                email='robert.wilson@trainee.com',
-                visa_expiry_date=date(2025, 9, 15),
-                emergency_contact='+1234567894',
-                emergency_relationship='Brother',
-                recruitment_date=date(2024, 3, 10),
-                current_workplace='Residential Complex',
-                state='California',
-                postcode='90212',
-                remarks='Dedicated worker with attention to detail',
-                rating_star=3,
-                agency_id=default_agency.agency_id if default_agency else 1,
-                number_series='SG20240003'
-            )
-            user3.set_password('robert123')
-            db.session.add(user3)
-
-            db.session.commit()
-
-            # Create some sample progress for the users
-            modules = Module.query.all()
-            if modules:
-                # User 1 progress - completed some modules
-                for i, module in enumerate(modules[:2]):
-                    user_module = UserModule(
-                        user_id=user1.User_id,
-                        module_id=module.module_id,
-                        is_completed=True,
-                        score=85.0 if i == 0 else 72.0,
-                        completion_date=datetime.now()
-                    )
-                    db.session.add(user_module)
-
-                # User 2 progress - completed all modules
-                for i, module in enumerate(modules):
-                    user_module = UserModule(
-                        user_id=user2.User_id,
-                        module_id=module.module_id,
-                        is_completed=True,
-                        score=90.0 + i,
-                        completion_date=datetime.now()
-                    )
-                    db.session.add(user_module)
-
-                # User 3 progress - only enrolled, not completed
-                for module in modules:
-                    user_module = UserModule(
-                        user_id=user3.User_id,
-                        module_id=module.module_id,
-                        is_completed=False,
-                        score=0.0
-                    )
-                    db.session.add(user_module)
-
-                db.session.commit()
-
         # Create management entry
         if not Management.query.first():
             management = Management(
@@ -1077,99 +1171,48 @@ def init_db():
             db.session.rollback()
             print(f'[INIT_DB] Course backfill skipped: {e}')
 
-# Call init_db when the app starts
-init_db()
-
-@app.route('/api/profile', methods=['POST'])
-def insert_profile():
-    data = request.get_json()
-    required_fields = [
-        'full_name', 'email', 'agency_id', 'number_series', 'visa_expiry_date',
-        'state', 'postcode', 'trainer', 'emergency_contact', 'emergency_relationship',
-        'work_history', 'profile_picture'
-    ]
-    # Validate required fields
-    for field in required_fields:
-        if field not in data:
-            return jsonify({'success': False, 'message': f'Missing field: {field}'}), 400
-    # Validate email
-    if not re.match(r"[^@]+@[^@]+\.[^@]+", data['email']):
-        return jsonify({'success': False, 'message': 'Invalid email format'}), 400
-    # Validate work history is a list
-    if not isinstance(data['work_history'], list):
-        return jsonify({'success': False, 'message': 'Work history must be a list'}), 400
-    try:
-        with db.session.begin_nested():
-            user = User(
-                full_name=data['full_name'],
-                Profile_picture=data.get('profile_picture'),
-                email=data['email'],
-                number_series=data['number_series'],
-                visa_expiry_date=datetime.strptime(data['visa_expiry_date'], '%Y-%m-%d').date() if data['visa_expiry_date'] else None,
-                state=data['state'],
-                postcode=data['postcode'],
-                trainer=data['trainer'],
-                rating_star=data.get('rating_star', 0),
-                emergency_contact=data['emergency_contact'],
-                emergency_relationship=data['emergency_relationship'],
-                agency_id=data['agency_id']
-            )
-            # Set password if provided
-            if 'password' in data:
-                user.set_password(data['password'])
-            db.session.add(user)
-            db.session.flush()  # Get user.User_id
-            for wh in data['work_history']:
-                wh_required = ['company_name', 'start_date']
-                for whf in wh_required:
-                    if whf not in wh:
-                        raise ValueError(f'Missing work history field: {whf}')
-                work_history =  WorkHistory(
-                    user_id=user.User_id,
-                    company_name=wh['company_name'],
-                    position_title=wh.get('position_title'),
-                    start_date=datetime.strptime(wh['start_date'], '%Y-%m-%d').date() if wh.get('start_date') else None,
-                    end_date=datetime.strptime(wh['end_date'], '%Y-%m-%d').date() if wh.get('end_date') else None,
-                    location=wh.get('location')
-                )
-                db.session.add(work_history)
-            db.session.commit()
-        return jsonify({'success': True, 'message': 'Profile and work history inserted successfully.'}), 201
-    except IntegrityError as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Integrity error: ' + str(e)}), 400
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 400
+        # Auto-remove legacy hardcoded sample users if they still exist (they were previously inserted in older versions)
+        # Set env var KEEP_SAMPLE_USERS=1 to skip removal.
+        if not os.environ.get('KEEP_SAMPLE_USERS'):
+            legacy_sample_emails = [
+                'john.doe@trainee.com',
+                'jane.smith@trainee.com',
+                'robert.wilson@trainee.com'
+            ]
+            from models import WorkHistory
+            removed = 0
+            for em in legacy_sample_emails:
+                u = User.query.filter_by(email=em).first()
+                if u:
+                    UserModule.query.filter_by(user_id=u.User_id).delete()
+                    Certificate.query.filter_by(user_id=u.User_id).delete()
+                    WorkHistory.query.filter_by(user_id=u.User_id).delete()
+                    db.session.delete(u)
+                    removed += 1
+            if removed:
+                try:
+                    db.session.commit()
+                    print(f"[INIT_DB] Removed {removed} legacy sample user(s).")
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"[INIT_DB] Failed removing legacy sample users: {e}")
 
 @app.route('/cleanup-db-for-mockup')
 def cleanup_db_for_mockup():
     try:
-        # --- Clean Users ---
-        user_to_keep = User.query.filter_by(username='john').first()
-        if user_to_keep:
-            users_to_delete = User.query.filter(User.username != 'john').all()
-            for user in users_to_delete:
-                UserModule.query.filter_by(user_id=user.User_id).delete()
-                Certificate.query.filter_by(user_id=user.User_id).delete()
-                db.session.delete(user)
-
-        # --- Clean Trainers ---
-        trainer_to_keep = Trainer.query.filter_by(username='sarah').first()
-        if trainer_to_keep:
-            trainers_to_delete = Trainer.query.filter(Trainer.username != 'sarah').all()
-            for trainer in trainers_to_delete:
-                db.session.delete(trainer)
-
-        # --- Clean Admins ---
-        admin_to_keep = Admin.query.filter_by(username='admin').first()
-        if admin_to_keep:
-            admins_to_delete = Admin.query.filter(Admin.username != 'admin').all()
-            for admin in admins_to_delete:
-                db.session.delete(admin)
-
+        # --- Clean legacy sample Users ---
+        legacy_names = ['John Doe', 'Jane Smith', 'Robert Wilson']
+        legacy_emails = ['john.doe@trainee.com','jane.smith@trainee.com','robert.wilson@trainee.com']
+        legacy_users = User.query.filter( (User.full_name.in_(legacy_names)) | (User.email.in_(legacy_emails)) ).all()
+        for user in legacy_users:
+            UserModule.query.filter_by(user_id=user.User_id).delete()
+            Certificate.query.filter_by(user_id=user.User_id).delete()
+            from models import WorkHistory
+            WorkHistory.query.filter_by(user_id=user.User_id).delete()
+            db.session.delete(user)
+        # --- Optionally keep a single admin/trainer baseline; no change to existing logic ---
         db.session.commit()
-        flash("Database cleaned successfully. Only 'john', 'sarah', and 'admin' remain.")
+        flash("Legacy sample users removed (if any existed).")
     except Exception as e:
         db.session.rollback()
         flash(f"An error occurred during cleanup: {e}")
@@ -1351,13 +1394,24 @@ def reset_user_progress():
     user_id = request.form.get('user_id')
     if not user_id:
         return jsonify({'error': 'User ID required'}), 400
-    user_modules = UserModule.query.filter_by(user_id=user_id).all()
+    try:
+        uid = int(user_id)
+    except ValueError:
+        return jsonify({'error': 'Invalid user ID'}), 400
+    user = User.query.get(uid)
+    if not user:
+        return jsonify({'error': f'User {user_id} not found'}), 404
+    # Reset per-module progress
+    user_modules = UserModule.query.filter_by(user_id=uid).all()
     for um in user_modules:
         um.is_completed = False
         um.score = 0.0
         um.completion_date = None
+    # Reset user rating
+    user.rating_star = 0
+    user.rating_label = ''
     db.session.commit()
-    return jsonify({'success': True, 'message': f'Progress reset for user {user_id}.'})
+    return jsonify({'success': True, 'message': f'Progress and rating reset for user {user_id}.'})
 
 @app.route('/clear_slide/<int:module_id>', methods=['POST'])
 def clear_slide(module_id):
@@ -1604,17 +1658,19 @@ def recalculate_ratings():
 def api_complete_course():
     data = request.get_json()
     course_code = data.get('course_code')
-    user_id = current_user.get_id()
+    # Use numeric primary key for DB queries
+    user_id = getattr(current_user, 'User_id', None)
+    if user_id is None:
+        return jsonify({'success': False, 'message': 'User not found'}), 404
     # Find course type from course_code (assuming course_code is module_type)
     course_type = course_code.upper()
     try:
-        # Generate certificate
         from generate_certificate import generate_certificate
-        # Calculate overall_percentage for this user and course_type
         from models import UserModule, Module
         all_course_modules = Module.query.filter_by(module_type=course_type).all()
         all_module_ids = [m.module_id for m in all_course_modules]
-        completed_modules = UserModule.query.filter_by(user_id=user_id, is_completed=True).filter(UserModule.module_id.in_(all_module_ids)).all()
+        completed_modules = UserModule.query.filter_by(user_id=user_id, is_completed=True).\
+            filter(UserModule.module_id.in_(all_module_ids)).all()
         total_correct = 0
         total_questions = 0
         import json
@@ -1636,8 +1692,6 @@ def api_complete_course():
                     continue
         overall_percentage = int((total_correct / total_questions) * 100) if total_questions > 0 else 0
         generate_certificate(user_id, course_type, overall_percentage)
-        # Optionally, mark course as completed in your DB (if you track this)
-        # ...add logic here if needed...
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -1695,7 +1749,15 @@ def admin_users():
             return redirect(url_for('trainer_portal'))
         return redirect(url_for('login'))
     users = Registration.getUserList()
-    return render_template('admin_users.html', users=users)
+    trainers = Trainer.query.order_by(Trainer.name.asc()).all()
+    modules = Module.query.order_by(Module.module_type.asc(), Module.series_number.asc()).all()
+    return render_template('admin_accounts.html', users=users, trainers=trainers, modules=modules)
+
+@app.route('/admin/trainers')
+@login_required
+def admin_trainers():
+    # Unified accounts page now; keep route for backward compatibility
+    return redirect(url_for('admin_users'))
 
 @app.route('/admin/certificates')
 @login_required
@@ -1829,47 +1891,124 @@ def create_module():
 @app.route('/admin/create_user', methods=['GET', 'POST'])
 @login_required
 def create_user():
-    # Admin only; others redirected to landing page as requested fallback
     if not isinstance(current_user, Admin):
         return redirect(url_for('index'))
-    agencies = Agency.query.all()
-    if request.method == 'POST':
-        full_name = request.form.get('full_name')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        agency_id = request.form.get('agency_id')
-        if not (full_name and email and password and agency_id):
-            flash('All fields are required.', 'danger')
-            return render_template('create_user.html', agencies=agencies)
-        # Ensure agency_id is int
-        try:
-            agency_id = int(agency_id)
-        except ValueError:
-            flash('Invalid agency selected.', 'danger')
-            return render_template('create_user.html', agencies=agencies)
-        # Check duplicate email (Users + Admin + Trainer to be safe)
-        if User.query.filter_by(email=email).first() or Admin.query.filter_by(email=email).first() or Trainer.query.filter_by(email=email).first():
-            flash('Email already exists.', 'warning')
-            return render_template('create_user.html', agencies=agencies)
-        try:
-            user_data = {
-                'full_name': full_name,
-                'email': email,
-                'password': password,
-                'agency_id': agency_id,
-                'user_category': 'citizen'  # default
-            }
-            Registration.registerUser(user_data)
-            flash('User created successfully.', 'success')
-            return redirect(url_for('admin_users'))
-        except IntegrityError:
-            db.session.rollback()
-            flash('Database integrity error creating user.', 'danger')
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error creating user: {e}', 'danger')
-    return render_template('create_user.html', agencies=agencies)
+    # Creation handled via modal on admin_users page now
+    if request.method == 'GET':
+        # Visiting the old URL directly should open the modal automatically
+        return redirect(url_for('admin_users', show_create_modal=1))
+    full_name = request.form.get('full_name')
+    email = request.form.get('email')
+    password = request.form.get('password')
+    role = (request.form.get('role') or '').lower()
+    if not (full_name and email and password and role):
+        flash('Full name, email, password and role are required.', 'danger')
+        return redirect(url_for('admin_users', show_create_modal=1))
+    if role not in ['admin', 'trainer']:
+        flash('Invalid role selected.', 'danger')
+        return redirect(url_for('admin_users', show_create_modal=1))
+    if User.query.filter_by(email=email).first() or Admin.query.filter_by(email=email).first() or Trainer.query.filter_by(email=email).first():
+        flash('Email already exists.', 'warning')
+        return redirect(url_for('admin_users', show_create_modal=1))
+    try:
+        if role == 'admin':
+            base_username = re.sub(r'[^a-zA-Z0-9_]+', '', (full_name or '').replace(' ', '_').lower()) or email.split('@')[0]
+            username = base_username
+            counter = 1
+            while Admin.query.filter_by(username=username).first():
+                username = f"{base_username}{counter}"
+                counter += 1
+            admin = Admin(username=username, email=email, role='admin')
+            admin.set_password(password)
+            db.session.add(admin)
+        else:
+            trainer = Trainer(name=full_name, email=email, active_status=True)
+            trainer.set_password(password)
+            db.session.add(trainer)
+        db.session.commit()
+        flash(f'{role.capitalize()} account created successfully.', 'success')
+    except IntegrityError:
+        db.session.rollback()
+        flash('Database integrity error creating account.', 'danger')
+        return redirect(url_for('admin_users', show_create_modal=1))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error creating account: {e}', 'danger')
+        return redirect(url_for('admin_users', show_create_modal=1))
+    return redirect(url_for('admin_users'))
 
+# Utility: consistent user_id extraction
+def _extract_user_id():
+    uid = None
+    # JSON body
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+        uid = data.get('user_id')
+    # Form data
+    if not uid:
+        uid = request.form.get('user_id')
+    # Query param
+    if not uid:
+        uid = request.args.get('user_id')
+    return uid
+
+@app.route('/admin/delete_user', methods=['POST'])
+@login_required
+def delete_user():
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    user_id = _extract_user_id()
+    if not user_id:
+        return jsonify({'success': False, 'message': 'user_id required'}), 400
+    try:
+        uid = int(user_id)
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Invalid user_id'}), 400
+    user = User.query.get(uid)
+    if not user:
+        return jsonify({'success': False, 'message': 'User not found'}), 404
+    try:
+        UserModule.query.filter_by(user_id=uid).delete()
+        Certificate.query.filter_by(user_id=uid).delete()
+        from models import WorkHistory
+        WorkHistory.query.filter_by(user_id=uid).delete()
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'User {uid} deleted'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# Alternative RESTful style endpoint supporting DELETE with path parameter
+@app.route('/admin/users/<int:uid>', methods=['DELETE'])
+@login_required
+def delete_user_rest(uid):
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    user = User.query.get(uid)
+    if not user:
+        return jsonify({'success': False, 'message': 'User not found'}), 404
+    try:
+        UserModule.query.filter_by(user_id=uid).delete()
+        Certificate.query.filter_by(user_id=uid).delete()
+        from models import WorkHistory
+        WorkHistory.query.filter_by(user_id=uid).delete()
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'User {uid} deleted'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# --- Application entry point ---
 if __name__ == '__main__':
-    print('\nOpen your browser and go to: http://127.0.0.1:5000/')
-    app.run(debug=True, use_reloader=False)
+    # Initialize database (safe / idempotent)
+    with app.app_context():
+        try:
+            init_db()
+        except Exception as e:
+            print(f"[INIT ERROR] {e}")
+    # Run development server
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_DEBUG', '1') == '1'
+    app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=debug)

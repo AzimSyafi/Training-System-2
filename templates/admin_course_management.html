@@ -28,7 +28,7 @@
     <div class="col-lg-8">
       <div id="courseDetailPlaceholder" class="text-muted p-5 border rounded text-center">Select a course to manage its modules and content.</div>
       {% for course in courses %}
-      <div class="course-detail d-none" id="course-detail-{{ course.course_id }}">
+      <div class="course-detail d-none" id="course-detail-{{ course.course_id }}" data-module-count="{{ course.modules|length }}">
         <div class="card mb-4 shadow-sm">
           <div class="card-header d-flex justify-content-between align-items-center">
             <span class="fw-semibold">Course Details</span>
@@ -67,9 +67,9 @@
         <div class="card mb-4 shadow-sm">
           <div class="card-header d-flex justify-content-between align-items-center">
             <span class="fw-semibold">Modules</span>
-            <button class="btn btn-sm btn-primary" data-bs-toggle="collapse" data-bs-target="#addModuleForm-{{ course.course_id }}"><i class="fas fa-plus"></i> Add</button>
+            <button type="button" class="btn btn-sm btn-primary add-module-btn" data-course-id="{{ course.course_id }}"><i class="fas fa-plus"></i> Add</button>
           </div>
-          <div class="collapse" id="addModuleForm-{{ course.course_id }}">
+          <div class="add-module-section {% if course.modules|length != 0 %}d-none{% endif %}" id="addModuleForm-{{ course.course_id }}">
             <div class="card-body border-bottom">
               <form class="row g-3" action="{{ url_for('add_course_module', course_id=course.course_id) }}" method="post">
                 <div class="col-md-5">
@@ -103,115 +103,124 @@
                 </tr>
               </thead>
               <tbody>
-                {% for m in course_modules[course.course_id] %}
-                <tr>
-                  <td>{{ m.module_name }}</td>
-                  <td>{{ m.series_number }}</td>
-                  <td>{% if m.slide_url %}<a href="{{ url_for('serve_uploaded_slide', filename=m.slide_url) }}" target="_blank" class="text-decoration-none"><i class="fas fa-file-pdf text-danger"></i></a>{% else %}<span class="text-muted">-</span>{% endif %}</td>
-                  <td>{% if m.youtube_url %}<a href="{{ m.youtube_url }}" target="_blank"><i class="fab fa-youtube text-danger"></i></a>{% else %}<span class="text-muted">-</span>{% endif %}</td>
-                  <td>{% if m.quiz_json %}<i class="fas fa-check text-success"></i>{% else %}<span class="text-muted">-</span>{% endif %}</td>
-                  <td>
-                    <div class="btn-group btn-group-sm" role="group">
-                      <button type="button" class="btn btn-outline-secondary module-toggle" data-panel="edit" data-module-id="{{ m.module_id }}"><i class="fas fa-pen"></i></button>
-                      <button type="button" class="btn btn-outline-info module-toggle" data-panel="content" data-module-id="{{ m.module_id }}"><i class="fas fa-photo-film"></i></button>
-                      <form action="{{ url_for('delete_course_module', module_id=m.module_id) }}" method="post" onsubmit="return confirm('Delete module?');">
-                        <button class="btn btn-outline-danger" type="submit"><i class="fas fa-trash"></i></button>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td colspan="6" class="p-0">
-                    <div class="module-panel panel-edit d-none" id="editModuleForm-{{ m.module_id }}">
-                      <div class="bg-light p-3 border-top">
-                        <form class="row g-2" action="{{ url_for('update_course_module', module_id=m.module_id) }}" method="post">
-                          <div class="col-md-4">
-                            <label class="form-label small mb-0">Name</label>
-                            <input class="form-control form-control-sm" name="module_name" value="{{ m.module_name }}" required>
-                          </div>
-                          <div class="col-md-2">
-                            <label class="form-label small mb-0">Series #</label>
-                            <input class="form-control form-control-sm" name="series_number" value="{{ m.series_number }}">
-                          </div>
-                          <div class="col-md-6">
-                            <label class="form-label small mb-0">Content</label>
-                            <input class="form-control form-control-sm" name="content" value="{{ m.content }}">
-                          </div>
-                          <div class="col-12 d-flex justify-content-end mt-2">
-                            <button class="btn btn-sm btn-success" type="submit">Save</button>
-                          </div>
+                {% set module_list = course_modules[course.course_id] %}
+                {% if module_list %}
+                  {% for m in module_list %}
+                  <tr>
+                    <td>{{ m.module_name }}</td>
+                    <td>{{ m.series_number }}</td>
+                    <td>{% if m.slide_url %}<a href="{{ url_for('serve_uploaded_slide', filename=m.slide_url) }}" target="_blank" class="text-decoration-none"><i class="fas fa-file-pdf text-danger"></i></a>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                    <td>{% if m.youtube_url %}<a href="{{ m.youtube_url }}" target="_blank"><i class="fab fa-youtube text-danger"></i></a>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                    <td>{% if m.quiz_json %}<i class="fas fa-check text-success"></i>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                    <td>
+                      <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-secondary module-toggle" data-panel="edit" data-module-id="{{ m.module_id }}"><i class="fas fa-pen"></i></button>
+                        <button type="button" class="btn btn-outline-info module-toggle" data-panel="content" data-module-id="{{ m.module_id }}"><i class="fas fa-photo-film"></i></button>
+                        <form action="{{ url_for('delete_course_module', module_id=m.module_id) }}" method="post" onsubmit="return confirm('Delete module?');">
+                          <button class="btn btn-outline-danger" type="submit"><i class="fas fa-trash"></i></button>
                         </form>
                       </div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td colspan="6" class="p-0">
-                    <div class="module-panel panel-content d-none" id="contentForm-{{ m.module_id }}">
-                      <div class="bg-white p-3 border-top">
-                        <ul class="nav nav-pills mb-2" id="pills-{{ m.module_id }}" role="tablist">
-                          <li class="nav-item" role="presentation">
-                            <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#slide-pane-{{ m.module_id }}" type="button">Slide</button>
-                          </li>
-                          <li class="nav-item" role="presentation">
-                            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#video-pane-{{ m.module_id }}" type="button">Video</button>
-                          </li>
-                          <li class="nav-item" role="presentation">
-                            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#quiz-pane-{{ m.module_id }}" type="button">Quiz</button>
-                          </li>
-                        </ul>
-                        <div class="tab-content">
-                          <div class="tab-pane fade show active" id="slide-pane-{{ m.module_id }}">
-                            <form class="row g-2" action="{{ url_for('manage_module_content', module_id=m.module_id) }}" method="post" enctype="multipart/form-data">
-                              <input type="hidden" name="content_type" value="slide">
-                              <div class="col-md-6">
-                                <input type="file" name="slide_file" class="form-control form-control-sm" accept=".pdf,.ppt,.pptx">
-                              </div>
-                              <div class="col-md-6 d-flex align-items-center gap-2">
-                                {% if m.slide_url %}<span class="small text-success">Current: {{ m.slide_url }}</span>{% endif %}
-                                <button class="btn btn-sm btn-primary" type="submit">Upload</button>
-                              </div>
-                            </form>
-                          </div>
-                          <div class="tab-pane fade" id="video-pane-{{ m.module_id }}">
-                            <form class="row g-2" action="{{ url_for('manage_module_content', module_id=m.module_id) }}" method="post">
-                              <input type="hidden" name="content_type" value="video">
-                              <div class="col-md-8">
-                                <input class="form-control form-control-sm" name="youtube_url" placeholder="YouTube URL" value="{{ m.youtube_url }}">
-                              </div>
-                              <div class="col-md-4">
-                                <button class="btn btn-sm btn-primary w-100" type="submit">Save</button>
-                              </div>
-                            </form>
-                          </div>
-                          <div class="tab-pane fade" id="quiz-pane-{{ m.module_id }}">
-                            <form class="row g-2 quiz-form" id="quiz-form-{{ m.module_id }}" action="{{ url_for('manage_module_content', module_id=m.module_id) }}" method="post" enctype="multipart/form-data" data-module-id="{{ m.module_id }}">
-                              <input type="hidden" name="content_type" value="quiz">
-                              <div class="col-12">
-                                <div id="quiz-questions-{{ m.module_id }}" class="quiz-questions" data-module-id="{{ m.module_id }}"></div>
-                                <div class="d-flex justify-content-between align-items-center mt-2">
-                                  <button type="button" class="btn btn-sm btn-outline-primary add-question-btn" data-module-id="{{ m.module_id }}">Add Question</button>
-                                  <small class="text-muted">Up to 5 questions. Remove with the trash icon.</small>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="6" class="p-0">
+                      <div class="module-panel panel-edit d-none" id="editModuleForm-{{ m.module_id }}" data-course-id="{{ course.course_id }}">
+                        <div class="bg-light p-3 border-top">
+                          <form class="row g-2" action="{{ url_for('update_course_module', module_id=m.module_id) }}" method="post">
+                            <div class="col-md-4">
+                              <label class="form-label small mb-0">Name</label>
+                              <input class="form-control form-control-sm" name="module_name" value="{{ m.module_name }}" required>
+                            </div>
+                            <div class="col-md-2">
+                              <label class="form-label small mb-0">Series #</label>
+                              <input class="form-control form-control-sm" name="series_number" value="{{ m.series_number }}">
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label small mb-0">Content</label>
+                              <input class="form-control form-control-sm" name="content" value="{{ m.content }}">
+                            </div>
+                            <div class="col-12 d-flex justify-content-end mt-2">
+                              <button class="btn btn-sm btn-success" type="submit">Save</button>
+                            </div>
+                          </form>
+                          <div class="text-end mt-1"><button type="button" class="btn btn-link btn-sm text-decoration-none module-panel-close" data-target="editModuleForm-{{ m.module_id }}">Close</button></div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="6" class="p-0">
+                      <div class="module-panel panel-content d-none" id="contentForm-{{ m.module_id }}" data-course-id="{{ course.course_id }}">
+                        <div class="bg-white p-3 border-top">
+                          <ul class="nav nav-pills mb-2" id="pills-{{ m.module_id }}" role="tablist">
+                            <li class="nav-item" role="presentation">
+                              <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#slide-pane-{{ m.module_id }}" type="button">Slide</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                              <button class="nav-link" data-bs-toggle="pill" data-bs-target="#video-pane-{{ m.module_id }}" type="button">Video</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                              <button class="nav-link" data-bs-toggle="pill" data-bs-target="#quiz-pane-{{ m.module_id }}" type="button">Quiz</button>
+                            </li>
+                          </ul>
+                          <div class="tab-content">
+                            <div class="tab-pane fade show active" id="slide-pane-{{ m.module_id }}">
+                              <form class="row g-2" action="{{ url_for('manage_module_content', module_id=m.module_id) }}" method="post" enctype="multipart/form-data">
+                                <input type="hidden" name="content_type" value="slide">
+                                <div class="col-md-6">
+                                  <input type="file" name="slide_file" class="form-control form-control-sm" accept=".pdf,.ppt,.pptx">
                                 </div>
-                                <div class="mt-3">
-                                  <label class="small text-muted mb-1">(Optional) Quiz Image (single image for entire quiz)</label>
-                                  <input type="file" name="quiz_image" class="form-control form-control-sm" style="max-width:300px;">
+                                <div class="col-md-6 d-flex align-items-center gap-2">
+                                  {% if m.slide_url %}<span class="small text-success">Current: {{ m.slide_url }}</span>{% endif %}
+                                  <button class="btn btn-sm btn-primary" type="submit">Upload</button>
                                 </div>
-                              </div>
-                              <div class="col-12 d-flex justify-content-end mt-3">
-                                <button class="btn btn-sm btn-primary" type="submit">Save Quiz</button>
-                              </div>
-                            </form>
-                            {% if m.quiz_json %}
-                            <div class="mt-2 small text-success">Quiz already configured. Saving will overwrite.</div>
-                            {% endif %}
+                              </form>
+                              <div class="text-end mt-1"><button type="button" class="btn btn-link btn-sm text-decoration-none module-panel-close" data-target="contentForm-{{ m.module_id }}">Close</button></div>
+                            </div>
+                            <div class="tab-pane fade" id="video-pane-{{ m.module_id }}">
+                              <form class="row g-2" action="{{ url_for('manage_module_content', module_id=m.module_id) }}" method="post">
+                                <input type="hidden" name="content_type" value="video">
+                                <div class="col-md-8">
+                                  <input class="form-control form-control-sm" name="youtube_url" placeholder="YouTube URL" value="{{ m.youtube_url }}">
+                                </div>
+                                <div class="col-md-4">
+                                  <button class="btn btn-sm btn-primary w-100" type="submit">Save</button>
+                                </div>
+                              </form>
+                            </div>
+                            <div class="tab-pane fade" id="quiz-pane-{{ m.module_id }}">
+                              <form class="row g-2 quiz-form" id="quiz-form-{{ m.module_id }}" action="{{ url_for('manage_module_content', module_id=m.module_id) }}" method="post" enctype="multipart/form-data" data-module-id="{{ m.module_id }}">
+                                <input type="hidden" name="content_type" value="quiz">
+                                <div class="col-12">
+                                  <div id="quiz-questions-{{ m.module_id }}" class="quiz-questions" data-module-id="{{ m.module_id }}"></div>
+                                  <div class="d-flex justify-content-between align-items-center mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary add-question-btn" data-module-id="{{ m.module_id }}">Add Question</button>
+                                    <small class="text-muted">Up to 5 questions. Remove with the trash icon.</small>
+                                  </div>
+                                  <div class="mt-3">
+                                    <label class="small text-muted mb-1">(Optional) Quiz Image (single image for entire quiz)</label>
+                                    <input type="file" name="quiz_image" class="form-control form-control-sm" style="max-width:300px;">
+                                  </div>
+                                </div>
+                                <div class="col-12 d-flex justify-content-end mt-3">
+                                  <button class="btn btn-sm btn-primary" type="submit">Save Quiz</button>
+                                </div>
+                              </form>
+                              {% if m.quiz_json %}
+                              <div class="mt-2 small text-success">Quiz already configured. Saving will overwrite.</div>
+                              {% endif %}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                {% else %}
+                <tr>
+                  <td colspan="6" class="text-center text-muted py-3">No modules yet. Click the Add button above to create the first module.</td>
                 </tr>
-                {% endfor %}
+                {% endif %}
               </tbody>
             </table>
           </div> <!-- /.table-responsive -->
@@ -282,16 +291,52 @@
       items.forEach(i=>i.classList.remove('active'));
       it.classList.add('active');
       try { localStorage.setItem('lastCourseId', cid); } catch(e){}
+      // Auto-open Add Module section if no modules yet
+      if(target.getAttribute('data-module-count') === '0'){
+        const addSection = target.querySelector('.add-module-section');
+        if(addSection){ addSection.classList.remove('d-none'); }
+      } else {
+        // Restore persisted open section for this course
+        try { if(localStorage.getItem('openAddForCourse') === cid){ const addSection = target.querySelector('.add-module-section'); if(addSection) addSection.classList.remove('d-none'); } } catch(e){}
+      }
     }
   }
-  items.forEach(it => {
-    it.addEventListener('click', e => { e.preventDefault(); showCourse(it); });
-  });
+  items.forEach(it => { it.addEventListener('click', e => { e.preventDefault(); showCourse(it); }); });
   const last = (function(){ try { return localStorage.getItem('lastCourseId'); } catch(e){ return null; } })();
   let initial = last ? [...items].find(i=>i.getAttribute('data-course-id')===last) : null;
   if(!initial) initial = items[0];
   if(initial) showCourse(initial);
 })();
+</script>
+<script>
+// Simple Add Module show/hide (remove Bootstrap collapse to prevent flicker)
+(function initPlainAddModuleToggle(){
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded', initPlainAddModuleToggle); return;}
+  if(window.__plainAddModuleInit) return; window.__plainAddModuleInit = true;
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('.add-module-btn');
+    if(!btn) return;
+    e.preventDefault();
+    const courseId = btn.getAttribute('data-course-id');
+    const section = document.getElementById('addModuleForm-'+courseId);
+    if(!section) return;
+    const willHide = !section.classList.contains('d-none');
+    document.querySelectorAll('.add-module-section').forEach(sec=>{ if(sec!==section) sec.classList.add('d-none'); });
+    if(willHide){
+      section.classList.add('d-none');
+      try { localStorage.removeItem('openAddForCourse'); } catch(_){}
+    } else {
+      section.classList.remove('d-none');
+      try { localStorage.setItem('openAddForCourse', courseId); } catch(_){}
+    }
+  });
+  // Restore previously open add form
+  let last=null; try { last = localStorage.getItem('openAddForCourse'); } catch(_){}
+  if(last){ const sec = document.getElementById('addModuleForm-'+last); if(sec) sec.classList.remove('d-none'); }
+})();
+</script>
+<script>
+// Persist Add Module form open state (removed old collapse-dependent logic)
 </script>
 <script>
 // Dynamic quiz builder (add/remove/reindex up to 5 questions)
@@ -369,6 +414,72 @@
   document.querySelectorAll('.quiz-form').forEach(form => {
     form.addEventListener('submit', () => { reindex(form); });
   });
+})();
+</script>
+<script>
+// Module edit/content panel toggles with persistence (hardened against flicker)
+(function initModulePanelToggles(){
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded', initModulePanelToggles); return;}
+  if(window.__modulePanelTogglesInitV2) return; window.__modulePanelTogglesInitV2 = true;
+  let lastClick = 0;
+  function openPanel(moduleId, panelType){
+    const editPanel = document.getElementById('editModuleForm-'+moduleId);
+    const contentPanel = document.getElementById('contentForm-'+moduleId);
+    const targetPanel = panelType === 'edit' ? editPanel : contentPanel;
+    if(!targetPanel) return;
+    // Hide all others first
+    document.querySelectorAll('.module-panel').forEach(p=>{ if(p!==targetPanel) p.classList.add('d-none'); });
+    targetPanel.classList.remove('d-none');
+    try { localStorage.setItem('openModulePanel', JSON.stringify({moduleId, panelType})); } catch(e){}
+  }
+  document.addEventListener('click', function(e){
+    // Close buttons
+    const closeBtn = e.target.closest('.module-panel-close');
+    if(closeBtn){
+      const target = document.getElementById(closeBtn.getAttribute('data-target'));
+      if(target){ target.classList.add('d-none'); try { localStorage.removeItem('openModulePanel'); } catch(e){} }
+      return;
+    }
+    const btn = e.target.closest('.module-toggle');
+    if(!btn) return;
+    e.preventDefault();
+    const now = performance.now();
+    if(now - lastClick < 40) return; // debounce double-fire
+    lastClick = now;
+    const moduleId = btn.getAttribute('data-module-id');
+    const panelType = btn.getAttribute('data-panel');
+    openPanel(moduleId, panelType);
+  });
+})();
+</script>
+<script>
+// Restore last open module panel (and optionally tab) after reload/navigation
+(function restoreModulePanel(){
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded', restoreModulePanel); return;}
+  function attemptRestore(){
+    let data = null;
+    try { data = JSON.parse(localStorage.getItem('openModulePanel')||'null'); } catch(e){ data=null; }
+    if(!data) return;
+    const { moduleId, panelType } = data;
+    const panel = document.getElementById((panelType==='edit'?'editModuleForm-':'contentForm-')+moduleId);
+    if(!panel) return; // Might belong to another course that was deleted
+    // Ensure correct course section is visible
+    const courseId = panel.getAttribute('data-course-id');
+    if(courseId){
+      const courseItem = document.querySelector('.course-item[data-course-id="'+courseId+'"]');
+      if(courseItem){ courseItem.click(); }
+    }
+    // Slight delay to allow course view to render
+    setTimeout(()=>{ panel.classList.remove('d-none'); }, 120);
+  }
+  // Run after initial selection script likely finished
+  setTimeout(attemptRestore, 250);
+})();
+</script>
+<script>
+// Persist Add Module form open state
+(function initAddModulePersistence(){
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded', initAddModulePersistence); return;}
 })();
 </script>
 <style>

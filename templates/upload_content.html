@@ -1,232 +1,99 @@
-{% extends "base.html" %}
-{% block title %}Upload Content | Security Training System{% endblock %}
+{% extends 'base.html' %}
 {% block content %}
-<div class="container py-5">
-  <div class="row justify-content-center">
-    <div class="col-md-8">
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h3>Upload Content to Module</h3>
-          <a href="javascript:history.back()" class="btn btn-secondary btn-sm">&larr; Back</a>
-        </div>
-        <div class="card-body">
-          <div id="form-error-message" class="alert alert-danger" style="display:none;"></div>
-          <form method="POST" action="{{ url_for('upload_content') }}" enctype="multipart/form-data" id="contentForm">
-            <div class="mb-3">
-              <label for="moduleSelect" class="form-label">Select Module</label>
-              <select class="form-select" id="moduleSelect" name="module_id" required>
-                <option value="">-- Select Module --</option>
-                {% for m in modules %}
-                  <option value="{{ m.module_id }}">{{ m.module_name }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Content Type</label>
-              <select class="form-select" id="contentTypeSelect" name="content_type">
-                <option value="slide">Slides</option>
-                <option value="video">Video</option>
-                <option value="quiz">Quiz</option>
-              </select>
-            </div>
-            <div class="mb-3" id="slideUpload" style="display:block;">
-              <label class="form-label">Upload Slide (PDF or PPTX)</label>
-              <select class="form-select mb-2" id="slideModuleSelect" name="slide_module_id" style="display:none;"></select>
-              <div id="currentSlidePreview"></div>
-              <input type="file" name="slide_file" accept=".pdf,.pptx" class="form-control" id="slideFileInput">
-              <button type="button" class="btn btn-danger btn-sm mt-2" id="clearSlideBtn" style="display:none;">Clear</button>
-            </div>
-            <div class="mb-3" id="videoUpload" style="display:none;">
-              <label class="form-label">YouTube Video URL</label>
-              <input type="url" name="youtube_url" id="youtubeUrl" class="form-control" placeholder="Paste YouTube video link here">
-              <small class="form-text text-muted">Provide a YouTube link to embed a video for this module.</small>
-              <div id="videoPreview" class="mt-2" style="display:none;"></div>
-            </div>
-            <div class="mb-3" id="quizUpload" style="display:none;">
-              <label class="form-label">Upload Image for Quiz (optional)</label>
-              <input type="file" name="quiz_image" accept="image/*" class="form-control mb-2" id="quizImageInput">
-              <button type="button" class="btn btn-secondary btn-sm mt-2" id="clearQuizImgBtn">Clear</button>
-              <div id="quiz-builder-root"></div>
-            </div>
-            <div class="mt-4">
-              <button type="submit" class="btn btn-primary w-100">
-                <i class="fas fa-save"></i> Save Content
-              </button>
-            </div>
-          </form>
-        </div>
+<div class="container mt-4">
+  <h2>Upload / Manage Module Content</h2>
+  <p class="text-muted">Upload slides (PDF / PPTX), add a YouTube video URL, or create a quiz (up to 5 questions) for an existing module.</p>
+  <a href="{{ url_for('trainer_portal') }}" class="btn btn-secondary mb-3">Back to Trainer Portal</a>
+
+  <form method="POST" enctype="multipart/form-data" class="card p-3 mb-4">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Module</label>
+        <select name="module_id" class="form-select" required>
+          <option value="">-- Select Module --</option>
+          {% for m in modules %}
+            <option value="{{ m.module_id }}">{{ m.module_type }} - {{ m.series_number or 'N/A' }} - {{ m.module_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Content Type</label>
+        <select name="content_type" id="content_type" class="form-select" required onchange="toggleContentBlocks()">
+          <option value="">-- Choose --</option>
+          <option value="slide">Slide (PDF / PPTX)</option>
+            <option value="video">YouTube Video</option>
+          <option value="quiz">Quiz</option>
+        </select>
       </div>
     </div>
-  </div>
+
+    <!-- Slide Upload -->
+    <div id="block-slide" class="mt-3" style="display:none;">
+      <label class="form-label">Slide File</label>
+      <input type="file" name="slide_file" accept=".pdf,.ppt,.pptx" class="form-control" />
+      <div class="form-text">Accepted: PDF, PPTX. A unique name will be generated if a file with the same name exists.</div>
+    </div>
+
+    <!-- Video URL -->
+    <div id="block-video" class="mt-3" style="display:none;">
+      <label class="form-label">YouTube URL</label>
+      <input type="url" name="youtube_url" class="form-control" placeholder="https://www.youtube.com/watch?v=..." />
+    </div>
+
+    <!-- Quiz Builder -->
+    <div id="block-quiz" class="mt-3" style="display:none;">
+      <p class="fw-bold">Quiz (Up to 5 Questions)</p>
+      <div class="accordion" id="quizAccordion">
+        {% for qn in range(1,6) %}
+        <div class="accordion-item mb-2">
+          <h2 class="accordion-header" id="heading{{ qn }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ qn }}">
+              Question {{ qn }}
+            </button>
+          </h2>
+          <div id="collapse{{ qn }}" class="accordion-collapse collapse" data-bs-parent="#quizAccordion">
+            <div class="accordion-body">
+              <div class="mb-2">
+                <label class="form-label">Question Text</label>
+                <input type="text" class="form-control" name="quiz_question_{{ qn }}" />
+              </div>
+              <div class="row g-2">
+                {% for an in range(1,6) %}
+                <div class="col-md-6">
+                  <label class="form-label small mb-0">Answer {{ an }}</label>
+                  <input type="text" class="form-control form-control-sm" name="answer_{{ qn }}_{{ an }}" />
+                </div>
+                {% endfor %}
+              </div>
+              <div class="mt-2">
+                <label class="form-label">Correct Answer (1-5)</label>
+                <select name="correct_answer_{{ qn }}" class="form-select form-select-sm">
+                  <option value="">--</option>
+                  {% for an in range(1,6) %}
+                    <option value="{{ an }}">{{ an }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="alert alert-info mt-2 py-2">Leave unused questions blank; they'll be ignored.</div>
+    </div>
+
+    <div class="mt-4">
+      <button type="submit" class="btn btn-primary">Save Content</button>
+    </div>
+  </form>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-<script src="/static/quiz_builder.js"></script>
 <script>
-// Helper to get current module's slide_url from modules data
-const modules = JSON.parse('{{ modules_data|tojson|safe }}');
-function getModuleById(id) {
-  return modules.find(m => m.module_id == id);
-}
-function updateSlideUI() {
-  const moduleId = document.getElementById('moduleSelect').value;
-  const module = getModuleById(moduleId);
-  const previewDiv = document.getElementById('currentSlidePreview');
-  const fileInput = document.getElementById('slideFileInput');
-  const clearBtn = document.getElementById('clearSlideBtn');
-  previewDiv.innerHTML = '';
-  if (module && module.slide_url) {
-    let url = `/static/uploads/${module.slide_url}`;
-    if (module.slide_url.endsWith('.pdf')) {
-      previewDiv.innerHTML = `<iframe src='${url}' width='100%' height='300'></iframe>`;
-    } else if (module.slide_url.endsWith('.pptx')) {
-      previewDiv.innerHTML = `<iframe src='https://view.officeapps.live.com/op/embed.aspx?src=${window.location.origin}/static/uploads/${module.slide_url}' width='100%' height='300'></iframe>`;
-    } else {
-      previewDiv.innerHTML = `<a href='${url}' target='_blank'>Download Slide</a>`;
-    }
-    fileInput.disabled = true;
-    clearBtn.style.display = '';
-  } else {
-    fileInput.disabled = false;
-    clearBtn.style.display = 'none';
-  }
-}
-document.getElementById('moduleSelect').addEventListener('change', updateSlideUI);
-document.getElementById('clearSlideBtn').addEventListener('click', function() {
-  const moduleId = document.getElementById('moduleSelect').value;
-  if (!moduleId) return;
-  if (!confirm('Are you sure you want to clear the slide for this module?')) return;
-  fetch(`/clear_slide/${moduleId}`, {method: 'POST'})
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        // Update modules data in JS
-        const m = getModuleById(moduleId);
-        if (m) m.slide_url = null;
-        updateSlideUI();
-      } else {
-        alert('Failed to clear slide.');
-      }
-    });
-});
-document.addEventListener('DOMContentLoaded', updateSlideUI);
-  document.addEventListener('DOMContentLoaded', function() {
-    const contentTypeSelect = document.getElementById('contentTypeSelect');
-    const slideUpload = document.getElementById('slideUpload');
-    const videoUpload = document.getElementById('videoUpload');
-    const quizUpload = document.getElementById('quizUpload');
-    const youtubeUrl = document.getElementById('youtubeUrl');
-    const videoPreview = document.getElementById('videoPreview');
-    const formError = document.getElementById('form-error-message');
-    // Show/hide upload fields based on dropdown
-    function showUploadSection(type) {
-      slideUpload.style.display = (type === 'slide') ? 'block' : 'none';
-      videoUpload.style.display = (type === 'video') ? 'block' : 'none';
-      quizUpload.style.display = (type === 'quiz') ? 'block' : 'none';
-      if (type === '') {
-        formError.style.display = 'block';
-        formError.textContent = 'Please select a content type.';
-      } else {
-        formError.style.display = 'none';
-      }
-      if (type !== 'video' && videoPreview) {
-        videoPreview.innerHTML = '';
-        videoPreview.style.display = 'none';
-        if (youtubeUrl) youtubeUrl.value = '';
-      }
-    }
-    contentTypeSelect.addEventListener('change', function() {
-      showUploadSection(this.value);
-    });
-    // Default
-    showUploadSection(contentTypeSelect.value);
-    // Live YouTube preview
-    if (youtubeUrl) {
-      youtubeUrl.addEventListener('input', function() {
-        const url = youtubeUrl.value.trim();
-        let videoId = null;
-        if (url === '') {
-          videoPreview.innerHTML = '';
-          videoPreview.style.display = 'none';
-          return;
-        }
-        if (url.includes('youtube.com/watch?v=')) {
-          videoId = url.split('v=')[1].split('&')[0];
-        } else if (url.includes('youtu.be/')) {
-          videoId = url.split('youtu.be/')[1].split('?')[0];
-        }
-        if (videoId) {
-          videoPreview.innerHTML = `<iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
-          videoPreview.style.display = 'block';
-        } else {
-          videoPreview.innerHTML = '';
-          videoPreview.style.display = 'none';
-        }
-      });
-    }
-    // Get course from URL query param (e.g. ?course=TNG or ?course=CSG)
-    function getCourseFromUrl() {
-      const params = new URLSearchParams(window.location.search);
-      return params.get('course') || 'TNG';
-    }
-    const courseModules = {
-      'TNG': [
-        'INTRODUCTION TO SECURITY INDUSTRY',
-        'ROLE AND RESPONSIBILITIES',
-        'ETHICS AND TURNOUT',
-        'MALAYSIAN CULTURE & CUSTOMS',
-        'PATROLLING & ACCESS CONTROL',
-        'REPORT WRITING',
-        'CUSTOMER SERVICE',
-        'COMMUNICATION',
-        'LAWS OF ARREST, SEARCH & USE OF FORCE',
-        'FIRE CONTROL & PREVENTION',
-        'FIRST AID & CPR',
-        'SAFETY AT WORK PLACE',
-        'SECURITY DRILL'
-      ],
-      'CSG': [
-        'PENGENALAN KEPADA INDUSTRI KESELAMATAN',
-        'PERANAN, PENAMPILAN & TANGGUNGJAWAB PENGAWAL KESELAMATAN',
-        'ARAHAN TUGAS',
-        'KAWALAN KELUAR MASUK',
-        'PEMERIKSAAN & PEMERIKSAAN KENDERAAN',
-        'RONDAAN',
-        'MENULIS LAPORAN',
-        'PENGENALAN ALAT KOMUNIKASI',
-        'KHIDMAT PELANGGAN',
-        'MELAKSANAKAN TUGAS MENGIKUT BATASAN UNDANG-UNDANG',
-        'PERTOLONGAN CEMAS DAN CPR',
-        'PENCEGAHAN KEBAKARAN DAN BENCANA',
-        'LATIHAN SENI MEMPERTAHANKAN DIRI',
-        'LATIHAN T-BATON',
-        'KAWAD',
-        'PENGENALAN DADAH DAN PENYALAHGUNAAN DADAH',
-        'PENGENALAN & PERANAN ANGGOTA BERSENJATA & CIT'
-      ]
-    };
-    const moduleSelect = document.getElementById('moduleSelect');
-    function populateModules(course) {
-      moduleSelect.innerHTML = '<option value="">-- Select Module --</option>';
-      if (courseModules[course]) {
-        courseModules[course].forEach((name, idx) => {
-          const opt = document.createElement('option');
-          opt.value = idx + 1;
-          opt.textContent = name;
-          moduleSelect.appendChild(opt);
-        });
-      }
-    }
-    // Populate modules based on course in URL
-    const course = getCourseFromUrl();
-    populateModules(course);
-    document.getElementById('clearSlideBtn').onclick = function() {
-      document.getElementById('slideFileInput').value = '';
-    };
-    document.getElementById('clearQuizImgBtn').onclick = function() {
-      document.getElementById('quizImageInput').value = '';
-    };
+function toggleContentBlocks(){
+  const val = document.getElementById('content_type').value;
+  ['slide','video','quiz'].forEach(t => {
+    document.getElementById('block-'+t).style.display = (val===t)?'block':'none';
   });
+}
 </script>
 {% endblock %}
+

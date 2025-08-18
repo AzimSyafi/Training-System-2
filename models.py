@@ -1,7 +1,8 @@
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, date
+from datetime import datetime, date, UTC  # added UTC
 from flask_login import UserMixin
+from sqlalchemy import event, text
 
 db = SQLAlchemy()
 
@@ -26,6 +27,10 @@ class Admin(UserMixin, db.Model):
     @property
     def profile_pic(self):
         return None
+
+    @property
+    def displayed_id(self):
+        return str(self.admin_id)
 
     def login(self, email, password):
         admin = Admin.query.filter_by(email=email).first()
@@ -99,7 +104,8 @@ class User(UserMixin, db.Model):
 
     User_id = db.Column(db.Integer, primary_key=True)
     Profile_picture = db.Column(db.String(255))
-    number_series = db.Column(db.String(50))
+    # Updated to 10 chars: Prefix 'SG' + YYYY + NNNN
+    number_series = db.Column(db.String(10), unique=True)  # Format: SGYYYYNNNN
     full_name = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
@@ -142,7 +148,12 @@ class User(UserMixin, db.Model):
         return self.Profile_picture
 
     def get_id(self):
-        return str(self.User_id)
+        # Return formatted series ID for authentication/session
+        return self.number_series or str(self.User_id)
+
+    @property
+    def displayed_id(self):
+        return self.number_series or str(self.User_id)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -347,9 +358,11 @@ class Trainer(UserMixin, db.Model):
     contact_number = db.Column(db.Integer)
     course = db.Column(db.String(255))
     module_id = db.Column(db.Integer, db.ForeignKey('module.module_id'))
+    # New prefixed series for trainers: TRYYYYNNNN
+    number_series = db.Column(db.String(10), unique=True)
 
     def get_id(self):
-        return str(self.trainer_id)
+        return self.number_series or str(self.trainer_id)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -366,6 +379,10 @@ class Trainer(UserMixin, db.Model):
     @property
     def profile_pic(self):
         return self.profile_image
+
+    @property
+    def displayed_id(self):
+        return self.number_series or str(self.trainer_id)
 
     def assignModule(self, module_id):
         self.module_id = module_id
@@ -554,3 +571,34 @@ class UserCourseProgress(db.Model):
         if certificate_url:
             self.certificate_url = certificate_url
         db.session.commit()
+
+# --- Automatic prefixed number_series assignment ---
+@event.listens_for(User, 'before_insert')
+def assign_number_series(mapper, connection, target):
+    """Assign SGYYYYNNNN for users. Uses per-year sequence user_number_series_{year}_seq."""
+    existing = getattr(target, 'number_series', None)
+    if existing:
+        # Normalize: ensure starts with SG and correct length
+        existing = existing.strip().upper()
+        if existing.startswith('SG') and len(existing) == 10:
+            return
+        # Strip non-alphanumerics and regenerate below
+    year = datetime.now(UTC).strftime('%Y')  # updated
+    seq_name = f'user_number_series_{year}_seq'
+    connection.execute(text(f"CREATE SEQUENCE IF NOT EXISTS {seq_name}"))
+    seq_val = connection.execute(text(f"SELECT nextval('{seq_name}')")).scalar()
+    target.number_series = f"SG{year}{seq_val:04d}"
+
+@event.listens_for(Trainer, 'before_insert')
+def assign_trainer_number_series(mapper, connection, target):
+    """Assign TRYYYYNNNN for trainers. Uses per-year sequence trainer_number_series_{year}_seq."""
+    existing = getattr(target, 'number_series', None)
+    if existing:
+        existing = existing.strip().upper()
+        if existing.startswith('TR') and len(existing) == 10:
+            return
+    year = datetime.now(UTC).strftime('%Y')  # updated
+    seq_name = f'trainer_number_series_{year}_seq'
+    connection.execute(text(f"CREATE SEQUENCE IF NOT EXISTS {seq_name}"))
+    seq_val = connection.execute(text(f"SELECT nextval('{seq_name}')")).scalar()
+    target.number_series = f"TR{year}{seq_val:04d}"

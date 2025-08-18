@@ -1,0 +1,238 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+  <div class="p-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+      <h2 class="m-0"><i class="fas fa-user-gear"></i> Accounts Management</h2>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAccountModal">
+          <i class="fas fa-user-plus"></i> Create Account
+        </button>
+      </div>
+    </div>
+
+    <ul class="nav nav-tabs" id="accountsTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#users-pane" type="button" role="tab">Users ({{ users|length }})</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="trainers-tab" data-bs-toggle="tab" data-bs-target="#trainers-pane" type="button" role="tab">Trainers ({{ trainers|length }})</button>
+      </li>
+    </ul>
+    <div class="tab-content border border-top-0 rounded-bottom bg-white p-3" id="accountsTabsContent">
+      <!-- Users Tab -->
+      <div class="tab-pane fade show active" id="users-pane" role="tabpanel">
+        {% if users %}
+        <div class="table-responsive">
+          <table class="table table-striped align-middle" id="usersTable">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Series</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Agency</th>
+                <th>Recruitment Date</th>
+                <th>Rating</th>
+                <th class="text-center" style="width:60px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for user in users %}
+              <tr id="user-row-{{ user.User_id }}">
+                <td>{% if user.number_series and user.number_series|length==10 and user.number_series.startswith('SG') %}U-{{ user.number_series[2:] }}{% else %}U-{{ user.User_id }}{% endif %}</td>
+                <td>{{ user.number_series or '' }}</td>
+                <td>{{ user.full_name }}</td>
+                <td>{{ user.email }}</td>
+                <td>{{ user.agency.agency_name }}</td>
+                <td>{{ user.recruitment_date.strftime('%Y-%m-%d') if user.recruitment_date else 'N/A' }}</td>
+                <td id="user-rating-{{ user.User_id }}">
+                  {% for i in range(1,6) %}
+                    {% if i <= user.rating_star %}<i class="fas fa-star text-warning"></i>{% else %}<i class="far fa-star text-muted"></i>{% endif %}
+                  {% endfor %}
+                </td>
+                <td class="text-center">
+                  <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-h"></i></button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                      <li><button class="dropdown-item" onclick="viewUserProgress({{ user.User_id }})"><i class="fas fa-eye me-2 text-info"></i>Progress</button></li>
+                      <li><button class="dropdown-item" onclick="resetUserProgress({{ user.User_id }}, '{{ user.full_name }}')"><i class="fas fa-undo me-2 text-warning"></i>Reset</button></li>
+                      <li><hr class="dropdown-divider"/></li>
+                      <li><button class="dropdown-item text-danger" onclick="deleteUser({{ user.User_id }}, '{{ user.full_name }}')"><i class="fas fa-trash-alt me-2"></i>Delete</button></li>
+                    </ul>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          <div class="alert alert-info m-0"><i class="fas fa-info-circle"></i> No users found.</div>
+        {% endif %}
+      </div>
+
+      <!-- Trainers Tab -->
+      <div class="tab-pane fade" id="trainers-pane" role="tabpanel">
+        {% if trainers %}
+        <div class="table-responsive">
+          <table class="table table-striped align-middle" id="trainersTable">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Series</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Course</th>
+                <th>Module</th>
+                <th>Availability</th>
+                <th>Contact</th>
+                <th>Status</th>
+                <th class="text-center" style="width:60px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for t in trainers %}
+              <tr id="trainer-row-{{ t.trainer_id }}">
+                <td>{% if t.number_series and t.number_series|length==10 and t.number_series.startswith('TR') %}T-{{ t.number_series[2:] }}{% else %}T-{{ t.trainer_id }}{% endif %}</td>
+                <td>{{ t.number_series or '' }}</td>
+                <td>{{ t.name }}</td>
+                <td>{{ t.email }}</td>
+                <td>{{ t.course or '—' }}</td>
+                <td>{% if t.module %}{{ t.module.series_number or '' }} {{ t.module.module_name }}{% else %}—{% endif %}</td>
+                <td>{{ t.availability or '—' }}</td>
+                <td>{{ t.contact_number or '—' }}</td>
+                <td><span class="badge {% if t.active_status %}bg-success{% else %}bg-secondary{% endif %}" id="trainer-status-{{ t.trainer_id }}">{% if t.active_status %}Active{% else %}Inactive{% endif %}</span></td>
+                <td class="text-center">
+                  <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-h"></i></button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                      <li><button class="dropdown-item" onclick="openEditTrainer({{ t.trainer_id }})"><i class="fas fa-edit me-2 text-primary"></i>Edit</button></li>
+                      <li><button class="dropdown-item" onclick="toggleActive({{ t.trainer_id }})"><i class="fas fa-toggle-on me-2 text-warning"></i>Toggle Active</button></li>
+                      <li><hr class="dropdown-divider"/></li>
+                      <li><button class="dropdown-item text-danger" onclick="deleteTrainer({{ t.trainer_id }}, '{{ t.name }}')"><i class="fas fa-trash-alt me-2"></i>Delete</button></li>
+                    </ul>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          <div class="alert alert-info m-0"><i class="fas fa-info-circle"></i> No trainers found.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create Account Modal -->
+<div class="modal fade" id="createAccountModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-user-plus"></i> Create Account</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('create_user') }}">
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Full Name</label>
+              <input type="text" class="form-control" name="full_name" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-control" name="email" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Password</label>
+              <input type="password" class="form-control" name="password" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Role</label>
+              <select name="role" class="form-select" required>
+                <option value="">Select Role</option>
+                <option value="admin">Admin</option>
+                <option value="trainer">Trainer</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Trainer Modal -->
+<div class="modal fade" id="editTrainerModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title"><i class="fas fa-user-edit"></i> Edit Trainer</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <form id="editTrainerForm">
+        <div class="modal-body">
+          <input type="hidden" name="trainer_id" id="edit-trainer-id" />
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label">Name</label><input id="edit-name" name="name" class="form-control" required></div>
+            <div class="col-md-6"><label class="form-label">Email</label><input id="edit-email" name="email" type="email" class="form-control" required></div>
+            <div class="col-md-6"><label class="form-label">Course</label><input id="edit-course" name="course" class="form-control"></div>
+            <div class="col-md-6"><label class="form-label">Availability</label><input id="edit-availability" name="availability" placeholder="Mon-Fri 9AM-5PM" class="form-control"></div>
+            <div class="col-md-6"><label class="form-label">Contact Number</label><input id="edit-contact" name="contact_number" class="form-control"></div>
+            <div class="col-md-6"><label class="form-label">Assigned Module</label>
+              <select id="edit-module-id" name="module_id" class="form-select">
+                <option value="">-- None --</option>
+                {% for m in modules %}
+                  <option value="{{ m.module_id }}">{{ m.module_type }} - {{ m.series_number or 'N/A' }} - {{ m.module_name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- User Progress Modal -->
+<div class="modal fade" id="userProgressModal" tabindex="-1">
+  <div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">User Progress</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="userProgressContent"></div></div></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showTempAlert(msg, type='info', timeout=3000) {
+  let el = document.getElementById('globalTempAlert');
+  if(!el){ el=document.createElement('div'); el.id='globalTempAlert'; document.body.appendChild(el);}
+  el.className = `alert alert-${type} position-fixed top-0 end-0 m-3 shadow`; el.innerHTML = msg;
+  setTimeout(()=>{ if(el) el.remove(); }, timeout);
+}
+// --- Users actions ---
+function viewUserProgress(id){
+ fetch(`/api/user_progress/${id}`).then(r=>r.json()).then(data=>{
+  let html='<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Module</th><th>Status</th><th>Score</th><th>Completed</th></tr></thead><tbody>';
+  data.forEach(m=>{const badge=m.is_completed?'<span class="badge bg-success">Completed</span>':'<span class="badge bg-warning">In Progress</span>'; const cls=m.score<=50?'text-danger':(m.score>75?'text-success':'text-primary'); html+=`<tr><td>${m.module_name}</td><td>${badge}</td><td><span class='${cls}'>${m.score}%</span></td><td>${m.completion_date?new Date(m.completion_date).toLocaleDateString():'N/A'}</td></tr>`;});
+  html+='</tbody></table></div>'; document.getElementById('userProgressContent').innerHTML=html; new bootstrap.Modal(document.getElementById('userProgressModal')).show();
+ }).catch(()=>{document.getElementById('userProgressContent').innerHTML='<div class="alert alert-danger">Error loading.</div>';});
+}
+function resetUserProgress(id,name){ if(!confirm(`Reset all progress for ${name}?`)) return; fetch('{{ url_for('reset_user_progress') }}',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`user_id=${id}`}).then(r=>r.json()).then(resp=>{showTempAlert(resp.message||'Done',resp.success?'success':'danger'); if(resp.success){const cell=document.getElementById(`user-rating-${id}`); if(cell) cell.innerHTML='<i class="far fa-star text-muted"></i>'.repeat(5);} }).catch(()=>showTempAlert('Reset failed','danger')); }
+function deleteUser(id,name){ if(!confirm(`Delete user ${name}?`)) return; fetch('{{ url_for('delete_user') }}',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`user_id=${id}`}).then(r=>r.json()).then(resp=>{ if(resp.success){ const row=document.getElementById(`user-row-${id}`); if(row) row.remove(); } showTempAlert(resp.message||'Action done',resp.success?'success':'danger'); }).catch(()=>showTempAlert('Delete failed','danger')); }
+// --- Trainer actions ---
+function openEditTrainer(id){ const row=document.getElementById(`trainer-row-${id}`); if(!row) return; document.getElementById('edit-trainer-id').value=id; document.getElementById('edit-name').value=row.children[2].innerText.trim(); document.getElementById('edit-email').value=row.children[3].innerText.trim(); document.getElementById('edit-course').value=row.children[4].innerText.trim()==='—'?'':row.children[4].innerText.trim(); document.getElementById('edit-availability').value=row.children[6].innerText.trim()==='—'?'':row.children[6].innerText.trim(); document.getElementById('edit-contact').value=row.children[7].innerText.trim()==='—'?'':row.children[7].innerText.trim(); const moduleCell=row.children[5].innerText.trim(); const select=document.getElementById('edit-module-id'); if(moduleCell==='—') select.value=''; else { [...select.options].forEach(o=>{ if(moduleCell.includes(o.text)) select.value=o.value; }); } new bootstrap.Modal(document.getElementById('editTrainerModal')).show(); }
+const editForm=document.getElementById('editTrainerForm'); editForm.addEventListener('submit',e=>{e.preventDefault(); const id=document.getElementById('edit-trainer-id').value; const fd=new FormData(editForm); fetch(`/admin/trainer/${id}/update`,{method:'POST',body:fd}).then(r=>r.json()).then(resp=>{ if(resp.success){ const row=document.getElementById(`trainer-row-${id}`); if(row){ row.children[2].innerText=fd.get('name'); row.children[3].innerText=fd.get('email'); row.children[4].innerText=fd.get('course')||'—'; const sel=document.getElementById('edit-module-id'); const txt=sel.selectedIndex>=0?sel.options[sel.selectedIndex].text:''; row.children[5].innerText=fd.get('module_id')?txt:'—'; row.children[6].innerText=fd.get('availability')||'—'; row.children[7].innerText=fd.get('contact_number')||'—'; } showTempAlert('Trainer updated','success'); bootstrap.Modal.getInstance(document.getElementById('editTrainerModal')).hide(); } else showTempAlert(resp.message||'Update failed','danger'); }).catch(()=>showTempAlert('Error updating','danger')); });
+function toggleActive(id){ fetch(`/admin/trainer/${id}/toggle_active`,{method:'POST'}).then(r=>r.json()).then(resp=>{ if(resp.success){ const badge=document.getElementById(`trainer-status-${id}`); if(badge){ badge.classList.remove('bg-success','bg-secondary'); if(resp.active_status){ badge.classList.add('bg-success'); badge.innerText='Active'; } else { badge.classList.add('bg-secondary'); badge.innerText='Inactive'; } } showTempAlert('Status toggled','success'); } else showTempAlert(resp.message||'Toggle failed','danger'); }).catch(()=>showTempAlert('Error toggling','danger')); }
+function deleteTrainer(id,name){ if(!confirm(`Delete trainer ${name}?`)) return; fetch(`/admin/trainer/${id}/delete`,{method:'POST'}).then(r=>r.json()).then(resp=>{ if(resp.success){ const row=document.getElementById(`trainer-row-${id}`); if(row) row.remove(); } showTempAlert(resp.message||'Action done', resp.success?'success':'danger'); }).catch(()=>showTempAlert('Delete failed','danger')); }
+// Auto-open create modal if requested (legacy param)
+{% if request.args.get('show_create_modal') %}document.addEventListener('DOMContentLoaded',()=>{ new bootstrap.Modal(document.getElementById('createAccountModal')).show(); });{% endif %}
+</script>
+{% endblock %}
+
