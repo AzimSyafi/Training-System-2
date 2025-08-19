@@ -4,17 +4,126 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Security Training System{% endblock %}</title>
+    <script>
+        // Early theme application to avoid flash
+        (function() {
+            try {
+                const saved = localStorage.getItem('theme-preference');
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if ((saved === 'dark') || (!saved && prefersDark)) {
+                    document.documentElement.classList.add('js'); // marker
+                    document.body.classList.add('dark-mode');
+                }
+            } catch (e) { /* ignore */ }
+        })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
-        body {
-            background-color: #f8fafc;
+        :root {
+            --bg-body: #f8fafc;
+            --text-color: #111827;
+            --card-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --sidebar-bg: #1e40af;
+            --sidebar-link: #dbeafe;
+            --sidebar-link-hover-bg: #3b82f6;
+            --sidebar-link-active-border: #ffffff;
+            --link-color: #1d4ed8;
+            --link-hover-color: #1e3a8a;
+            --input-bg: #ffffff;
+            --input-text: #111827;
+            --input-border: #cbd5e1;
+            --table-striped-bg: #f1f5f9;
+            --dropdown-bg: #ffffff;
+            --dropdown-link: #111827;
+            --nav-tabs-border: #cbd5e1;
+            --nav-tabs-link-hover-bg: #f1f5f9;
+            --nav-tabs-link-active-bg: #ffffff;
+            --nav-tabs-link-active-color: #111827;
         }
+        body.dark-mode {
+            --bg-body: #0f172a;
+            --text-color: #f1f5f9;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --sidebar-bg: #0f2749;
+            --sidebar-link: #93c5fd;
+            --sidebar-link-hover-bg: #1d4ed8;
+            --sidebar-link-active-border: #fbbf24;
+            --link-color: #60a5fa;
+            --link-hover-color: #bfdbfe;
+            --input-bg: #1e293b;
+            --input-text: #f1f5f9;
+            --input-border: #475569;
+            --table-striped-bg: #1e293b;
+            --dropdown-bg: #1e293b;
+            --dropdown-link: #f1f5f9;
+            --nav-tabs-border: #334155;
+            --nav-tabs-link-hover-bg: #1e293b;
+            --nav-tabs-link-active-bg: #1e293b;
+            --nav-tabs-link-active-color: #f1f5f9;
+        }
+        body { background-color: var(--bg-body); color: var(--text-color); transition: background-color .3s, color .3s; }
+        a { color: var(--link-color); }
+        a:hover { color: var(--link-hover-color); }
+        .sidebar { background: var(--sidebar-bg); }
+        .sidebar .nav-link { color: var(--sidebar-link); }
+        .sidebar .nav-link.active, .sidebar .nav-link:hover { background: var(--sidebar-link-hover-bg); color: #fff; border-left: 3px solid var(--sidebar-link-active-border); }
+        .card { background: var(--card-bg); border: 1px solid var(--border-color); transition: background-color .3s, color .3s, border-color .3s; }
+        .alert { transition: background-color .3s, color .3s; }
+        /* Toggle button */
+        #theme-toggle-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1100;
+            background: var(--card-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            width: 42px;
+            height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            transition: background-color .3s, color .3s, border-color .3s, transform .2s;
+        }
+        #theme-toggle-btn:hover { transform: scale(1.05); }
+        body.dark-mode #theme-toggle-btn { background: var(--card-bg); color: var(--text-color); }
+        /* When sidebar present, slightly offset inside to avoid overlap */
+        body:not(.no-sidebar) #theme-toggle-btn { right: 16px; }
+        /* Forms */
+        .form-control, .form-select { background: var(--input-bg); color: var(--input-text); border: 1px solid var(--input-border); }
+        .form-control:focus, .form-select:focus { background: var(--input-bg); color: var(--input-text); border-color: var(--link-color); }
+        body.dark-mode .form-control::placeholder { color: #94a3b8; }
+        /* Tables */
+        .table { color: var(--text-color); }
+        .table thead th { border-color: var(--border-color); }
+        .table td, .table th { border-color: var(--border-color); }
+        .table-striped > tbody > tr:nth-of-type(odd) > * { --bs-table-accent-bg: var(--table-striped-bg); color: var(--text-color); }
+        /* Modals */
+        .modal-content { background: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); }
+        .modal-header, .modal-footer { border-color: var(--border-color); }
+        /* Dropdown */
+        .dropdown-menu { background: var(--dropdown-bg); border: 1px solid var(--border-color); }
+        .dropdown-item { color: var(--dropdown-link); }
+        .dropdown-item:hover, .dropdown-item:focus { background: var(--sidebar-link-hover-bg); color: #fff; }
+        /* Nav tabs */
+        .nav-tabs { border-color: var(--nav-tabs-border); }
+        .nav-tabs .nav-link { color: var(--text-color); border-color: transparent; }
+        .nav-tabs .nav-link:hover { background: var(--nav-tabs-link-hover-bg); border-color: var(--nav-tabs-border); }
+        .nav-tabs .nav-link.active { background: var(--nav-tabs-link-active-bg); color: var(--nav-tabs-link-active-color); border-color: var(--nav-tabs-border) var(--nav-tabs-border) var(--nav-tabs-link-active-bg); }
+        /* Badges, list groups */
+        .list-group-item { background: var(--card-bg); color: var(--text-color); border-color: var(--border-color); }
+        /* Keep existing layout styles and responsive behavior */
         .sidebar {
             width: 220px;
             min-height: 100vh;
-            background: #1e40af;
+            /* background removed to let earlier variable-based background apply */
             color: #fff;
             position: fixed;
             top: 0;
@@ -54,7 +163,6 @@
             padding: 1rem 0;
         }
         .sidebar .nav-link {
-            color: #dbeafe;
             padding: 0.75rem 1.5rem;
             font-size: 1rem;
             display: flex;
@@ -63,9 +171,9 @@
             border-left: 3px solid transparent;
         }
         .sidebar .nav-link.active, .sidebar .nav-link:hover {
-            background: #3b82f6;
+            background: var(--sidebar-link-hover-bg);
             color: #fff;
-            border-left: 3px solid #fff;
+            border-left: 3px solid var(--sidebar-link-active-border);
         }
         .sidebar .logout {
             margin: 1rem 0 0 0;
@@ -155,11 +263,104 @@
             text-overflow: ellipsis;
             overflow: hidden;
         }
+        /* Dark mode overrides for legacy utility & bootstrap/tailwind light classes */
+        body.dark-mode .bg-white,
+        body.dark-mode .card-header.bg-white,
+        body.dark-mode .card-footer.bg-white { background-color: var(--card-bg)!important; }
+        body.dark-mode .border,
+        body.dark-mode .border-gray-200,
+        body.dark-mode .border-gray-300,
+        body.dark-mode .card,
+        body.dark-mode .card-header,
+        body.dark-mode .card-footer { border-color: var(--border-color)!important; }
+        body.dark-mode .text-dark { color: var(--text-color)!important; }
+        /* Ensure generated quiz/question blocks using bg-white adapt */
+        body.dark-mode .quiz-block.bg-white { background-color: var(--card-bg)!important; }
+        /* Additional dark mode consistency overrides */
+        body.dark-mode .bg-light { background-color: var(--card-bg)!important; }
+        body.dark-mode .navbar-light { background-color: var(--card-bg)!important; }
+        body.dark-mode .navbar-light .navbar-brand,
+        body.dark-mode .navbar-light .nav-link { color: var(--text-color)!important; }
+        body.dark-mode footer.bg-light { background-color: var(--card-bg)!important; }
+        body.dark-mode .text-gray-500 { color: #94a3b8!important; }
+        body.dark-mode .text-gray-700 { color: #e2e8f0!important; }
+        body.dark-mode .text-muted { color: #94a3b8!important; }
+        body.dark-mode [class*='border-gray-'] { border-color: var(--border-color)!important; }
+        body.dark-mode .progress { background-color: #334155; }
+        body.dark-mode .progress-bar { background-color: #2563eb; }
+        /* Tailwind white border utilities */
+        body.dark-mode .border-white { border-color: var(--border-color)!important; }
+        /* Expanded dark mode mappings for Tailwind/Bootstrap gray scales */
+        body.dark-mode .text-gray-100 { color: #f1f5f9!important; }
+        body.dark-mode .text-gray-200 { color: #e2e8f0!important; }
+        body.dark-mode .text-gray-300 { color: #cbd5e1!important; }
+        body.dark-mode .text-gray-400 { color: #94a3b8!important; }
+        body.dark-mode .text-gray-600 { color: #cbd5e1!important; }
+        body.dark-mode .text-gray-800 { color: var(--text-color)!important; }
+        body.dark-mode .bg-gray-50,
+        body.dark-mode .bg-gray-100,
+        body.dark-mode .bg-gray-200 { background-color: var(--card-bg)!important; }
+        body.dark-mode .border-gray-100,
+        body.dark-mode .border-gray-400,
+        body.dark-mode .border-gray-500 { border-color: var(--border-color)!important; }
+        /* Navbar active/hover states in dark mode */
+        body.dark-mode .navbar-light .nav-link.active,
+        body.dark-mode .navbar-light .nav-link:focus,
+        body.dark-mode .navbar-light .nav-link:hover { color: var(--text-color)!important; }
+        /* Additional admin table + list overrides for dark mode */
+        body.dark-mode .table { background-color: var(--card-bg); }
+        body.dark-mode .table td, body.dark-mode .table th { color: var(--text-color); border-color: var(--border-color); }
+        body.dark-mode .table thead th { background-color: var(--card-bg); }
+        body.dark-mode .table-light th, body.dark-mode .table-light td { background-color: var(--card-bg)!important; color: var(--text-color)!important; }
+        body.dark-mode .table-hover tbody tr:hover { background-color: rgba(255,255,255,0.05); color: var(--text-color); }
+        body.dark-mode .list-group-item-action { background: var(--card-bg); color: var(--text-color); }
+        body.dark-mode .list-group-item-action:hover, body.dark-mode .list-group-item-action:focus { background: rgba(255,255,255,0.05); color: var(--text-color); }
+        body.dark-mode .list-group-item-action.active { background: var(--sidebar-link-hover-bg); color: #fff; }
+        body.dark-mode .btn-outline-secondary { color: #cbd5e1; border-color: #475569; }
+        body.dark-mode .btn-outline-secondary:hover { background:#475569; color:#fff; }
+        body.dark-mode .btn-outline-info { color:#38bdf8; border-color:#0ea5e9; }
+        body.dark-mode .btn-outline-info:hover { background:#0ea5e9; color:#fff; }
+        body.dark-mode .btn-outline-danger { color:#f87171; border-color:#ef4444; }
+        body.dark-mode .btn-outline-danger:hover { background:#ef4444; color:#fff; }
+        /* Stronger Bootstrap table variable overrides for dark mode */
+        body.dark-mode .table {
+            --bs-table-color: var(--text-color);
+            --bs-table-bg: var(--card-bg);
+            --bs-table-border-color: var(--border-color);
+            --bs-table-striped-bg: rgba(255,255,255,0.04);
+            --bs-table-striped-color: var(--text-color);
+            --bs-table-hover-bg: rgba(255,255,255,0.06);
+            --bs-table-hover-color: var(--text-color);
+            color: var(--text-color);
+            background-color: var(--card-bg);
+        }
+        body.dark-mode .table-light {
+            --bs-table-color: var(--text-color)!important;
+            --bs-table-bg: var(--card-bg)!important;
+            color: var(--text-color)!important;
+            background-color: var(--card-bg)!important;
+        }
+        body.dark-mode .table thead th { background-color: var(--card-bg)!important; color: var(--text-color)!important; }
+        body.dark-mode .table-bordered { border-color: var(--border-color)!important; }
+        body.dark-mode .table a { color: var(--link-color); }
+        body.dark-mode .table a:hover { color: var(--link-hover-color); }
+        body.dark-mode h1, body.dark-mode h2, body.dark-mode h3, body.dark-mode h4, body.dark-mode h5, body.dark-mode h6,
+        body.dark-mode p, body.dark-mode span:not(.status-badge), body.dark-mode li,
+        body.dark-mode label, body.dark-mode .form-label, body.dark-mode .modal-title,
+        body.dark-mode .card-header, body.dark-mode .card-header *:not(.btn),
+        body.dark-mode th, body.dark-mode td,
+        body.dark-mode .list-group-item, body.dark-mode .list-group-item *:not(.btn),
+        body.dark-mode .nav-tabs .nav-link,
+        body.dark-mode .progress-info,
+        body.dark-mode .stat-value, body.dark-mode .stat-title { color: var(--text-color) !important; }
     </style>
     {% block styles %}{% endblock %}
 </head>
 {% set no_sidebar_endpoints = ['index', 'login', 'signup'] %}
 <body class="{% if request.endpoint in no_sidebar_endpoints %}no-sidebar{% endif %}">
+    <button id="theme-toggle-btn" type="button" class="btn" aria-label="Toggle dark mode" title="Toggle dark mode">
+        <i id="theme-toggle-icon" class="fas fa-moon"></i>
+    </button>
     {% if request.endpoint not in no_sidebar_endpoints %}
     <div class="sidebar" id="sidebar">
         <button id="sidebar-toggle" class="btn"><i class="fas fa-bars"></i></button>
@@ -229,20 +430,36 @@
             const sidebar = document.getElementById('sidebar');
             const mainContent = document.getElementById('main-content');
             const sidebarToggle = document.getElementById('sidebar-toggle');
-
-            // Check for saved sidebar state
-            if (localStorage.getItem('sidebar-collapsed') === 'true') {
-                sidebar.classList.add('collapsed');
-                mainContent.classList.add('collapsed');
+            const themeToggleBtn = document.getElementById('theme-toggle-btn');
+            const themeToggleIcon = document.getElementById('theme-toggle-icon');
+            function applyTheme(theme) {
+                if (theme === 'dark') {
+                    document.body.classList.add('dark-mode');
+                    themeToggleIcon.classList.replace('fa-moon', 'fa-sun');
+                } else {
+                    document.body.classList.remove('dark-mode');
+                    themeToggleIcon.classList.replace('fa-sun', 'fa-moon');
+                }
             }
-
-            sidebarToggle.addEventListener('click', function () {
-                sidebar.classList.toggle('collapsed');
-                mainContent.classList.toggle('collapsed');
-
-                // Save sidebar state
-                localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+            const savedTheme = localStorage.getItem('theme-preference');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            applyTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
+            themeToggleBtn.addEventListener('click', () => {
+                const newTheme = document.body.classList.contains('dark-mode') ? 'light' : 'dark';
+                applyTheme(newTheme);
+                localStorage.setItem('theme-preference', newTheme);
             });
+            if (sidebar && localStorage.getItem('sidebar-collapsed') === 'true') {
+                sidebar.classList.add('collapsed');
+                if (mainContent) mainContent.classList.add('collapsed');
+            }
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function () {
+                    sidebar.classList.toggle('collapsed');
+                    if (mainContent) mainContent.classList.toggle('collapsed');
+                    localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+                });
+            }
         });
     </script>
     {% block scripts %}{% endblock %}
