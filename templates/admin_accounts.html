@@ -32,7 +32,8 @@
                 <th>Name</th>
                 <th>Email</th>
                 <th>Agency</th>
-                <th>Recruitment Date</th>
+                <!-- Changed header from Recruitment Date to Citizenship -->
+                <th>Citizenship</th>
                 <th>Rating</th>
                 <th class="text-center" style="width:60px;">Actions</th>
               </tr>
@@ -45,7 +46,8 @@
                 <td>{{ user.full_name }}</td>
                 <td>{{ user.email }}</td>
                 <td>{{ user.agency.agency_name }}</td>
-                <td>{{ user.recruitment_date.strftime('%Y-%m-%d') if user.recruitment_date else 'N/A' }}</td>
+                <!-- Show user_category instead of recruitment_date -->
+                <td>{% if user.user_category %}{{ 'Citizen' if user.user_category.lower()=='citizen' else ('Foreigner' if user.user_category.lower()=='foreigner' else user.user_category|capitalize) }}{% else %}N/A{% endif %}</td>
                 <td id="user-rating-{{ user.User_id }}">
                   {% for i in range(1,6) %}
                     {% if i <= user.rating_star %}<i class="fas fa-star text-warning"></i>{% else %}<i class="far fa-star text-muted"></i>{% endif %}
@@ -183,7 +185,8 @@
             <div class="col-md-6"><label class="form-label">Course</label><input id="edit-course" name="course" class="form-control"></div>
             <div class="col-md-6"><label class="form-label">Availability</label><input id="edit-availability" name="availability" placeholder="Mon-Fri 9AM-5PM" class="form-control"></div>
             <div class="col-md-6"><label class="form-label">Contact Number</label><input id="edit-contact" name="contact_number" class="form-control"></div>
-            <div class="col-md-6"><label class="form-label">Assigned Module</label>
+            <!-- Label changed from Assigned Module to Assigned Course -->
+            <div class="col-md-6"><label class="form-label">Assigned Course</label>
               <select id="edit-module-id" name="module_id" class="form-select">
                 <option value="">-- None --</option>
                 {% for m in modules %}
@@ -235,4 +238,3 @@ function deleteTrainer(id,name){ if(!confirm(`Delete trainer ${name}?`)) return;
 {% if request.args.get('show_create_modal') %}document.addEventListener('DOMContentLoaded',()=>{ new bootstrap.Modal(document.getElementById('createAccountModal')).show(); });{% endif %}
 </script>
 {% endblock %}
-

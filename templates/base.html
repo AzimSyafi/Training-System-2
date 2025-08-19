@@ -4,15 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Security Training System{% endblock %}</title>
+    {% set always_light = request.endpoint in ['index','login','signup'] %}
     <script>
-        // Early theme application to avoid flash
+        // Early theme application (skip dark for always-light endpoints)
         (function() {
+            var ALWAYS_LIGHT = {{ 'true' if always_light else 'false' }};
             try {
-                const saved = localStorage.getItem('theme-preference');
-                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                if ((saved === 'dark') || (!saved && prefersDark)) {
-                    document.documentElement.classList.add('js'); // marker
-                    document.body.classList.add('dark-mode');
+                if (!ALWAYS_LIGHT) {
+                    const saved = localStorage.getItem('theme-preference');
+                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    if ((saved === 'dark') || (!saved && prefersDark)) {
+                        document.documentElement.classList.add('darkmode');
+                    }
+                } else {
+                    // Ensure any stale dark class removed
+                    document.documentElement.classList.remove('darkmode');
                 }
             } catch (e) { /* ignore */ }
         })();
@@ -43,7 +49,9 @@
             --nav-tabs-link-active-bg: #ffffff;
             --nav-tabs-link-active-color: #111827;
         }
-        body.dark-mode {
+        /* Dark mode variables: applied either when body has .dark-mode or during early load when html has .darkmode */
+        body.dark-mode,
+        html.darkmode body {
             --bg-body: #0f172a;
             --text-color: #f1f5f9;
             --card-bg: #1e293b;
@@ -65,7 +73,9 @@
             --nav-tabs-link-active-bg: #1e293b;
             --nav-tabs-link-active-color: #f1f5f9;
         }
-        body { background-color: var(--bg-body); color: var(--text-color); transition: background-color .3s, color .3s; }
+        /* Base body styles; transitions enabled only after first paint */
+        body { background-color: var(--bg-body); color: var(--text-color); }
+        body.theme-transition { transition: background-color .3s, color .3s; }
         a { color: var(--link-color); }
         a:hover { color: var(--link-hover-color); }
         .sidebar { background: var(--sidebar-bg); }
@@ -100,6 +110,21 @@
         .form-control, .form-select { background: var(--input-bg); color: var(--input-text); border: 1px solid var(--input-border); }
         .form-control:focus, .form-select:focus { background: var(--input-bg); color: var(--input-text); border-color: var(--link-color); }
         body.dark-mode .form-control::placeholder { color: #94a3b8; }
+        /* Dark mode form disabled/readonly state fixes */
+        body.dark-mode .form-control:disabled,
+        html.darkmode body .form-control:disabled,
+        body.dark-mode .form-control[disabled],
+        html.darkmode body .form-control[disabled],
+        body.dark-mode .form-control[readonly],
+        html.darkmode body .form-control[readonly] { background-color:#334155!important; color:#e2e8f0!important; border-color:#475569!important; opacity:1!important; }
+        body.dark-mode .form-select:disabled,
+        html.darkmode body .form-select:disabled,
+        body.dark-mode .form-select[disabled],
+        html.darkmode body .form-select[disabled] { background-color:#334155!important; color:#e2e8f0!important; border-color:#475569!important; opacity:1!important; }
+        body.dark-mode .input-group-text, html.darkmode body .input-group-text { background-color:#334155; color:#f1f5f9; border-color:#475569; }
+        body.dark-mode .form-check-input, html.darkmode body .form-check-input { background-color:#1e293b; border-color:#475569; }
+        body.dark-mode .form-check-input:checked, html.darkmode body .form-check-input:checked { background-color:#3b82f6; border-color:#3b82f6; }
+        body.dark-mode .form-control:focus, html.darkmode body .form-control:focus { background-color:#1e293b; color:#f1f5f9; border-color:#60a5fa; box-shadow:0 0 0 .15rem rgba(96,165,250,.25); }
         /* Tables */
         .table { color: var(--text-color); }
         .table thead th { border-color: var(--border-color); }
@@ -214,6 +239,7 @@
             gap: 1rem;
             overflow: hidden;
             white-space: nowrap;
+            justify-content: space-between; /* allow menu button on right */
         }
         .sidebar.collapsed .user-info {
             gap: 0;
@@ -221,164 +247,104 @@
             padding-left: 0;
             padding-right: 0;
         }
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: #3b82f6;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: white;
-            flex-shrink: 0;
-        }
-        .user-avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            border-radius: 50%;
-        }
-        .user-details {
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .sidebar.collapsed .user-details {
-            display: none;
-        }
-        .user-name {
-            font-weight: 600;
-            font-size: 1rem;
-            color: #fff;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            overflow: hidden;
-        }
-        .user-role {
-            font-size: 0.8rem;
-            color: #dbeafe;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            overflow: hidden;
-        }
-        /* Dark mode overrides for legacy utility & bootstrap/tailwind light classes */
-        body.dark-mode .bg-white,
-        body.dark-mode .card-header.bg-white,
-        body.dark-mode .card-footer.bg-white { background-color: var(--card-bg)!important; }
-        body.dark-mode .border,
-        body.dark-mode .border-gray-200,
-        body.dark-mode .border-gray-300,
-        body.dark-mode .card,
-        body.dark-mode .card-header,
-        body.dark-mode .card-footer { border-color: var(--border-color)!important; }
-        body.dark-mode .text-dark { color: var(--text-color)!important; }
-        /* Ensure generated quiz/question blocks using bg-white adapt */
-        body.dark-mode .quiz-block.bg-white { background-color: var(--card-bg)!important; }
-        /* Additional dark mode consistency overrides */
-        body.dark-mode .bg-light { background-color: var(--card-bg)!important; }
-        body.dark-mode .navbar-light { background-color: var(--card-bg)!important; }
-        body.dark-mode .navbar-light .navbar-brand,
-        body.dark-mode .navbar-light .nav-link { color: var(--text-color)!important; }
-        body.dark-mode footer.bg-light { background-color: var(--card-bg)!important; }
-        body.dark-mode .text-gray-500 { color: #94a3b8!important; }
-        body.dark-mode .text-gray-700 { color: #e2e8f0!important; }
-        body.dark-mode .text-muted { color: #94a3b8!important; }
-        body.dark-mode [class*='border-gray-'] { border-color: var(--border-color)!important; }
-        body.dark-mode .progress { background-color: #334155; }
-        body.dark-mode .progress-bar { background-color: #2563eb; }
-        /* Tailwind white border utilities */
-        body.dark-mode .border-white { border-color: var(--border-color)!important; }
-        /* Expanded dark mode mappings for Tailwind/Bootstrap gray scales */
-        body.dark-mode .text-gray-100 { color: #f1f5f9!important; }
-        body.dark-mode .text-gray-200 { color: #e2e8f0!important; }
-        body.dark-mode .text-gray-300 { color: #cbd5e1!important; }
-        body.dark-mode .text-gray-400 { color: #94a3b8!important; }
-        body.dark-mode .text-gray-600 { color: #cbd5e1!important; }
-        body.dark-mode .text-gray-800 { color: var(--text-color)!important; }
-        body.dark-mode .bg-gray-50,
-        body.dark-mode .bg-gray-100,
-        body.dark-mode .bg-gray-200 { background-color: var(--card-bg)!important; }
-        body.dark-mode .border-gray-100,
-        body.dark-mode .border-gray-400,
-        body.dark-mode .border-gray-500 { border-color: var(--border-color)!important; }
-        /* Navbar active/hover states in dark mode */
-        body.dark-mode .navbar-light .nav-link.active,
-        body.dark-mode .navbar-light .nav-link:focus,
-        body.dark-mode .navbar-light .nav-link:hover { color: var(--text-color)!important; }
-        /* Additional admin table + list overrides for dark mode */
-        body.dark-mode .table { background-color: var(--card-bg); }
-        body.dark-mode .table td, body.dark-mode .table th { color: var(--text-color); border-color: var(--border-color); }
-        body.dark-mode .table thead th { background-color: var(--card-bg); }
-        body.dark-mode .table-light th, body.dark-mode .table-light td { background-color: var(--card-bg)!important; color: var(--text-color)!important; }
-        body.dark-mode .table-hover tbody tr:hover { background-color: rgba(255,255,255,0.05); color: var(--text-color); }
-        body.dark-mode .list-group-item-action { background: var(--card-bg); color: var(--text-color); }
-        body.dark-mode .list-group-item-action:hover, body.dark-mode .list-group-item-action:focus { background: rgba(255,255,255,0.05); color: var(--text-color); }
-        body.dark-mode .list-group-item-action.active { background: var(--sidebar-link-hover-bg); color: #fff; }
-        body.dark-mode .btn-outline-secondary { color: #cbd5e1; border-color: #475569; }
-        body.dark-mode .btn-outline-secondary:hover { background:#475569; color:#fff; }
-        body.dark-mode .btn-outline-info { color:#38bdf8; border-color:#0ea5e9; }
-        body.dark-mode .btn-outline-info:hover { background:#0ea5e9; color:#fff; }
-        body.dark-mode .btn-outline-danger { color:#f87171; border-color:#ef4444; }
-        body.dark-mode .btn-outline-danger:hover { background:#ef4444; color:#fff; }
-        /* Stronger Bootstrap table variable overrides for dark mode */
-        body.dark-mode .table {
+        .user-menu-btn { color:#fff; }
+        .user-menu-btn:hover { color:#f1f5f9; }
+        .sidebar.collapsed .user-menu-btn { padding:0; }
+        .sidebar.collapsed .user-info { gap:0.5rem; }
+        /* Ensure dropdown aligns over narrow collapsed sidebar */
+        .sidebar.collapsed .dropdown-menu { min-width: 140px; }
+        /* Avatar circle styles (restored) */
+        .user-avatar { width:40px; height:40px; border-radius:50%; background:#3b82f6; display:flex; align-items:center; justify-content:center; font-size:1.2rem; font-weight:600; color:#fff; flex-shrink:0; }
+        .user-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+        .sidebar.collapsed .user-avatar { width:38px; height:38px; font-size:1rem; }
+        /* Bottom user section */
+        .user-footer { border-top:1px solid rgba(255,255,255,0.15); padding:0.65rem 0.75rem 0.55rem; display:flex; flex-direction:column; gap:0.4rem; }
+        .user-info.bottom { border:0; padding:0; justify-content:space-between; overflow:visible; }
+        /* Clean dropdown styling */
+        .user-footer .dropdown-menu { background:var(--card-bg); border:1px solid var(--border-color); padding:.25rem 0; min-width:170px; font-size:.85rem; box-shadow:0 6px 18px rgba(0,0,0,0.18); }
+        .user-footer .dropdown-item { padding:0.45rem 0.85rem; }
+        .user-footer .dropdown-item i { width:16px; text-align:center; }
+        .user-footer .dropdown-divider { margin:0.3rem 0; border-color:var(--border-color); }
+        .sidebar .dropdown-menu { z-index:500; }
+        /* Dark mode accent for active icon */
+        .dark-mode-indicator-active { color:#fbbf24; }
+        /* Remove kebab button styles (no longer used) */
+        .user-kebab-btn { display:none!important; }
+        /* Avatar dropdown trigger styling */
+        .avatar-dropdown-toggle { background:transparent; border:0; padding:0; position:relative; }
+        .avatar-dropdown-toggle:focus-visible { outline:2px solid #fff; outline-offset:2px; border-radius:50%; }
+        /* Adjust user footer layout without kebab gap */
+        .user-info.bottom { gap:0.75rem; }
+        /* Dropup menu custom positioning tweaks (open above) */
+        .user-footer .dropup .dropdown-menu { margin-bottom:0.4rem; }
+        /* Ensure right alignment inside sidebar */
+        .user-footer .dropdown-menu-end { right:0; left:auto; }
+        /* --- Dark mode overrides for hardcoded light utility classes (consistency fix) --- */
+        body.dark-mode .bg-white, html.darkmode body .bg-white { background-color: var(--card-bg)!important; }
+        body.dark-mode .bg-light, html.darkmode body .bg-light { background-color: #1e293b!important; }
+        body.dark-mode .text-dark, html.darkmode body .text-dark { color: var(--text-color)!important; }
+        body.dark-mode .card-header.bg-white, html.darkmode body .card-header.bg-white { background-color: var(--card-bg)!important; }
+        body.dark-mode .card-footer.bg-white, html.darkmode body .card-footer.bg-white { background-color: var(--card-bg)!important; }
+        body.dark-mode .table, html.darkmode body .table { background-color: var(--card-bg); --bs-table-bg: var(--card-bg); }
+        body.dark-mode .table thead, html.darkmode body .table thead { background-color: var(--card-bg); }
+        body.dark-mode .table-hover tbody tr:hover > * , html.darkmode body .table-hover tbody tr:hover > * { --bs-table-accent-bg: #24324a; color: var(--text-color); }
+        body.dark-mode .table-striped > tbody > tr:nth-of-type(odd) > * , html.darkmode body .table-striped > tbody > tr:nth-of-type(odd) > * { --bs-table-accent-bg: #1b2535; color: var(--text-color); }
+        body.dark-mode .dropdown-menu.bg-white, html.darkmode body .dropdown-menu.bg-white { background-color: var(--dropdown-bg)!important; }
+        body.dark-mode .border, html.darkmode body .border { border-color: var(--border-color)!important; }
+        body.dark-mode .shadow, html.darkmode body .shadow { box-shadow: 0 2px 6px rgba(0,0,0,0.6)!important; }
+        body.dark-mode .text-muted, html.darkmode body .text-muted { color: #94a3b8!important; }
+        body.dark-mode .text-gray-700, html.darkmode body .text-gray-700 { color: var(--text-color)!important; }
+        body.dark-mode .text-gray-800, html.darkmode body .text-gray-800 { color: var(--text-color)!important; }
+        body.dark-mode .text-gray-900, html.darkmode body .text-gray-900 { color: var(--text-color)!important; }
+        body.dark-mode .text-gray-600, html.darkmode body .text-gray-600 { color: var(--text-color)!important; }
+        body.dark-mode .text-gray-500, html.darkmode body .text-gray-500 { color: #cbd5e1!important; }
+        body.dark-mode .table-dark, html.darkmode body .table-dark { background-color:#24324a; }
+        body.dark-mode .table-dark th, body.dark-mode .table-dark td, html.darkmode body .table-dark th, html.darkmode body .table-dark td { border-color: #334155; }
+        /* Buttons (keep primary colors, adjust secondary/light) */
+        body.dark-mode .btn-light, html.darkmode body .btn-light { background-color: #334155; color: #f1f5f9; border-color: #475569; }
+        body.dark-mode .btn-outline-secondary, html.darkmode body .btn-outline-secondary { color: #f1f5f9; border-color: #64748b; }
+        body.dark-mode .btn-outline-secondary:hover, html.darkmode body .btn-outline-secondary:hover { background:#475569; }
+        /* Form feedback / subtle backgrounds */
+        body.dark-mode .form-text, html.darkmode body .form-text { color:#94a3b8!important; }
+        body.dark-mode .bg-body, html.darkmode body .bg-body { background-color: var(--bg-body)!important; }
+        /* Ensure modals with default .bg-white utilities adapt */
+        body.dark-mode .modal-content.bg-white, html.darkmode body .modal-content.bg-white { background-color: var(--card-bg)!important; }
+        body.dark-mode .text-secondary, html.darkmode body .text-secondary { color: #cbd5e1!important; }
+        body.dark-mode .text-body, html.darkmode body .text-body { color: var(--text-color)!important; }
+        body.dark-mode .text-body-secondary, html.darkmode body .text-body-secondary { color:#94a3b8!important; }
+        /* Force table cell backgrounds to dark card tone by default */
+        body.dark-mode .table>:not(caption)>*>* , html.darkmode body .table>:not(caption)>*>* { background-color: var(--card-bg)!important; box-shadow: inset 0 0 0 9999px transparent; }
+        /* Restore subtle zebra striping for striped tables */
+        body.dark-mode .table-striped>tbody>tr:nth-of-type(odd)>* , html.darkmode body .table-striped>tbody>tr:nth-of-type(odd)>* { background-color:#223047!important; }
+        body.dark-mode .table-striped>tbody>tr:nth-of-type(even)>* , html.darkmode body .table-striped>tbody>tr:nth-of-type(even)>* { background-color: var(--card-bg)!important; }
+        /* Hover state */
+        body.dark-mode .table-hover>tbody>tr:hover>* , html.darkmode body .table-hover>tbody>tr:hover>* { background-color:#2d405c!important; }
+        /* Bootstrap variable syncing for dark mode to prevent default dark (#212529) text */
+        body.dark-mode, html.darkmode body {
+            --bs-body-bg: var(--bg-body);
+            --bs-body-color: var(--text-color);
+            --bs-card-bg: var(--card-bg);
+            --bs-card-color: var(--text-color);
             --bs-table-color: var(--text-color);
             --bs-table-bg: var(--card-bg);
-            --bs-table-border-color: var(--border-color);
-            --bs-table-striped-bg: rgba(255,255,255,0.04);
-            --bs-table-striped-color: var(--text-color);
-            --bs-table-hover-bg: rgba(255,255,255,0.06);
-            --bs-table-hover-color: var(--text-color);
-            color: var(--text-color);
-            background-color: var(--card-bg);
+            --bs-dropdown-bg: var(--dropdown-bg);
+            --bs-dropdown-color: var(--dropdown-link);
         }
-        body.dark-mode .table-light {
-            --bs-table-color: var(--text-color)!important;
-            --bs-table-bg: var(--card-bg)!important;
-            color: var(--text-color)!important;
-            background-color: var(--card-bg)!important;
-        }
-        body.dark-mode .table thead th { background-color: var(--card-bg)!important; color: var(--text-color)!important; }
-        body.dark-mode .table-bordered { border-color: var(--border-color)!important; }
-        body.dark-mode .table a { color: var(--link-color); }
-        body.dark-mode .table a:hover { color: var(--link-hover-color); }
-        body.dark-mode h1, body.dark-mode h2, body.dark-mode h3, body.dark-mode h4, body.dark-mode h5, body.dark-mode h6,
-        body.dark-mode p, body.dark-mode span:not(.status-badge), body.dark-mode li,
-        body.dark-mode label, body.dark-mode .form-label, body.dark-mode .modal-title,
-        body.dark-mode .card-header, body.dark-mode .card-header *:not(.btn),
-        body.dark-mode th, body.dark-mode td,
-        body.dark-mode .list-group-item, body.dark-mode .list-group-item *:not(.btn),
-        body.dark-mode .nav-tabs .nav-link,
-        body.dark-mode .progress-info,
-        body.dark-mode .stat-value, body.dark-mode .stat-title { color: var(--text-color) !important; }
+        /* Force card internal text/headings to adopt theme color */
+        body.dark-mode .card, html.darkmode body .card { color: var(--text-color); }
+        body.dark-mode .card-header, html.darkmode body .card-header { background: var(--card-bg); color: var(--text-color); border-color: var(--border-color); }
+        body.dark-mode .card-body, html.darkmode body .card-body { color: var(--text-color); }
+        body.dark-mode .card h1, body.dark-mode .card h2, body.dark-mode .card h3, body.dark-mode .card h4, body.dark-mode .card h5, body.dark-mode .card h6,
+        html.darkmode body .card h1, html.darkmode body .card h2, html.darkmode body .card h3, html.darkmode body .card h4, html.darkmode body .card h5, html.darkmode body .card h6 { color: var(--text-color); }
+        /* Ensure table header cells inside dark mode inherit readable text unless explicitly table-dark */
+        body.dark-mode .table thead th:not(.bg-white):not(.table-dark), html.darkmode body .table thead th:not(.bg-white):not(.table-dark) { background: var(--card-bg); color: var(--text-color); }
     </style>
     {% block styles %}{% endblock %}
 </head>
-{% set no_sidebar_endpoints = ['index', 'login', 'signup'] %}
-<body class="{% if request.endpoint in no_sidebar_endpoints %}no-sidebar{% endif %}">
-    <button id="theme-toggle-btn" type="button" class="btn" aria-label="Toggle dark mode" title="Toggle dark mode">
-        <i id="theme-toggle-icon" class="fas fa-moon"></i>
-    </button>
-    {% if request.endpoint not in no_sidebar_endpoints %}
+<body class="{% if request.endpoint in ['index','login','signup'] %}no-sidebar{% endif %}">
+    {% if request.endpoint not in ['index','login','signup'] %}
     <div class="sidebar" id="sidebar">
         <button id="sidebar-toggle" class="btn"><i class="fas fa-bars"></i></button>
-        {% if current_user.is_authenticated %}
-        <div class="user-info">
-            <div class="user-avatar">
-                {% if current_user.profile_pic %}
-                    <img src="{{ url_for('static', filename='profile_pics/' + current_user.profile_pic) }}" alt="User Avatar">
-                {% else %}
-                    {{ current_user.username[0]|upper }}
-                {% endif %}
-            </div>
-            <div class="user-details">
-                <div class="user-name">{{ current_user.username }}</div>
-                <div class="user-role">{{ current_user.__class__.__name__ }}</div>
-            </div>
-        </div>
-        {% endif %}
         <nav class="nav flex-column">
             {% if current_user.is_authenticated and current_user.__class__.__name__ == 'Trainer' %}
                 <a class="nav-link {% if request.endpoint=='trainer_portal' and request.view_args.get('section') == 'dashboard' %}active{% endif %}" href="{{ url_for('trainer_portal', section='dashboard') }}"><i class="fas fa-gauge"></i> <span class="link-text">Dashboard</span></a>
@@ -403,10 +369,34 @@
             {% endif %}
         </nav>
         {% if current_user.is_authenticated %}
-        <div class="logout">
-            <form action="{{ url_for('logout') }}" method="post">
-                <button class="btn btn-link text-danger p-0" type="submit"><i class="fas fa-sign-out-alt"></i> <span class="link-text">Logout</span></button>
-            </form>
+        <div class="user-footer mt-auto">
+            <div class="user-info bottom d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                    <div class="dropup">
+                        <button class="avatar-dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="User menu">
+                            <div class="user-avatar">
+                                {% if current_user.profile_pic %}
+                                    <img src="{{ url_for('static', filename='profile_pics/' + current_user.profile_pic) }}" alt="User Avatar">
+                                {% else %}
+                                    {{ current_user.username[0]|upper }}
+                                {% endif %}
+                            </div>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow">
+                            <li><button class="dropdown-item d-flex align-items-center gap-2" id="darkmode-toggle" type="button"><i class="fas fa-moon" id="darkmode-icon"></i><span>Dark Mode</span></button></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form action="{{ url_for('logout') }}" method="post" class="m-0">
+                                    <button class="dropdown-item d-flex align-items-center gap-2 text-danger" type="submit"><i class="fas fa-sign-out-alt"></i><span>Logout</span></button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="user-details">
+                        <div class="user-name">{{ current_user.username }}</div>
+                    </div>
+                </div>
+            </div>
         </div>
         {% endif %}
     </div>
@@ -426,37 +416,51 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.getElementById('main-content');
-            const sidebarToggle = document.getElementById('sidebar-toggle');
-            const themeToggleBtn = document.getElementById('theme-toggle-btn');
-            const themeToggleIcon = document.getElementById('theme-toggle-icon');
-            function applyTheme(theme) {
-                if (theme === 'dark') {
+        document.addEventListener('DOMContentLoaded', function(){
+            const ALWAYS_LIGHT = {{ 'true' if always_light else 'false' }};
+            const sidebar=document.getElementById('sidebar');
+            const mainContent=document.getElementById('main-content');
+            const sidebarToggle=document.getElementById('sidebar-toggle');
+            const darkToggleBtn=document.getElementById('darkmode-toggle');
+            const darkToggleIcon=document.getElementById('darkmode-icon');
+            function applyTheme(theme){
+                if(theme==='dark' && !ALWAYS_LIGHT){
                     document.body.classList.add('dark-mode');
-                    themeToggleIcon.classList.replace('fa-moon', 'fa-sun');
+                    if(darkToggleIcon){ darkToggleIcon.classList.remove('fa-moon'); darkToggleIcon.classList.add('fa-sun','dark-mode-indicator-active'); }
                 } else {
                     document.body.classList.remove('dark-mode');
-                    themeToggleIcon.classList.replace('fa-sun', 'fa-moon');
+                    document.documentElement.classList.remove('darkmode');
+                    if(darkToggleIcon){ darkToggleIcon.classList.remove('fa-sun','dark-mode-indicator-active'); darkToggleIcon.classList.add('fa-moon'); }
                 }
             }
-            const savedTheme = localStorage.getItem('theme-preference');
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            applyTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
-            themeToggleBtn.addEventListener('click', () => {
-                const newTheme = document.body.classList.contains('dark-mode') ? 'light' : 'dark';
-                applyTheme(newTheme);
-                localStorage.setItem('theme-preference', newTheme);
-            });
-            if (sidebar && localStorage.getItem('sidebar-collapsed') === 'true') {
-                sidebar.classList.add('collapsed');
-                if (mainContent) mainContent.classList.add('collapsed');
+            const saved=localStorage.getItem('theme-preference');
+            const prefers=window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if(ALWAYS_LIGHT){
+                applyTheme('light');
+            } else {
+                applyTheme(saved || (prefers ? 'dark':'light'));
             }
-            if (sidebarToggle) {
-                sidebarToggle.addEventListener('click', function () {
+            requestAnimationFrame(()=>document.body.classList.add('theme-transition'));
+            if(darkToggleBtn && !ALWAYS_LIGHT){
+                darkToggleBtn.addEventListener('click',()=>{
+                    const newTheme=document.body.classList.contains('dark-mode')? 'light':'dark';
+                    applyTheme(newTheme);
+                    localStorage.setItem('theme-preference', newTheme);
+                    if(newTheme==='dark') document.documentElement.classList.add('darkmode'); else document.documentElement.classList.remove('darkmode');
+                });
+            } else if (darkToggleBtn && ALWAYS_LIGHT){
+                // Disable interaction on always-light pages
+                darkToggleBtn.disabled = true;
+                darkToggleBtn.classList.add('disabled');
+            }
+            if(sidebar && localStorage.getItem('sidebar-collapsed')==='true'){
+                sidebar.classList.add('collapsed');
+                if(mainContent) mainContent.classList.add('collapsed');
+            }
+            if(sidebarToggle){
+                sidebarToggle.addEventListener('click',()=>{
                     sidebar.classList.toggle('collapsed');
-                    if (mainContent) mainContent.classList.toggle('collapsed');
+                    if(mainContent) mainContent.classList.toggle('collapsed');
                     localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
                 });
             }
