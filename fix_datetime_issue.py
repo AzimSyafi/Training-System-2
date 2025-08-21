@@ -1,4 +1,4 @@
-  #!/usr/bin/env python3
+#!/usr/bin/env python3
 
 """
 Fix datetime issue in the database where empty strings are stored in datetime fields.
@@ -72,4 +72,5 @@ def fix_datetime_issue():
                 conn.close()
 
 if __name__ == "__main__":
-    fix_datetime_issue()
+    # Deprecated: SQLite support removed. This script is obsolete.
+    raise RuntimeError("Deprecated: SQLite datetime fix script removed (PostgreSQL only).")

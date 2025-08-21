@@ -128,54 +128,35 @@
 
         <div class="stats-container">
             <div class="stat-card">
-                <div class="stat-icon users">
-                    <i class="fas fa-users"></i>
-                </div>
+                <div class="stat-icon users"><i class="fas fa-users"></i></div>
                 <div class="stat-info">
                     <div class="stat-title">Active Trainees</div>
-                    <div class="stat-value">1</div>
-                    <div class="stat-change positive">
-                        <i class="fas fa-arrow-up"></i> 0 new this week
-                    </div>
+                    <div class="stat-value">{{ active_trainees }}</div>
+                    <div class="stat-change positive"><i class="fas fa-user"></i> total</div>
                 </div>
             </div>
-
             <div class="stat-card">
-                <div class="stat-icon modules">
-                    <i class="fas fa-book"></i>
-                </div>
+                <div class="stat-icon modules"><i class="fas fa-book"></i></div>
                 <div class="stat-info">
                     <div class="stat-title">My Courses</div>
-                    <div class="stat-value">2</div>
-                    <div class="stat-change positive">
-                        <i class="fas fa-arrow-up"></i> 0 new this month
-                    </div>
+                    <div class="stat-value">{{ my_courses }}</div>
+                    <div class="stat-change positive"><i class="fas fa-info-circle"></i> available</div>
                 </div>
             </div>
-
             <div class="stat-card">
-                <div class="stat-icon certificates">
-                    <i class="fas fa-certificate"></i>
-                </div>
+                <div class="stat-icon certificates"><i class="fas fa-certificate"></i></div>
                 <div class="stat-info">
                     <div class="stat-title">Certificates Issued</div>
-                    <div class="stat-value">0</div>
-                    <div class="stat-change positive">
-                        <i class="fas fa-arrow-up"></i> 0 from last month
-                    </div>
+                    <div class="stat-value">{{ certificates_issued }}</div>
+                    <div class="stat-change positive"><i class="fas fa-shield-alt"></i> overall</div>
                 </div>
             </div>
-
             <div class="stat-card">
-                <div class="stat-icon trainers">
-                    <i class="fas fa-chalkboard-teacher"></i>
-                </div>
+                <div class="stat-icon trainers"><i class="fas fa-star"></i></div>
                 <div class="stat-info">
                     <div class="stat-title">Avg. Rating</div>
-                    <div class="stat-value">87%</div>
-                    <div class="stat-change positive">
-                        <i class="fas fa-arrow-up"></i> Based on student
-                    </div>
+                    <div class="stat-value">{{ avg_rating_pct|round(1) }}%</div>
+                    <div class="stat-change positive"><i class="fas fa-chart-line"></i> modules</div>
                 </div>
             </div>
         </div>
@@ -183,39 +164,26 @@
         <div class="dashboard-section">
             <div class="section-header">
                 <h2 class="section-title">Course Progress Overview</h2>
-                <button class="btn btn-primary">
-                    <i class="fas fa-download"></i> Export Report
-                </button>
+                <button class="btn btn-primary" id="export-report-btn"><i class="fas fa-download"></i> Export Report</button>
             </div>
-
             <div class="progress-grid">
-                <div class="progress-card">
-                    <div class="progress-header">
-                        <div class="progress-title">TNG</div>
-                        <div>0%</div>
+                {% for cs in course_stats %}
+                    <div class="progress-card">
+                        <div class="progress-header">
+                            <div class="progress-title">{{ cs.code }}</div>
+                            <div>{{ cs.progress_pct }}%</div>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill high" style="width: {{ cs.progress_pct }}%"></div>
+                        </div>
+                        <div class="progress-info">
+                            <span>{{ cs.trainee_count }} trainee{{ cs.trainee_count != 1 and 's' or '' }}</span>
+                            <span>Avg. score: {{ cs.avg_score }}%</span>
+                        </div>
                     </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill high" style="width: 0%"></div>
-                    </div>
-                    <div class="progress-info">
-                        <span>0 of 1 trainees</span>
-                        <span>Avg. score: 0%</span>
-                    </div>
-                </div>
-
-                <div class="progress-card">
-                    <div class="progress-header">
-                        <div class="progress-title">CSG</div>
-                        <div>0%</div>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill medium" style="width: 0%"></div>
-                    </div>
-                    <div class="progress-info">
-                        <span>0 of 1 trainees</span>
-                        <span>Avg. score: 0%</span>
-                    </div>
-                </div>
+                {% else %}
+                    <p>No course statistics available yet.</p>
+                {% endfor %}
             </div>
         </div>
     </div>
@@ -223,43 +191,33 @@
     <!-- Progress Section -->
     <div id="progress" class="content-section">
         <h1 class="page-title">Trainee Progress Monitoring</h1>
-
         <div class="dashboard-section">
             <div class="section-header">
                 <h2 class="section-title">Trainee Performance</h2>
-                <div class="search-bar">
-                    <i class="fas fa-search"></i>
-                    <input type="text" placeholder="Search trainees...">
-                </div>
+                <div class="search-bar"><i class="fas fa-search"></i><input id="progress-search" type="text" placeholder="Search trainees or courses..."></div>
             </div>
-
-            <table class="recent-table">
+            <table class="recent-table" id="progress-table">
                 <thead>
                     <tr>
-                        <th>Trainee</th>
-                        <th>Course</th>
-                        <th>Progress</th>
-                        <th>Last Activity</th>
-                        <th>Score</th>
-                        <th>Status</th>
+                        <th>Trainee</th><th>Course</th><th>Progress</th><th>Last Activity</th><th>Score</th><th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
+                {% for row in progress_rows %}
                     <tr>
-                        <td>John Doe</td>
-                        <td>TNG</td>
+                        <td>{{ row.user_name }}</td>
+                        <td>{{ row.course_code }}</td>
                         <td>
-                            <div class="progress-bar">
-                                <div class="progress-fill high" style="width: 92%"></div>
-                            </div>
-                            <div class="progress-info">92%</div>
+                            <div class="progress-bar"><div class="progress-fill high" style="width: {{ row.progress_pct }}%"></div></div>
+                            <div class="progress-info">{{ row.progress_pct }}%</div>
                         </td>
-                        <td>Today, 10:30 AM</td>
-                        <td>87%</td>
-                        <td>
-                            <span class="status-badge completed">Active</span>
-                        </td>
+                        <td>{% if row.last_activity %}{{ row.last_activity.strftime('%Y-%m-%d %H:%M') }}{% else %}-{% endif %}</td>
+                        <td>{{ row.score }}%</td>
+                        <td><span class="status-badge {{ 'completed' if row.status == 'Completed' else 'pending' }}">{{ row.status }}</span></td>
                     </tr>
+                {% else %}
+                    <tr><td colspan="6" class="text-center">No trainee progress yet.</td></tr>
+                {% endfor %}
                 </tbody>
             </table>
         </div>
@@ -268,38 +226,25 @@
     <!-- Courses Section -->
     <div id="courses" class="content-section">
         <h1 class="page-title">Course Management</h1>
-
         <div class="dashboard-section">
             <div class="section-header">
                 <h2 class="section-title">My Training Courses</h2>
-                <!-- Removed Create New Course button -->
             </div>
-
             <div class="module-grid">
-                <div class="module-card clickable" data-course="TNG">
-                    <span class="module-badge badge-active">Active</span>
-                    <div class="module-header">
-                        <h3 class="module-title">TNG</h3>
+                {% for cs in course_stats %}
+                    <div class="module-card clickable" data-course="{{ cs.code }}">
+                        <span class="module-badge badge-active">Active</span>
+                        <div class="module-header"><h3 class="module-title">{{ cs.code }}</h3></div>
+                        <div class="module-meta">
+                            <div><i class="fas fa-users"></i> {{ cs.trainee_count }} trainee{{ cs.trainee_count!=1 and 's' or '' }}</div>
+                            <div><i class="fas fa-star"></i> {{ cs.avg_score }}% avg score</div>
+                        </div>
+                        <p>{{ cs.name }}</p>
                     </div>
-                    <div class="module-meta">
-                        <div><i class="fas fa-users"></i> 1 trainee</div>
-                        <div><i class="fas fa-star"></i> 87% rating</div>
-                    </div>
-                    <p>--</p>
-                </div>
-                <div class="module-card clickable" data-course="CSG">
-                    <span class="module-badge badge-active">Active</span>
-                    <div class="module-header">
-                        <h3 class="module-title">CSG</h3>
-                    </div>
-                    <div class="module-meta">
-                        <div><i class="fas fa-users"></i> 1 trainee</div>
-                        <div><i class="fas fa-star"></i> 87% rating</div>
-                    </div>
-                    <p>--</p>
-                </div>
+                {% else %}
+                    <p>No courses available.</p>
+                {% endfor %}
             </div>
-            <!-- Course Details Mini Page/Section -->
             <div id="course-details" style="display:none; margin-top:30px;">
                 <div class="dashboard-section">
                     <div class="section-header">
@@ -309,66 +254,15 @@
                             <i class="fas fa-upload"></i> Upload Content
                         </button>
                     </div>
-                    <div id="modules-list">
-                        <!-- Populated by JS -->
+                    <div id="modules-hidden-note" class="alert alert-info" style="margin-bottom:20px;">
+                        Showing summary and modules for selected course.
                     </div>
+                    <div id="modules-list" style="margin-top:10px;"></div>
                     <div id="users-list" style="margin-top:20px;">
                         <table class="recent-table">
-                            <thead>
-                                <tr>
-                                    <th>Trainee</th>
-                                    <th>Progress</th>
-                                    <th>Score</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>John Doe</td>
-                                    <td>
-                                        <div class="progress-bar">
-                                            <div class="progress-fill high" style="width: 92%"></div>
-                                        </div>
-                                        <div class="progress-info">92%</div>
-                                    </td>
-                                    <td>87%</td>
-                                    <td><span class="status-badge completed">Active</span></td>
-                                </tr>
-                            </tbody>
+                            <thead><tr><th>Trainee</th><th>Progress</th><th>Score</th><th>Status</th></tr></thead>
+                            <tbody id="detail-users-body"><tr><td colspan="4">Select a course to view trainees.</td></tr></tbody>
                         </table>
-                    </div>
-                </div>
-            </div>
-            <!-- Floating Modal for Module Upload -->
-            <div id="module-upload-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.35); z-index:1000; align-items:center; justify-content:center;">
-                <div class="module-upload-dialog">
-                    <button id="close-module-upload" style="position:absolute; top:16px; right:16px; background:none; border:none; font-size:22px; color:#888; cursor:pointer;">&times;</button>
-                    <h2 id="module-upload-title" style="font-size:20px; font-weight:600; margin-bottom:18px;">Upload Content</h2>
-                    <div style="margin-bottom: 18px;">
-                        <button class="content-tab active" data-tab="slide">Slides</button>
-                        <button class="content-tab" data-tab="video">Video</button>
-                        <button class="content-tab" data-tab="quiz">Quiz</button>
-                    </div>
-                    <div class="tab-content slide-tab">
-                        <div class="form-group">
-                            <label class="form-label">Upload Slides</label>
-                            <input type="file" class="form-control">
-                        </div>
-                        <button class="btn btn-primary">Save Slides</button>
-                    </div>
-                    <div class="tab-content video-tab hidden">
-                        <div class="form-group">
-                            <label class="form-label">Upload Video</label>
-                            <input type="file" class="form-control">
-                        </div>
-                        <button class="btn btn-primary">Save Video</button>
-                    </div>
-                    <div class="tab-content quiz-tab hidden">
-                        <div class="form-group">
-                            <label class="form-label">Upload Quiz</label>
-                            <input type="file" class="form-control">
-                        </div>
-                        <button class="btn btn-primary">Save Quiz</button>
                     </div>
                 </div>
             </div>
@@ -378,427 +272,168 @@
     <!-- Content Section -->
     <div id="content" class="content-section">
         <h1 class="page-title">Course Content Management</h1>
-
         <div class="upload-form">
-            <div class="section-header">
-                <h2 class="section-title">Upload New Content</h2>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Select Course</label>
-                <select class="form-control" id="upload-course-select">
-                    <option value="TNG">TNG</option>
-                    <option value="CSG">CSG</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Select Module</label>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <select class="form-control" id="upload-module-select">
-                        <!-- Populated by JS -->
+            <div class="section-header"><h2 class="section-title">Upload New Content</h2></div>
+            <form method="POST" action="{{ url_for('upload_content') }}" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label class="form-label">Select Course</label>
+                    <select class="form-control" id="upload-course-select">
+                        {% for cs in course_stats %}
+                            <option value="{{ cs.code }}">{{ cs.code }}</option>
+                        {% endfor %}
                     </select>
                 </div>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Content Type</label>
-                <select class="form-control">
-                    <option>Presentation Slides</option>
-                    <option>Training Video</option>
-                    <option>Document/PDF</option>
-                    <option>Quiz/Assessment</option>
-                    <option>Reference Material</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Content Title</label>
-                <input type="text" class="form-control" placeholder="Enter content title">
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Description</label>
-                <textarea class="form-control form-textarea" placeholder="Describe this content..."></textarea>
-            </div>
-
-            <div class="upload-area" id="dropZone">
-                <div class="upload-icon">
-                    <i class="fas fa-cloud-upload-alt"></i>
+                <div class="form-group">
+                    <label class="form-label">Select Module</label>
+                    <select class="form-control" id="upload-module-select" name="module_id"></select>
                 </div>
-                <div class="upload-text">
-                    <h3>Drag & Drop files here</h3>
-                    <p>or</p>
+                <div class="form-group">
+                    <label class="form-label">Content Type</label>
+                    <select class="form-control" name="content_type" id="content_type">
+                        <option value="slide">Presentation Slides</option>
+                        <option value="video">Training Video</option>
+                        <option value="quiz">Quiz / Assessment</option>
+                    </select>
                 </div>
-                <button class="upload-btn">
-                    <i class="fas fa-folder-open"></i> Browse Files
-                </button>
-            </div>
-
-            <div class="file-preview">
-                <div class="file-item">
-                    <i class="fas fa-file-pdf file-icon"></i>
-                    <div class="file-name">security-fundamentals.pdf</div>
-                    <button class="remove-btn">
-                        <i class="fas fa-times"></i>
-                    </button>
+                <div class="form-group" id="slide-file-group">
+                    <label class="form-label">Slide File (PDF/PPTX)</label>
+                    <input type="file" class="form-control" name="slide_file" accept=".pdf,.ppt,.pptx">
                 </div>
-                <div class="file-item">
-                    <i class="fas fa-file-video file-icon"></i>
-                    <div class="file-name">surveillance-demo.mp4</div>
-                    <button class="remove-btn">
-                        <i class="fas fa-times"></i>
-                    </button>
+                <div class="form-group" id="video-url-group" style="display:none;">
+                    <label class="form-label">YouTube URL</label>
+                    <input type="url" class="form-control" name="youtube_url" placeholder="https://www.youtube.com/watch?v=...">
                 </div>
-            </div>
-
-            <div class="form-group" style="margin-top: 20px;">
-                <button class="btn btn-primary" style="padding: 12px 25px;">
-                    <i class="fas fa-upload"></i> Upload Content
-                </button>
-            </div>
+                <!-- Basic quiz builder placeholder (full builder exists elsewhere) -->
+                <div class="form-group" id="quiz-builder-group" style="display:none;">
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">Use the dedicated quiz builder after creating the module for advanced quizzes.</p>
+                </div>
+                <div class="form-group" style="margin-top: 20px;">
+                    <button class="btn btn-primary" style="padding: 12px 25px;" type="submit"><i class="fas fa-upload"></i> Upload Content</button>
+                </div>
+            </form>
         </div>
-
         <div class="dashboard-section">
-            <div class="section-header">
-                <h2 class="section-title">Recent Uploads</h2>
-            </div>
-
-            <table class="recent-table">
-                <thead>
-                    <tr>
-                        <th>Content</th>
-                        <th>Course</th>
-                        <th>Type</th>
-                        <th>Upload Date</th>
-                        <th>Size</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- No uploads yet, only TNG and CSG content allowed -->
-                </tbody>
-            </table>
+            <div class="section-header"><h2 class="section-title">Recent Uploads</h2></div>
+            <table class="recent-table"><thead><tr><th>Module</th><th>Type</th><th>Slide</th><th>Video</th><th>Quiz</th></tr></thead><tbody id="recent-uploads-body"><tr><td colspan="5">(Feature coming soon)</td></tr></tbody></table>
         </div>
     </div>
 {% endblock %}
 
 {% block scripts %}
-    <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // On page load, activate the correct section based on URL
+<script>
+    const MODULES_BY_COURSE = {{ modules_by_course|tojson }};
+    const PROGRESS_ROWS = {{ progress_rows|tojson }}; // For potential client-side filtering
+
+    function populateModuleSelect(courseCode) {
+        const select = document.getElementById('upload-module-select');
+        if (!select) return;
+        select.innerHTML = '';
+        const modules = MODULES_BY_COURSE[courseCode] || [];
+        modules.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.id; // use module id for backend
+            opt.textContent = m.name;
+            select.appendChild(opt);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Section param activation (existing logic trimmed)
         const params = new URLSearchParams(window.location.search);
         const section = params.get('section') || 'dashboard';
-        // Remove active from all nav links
-        document.querySelectorAll('.nav-link').forEach(menuItem => menuItem.classList.remove('active'));
-        // Add active to the correct nav link
-        const nav = document.querySelector(`.nav-link[href*="section=${section}"]`);
-        if (nav) nav.classList.add('active');
-        // Hide all sections
-        document.querySelectorAll('.content-section').forEach(sectionEl => sectionEl.classList.remove('active'));
-        // Show the correct section
-        const sectionDiv = document.getElementById(section);
-        if (sectionDiv) sectionDiv.classList.add('active');
+        document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+        const secEl = document.getElementById(section); if (secEl) secEl.classList.add('active');
 
-        // Section switching functionality
-        document.querySelectorAll('.nav-link').forEach(item => {
-            item.addEventListener('click', function(e) {
-                // Only handle links with ?section= for client-side switching
-                const href = this.getAttribute('href');
+        // Nav click for switching
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', e => {
+                const href = link.getAttribute('href');
                 if (href && href.includes('section=')) {
-                    const sectionId = href.split('section=')[1].split('&')[0]; // Only get the section name
-                    if (!sectionId) return;
                     e.preventDefault();
-                    // Update active states for menu items
-                    document.querySelectorAll('.nav-link').forEach(menuItem => {
-                        menuItem.classList.remove('active');
-                    });
-                    this.classList.add('active');
-                    // Show the corresponding content section
-                    document.querySelectorAll('.content-section').forEach(section => {
-                        section.classList.remove('active');
-                    });
-                    const targetSection = document.getElementById(sectionId);
-                    if (targetSection) {
-                        targetSection.classList.add('active');
-                    }
-                    // Update the URL without reloading the page
-                    window.history.replaceState(null, '', '?section=' + sectionId);
+                    const sec = href.split('section=')[1];
+                    document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+                    const target = document.getElementById(sec); if (target) target.classList.add('active');
+                    window.history.replaceState(null, '', '?section=' + sec);
+                    document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+                    link.classList.add('active');
                 }
-                // Otherwise, let the link work as normal (for other endpoints)
             });
         });
 
-        // Sidebar toggle functionality
-        const sidebar = document.getElementById('sidebar');
-        const mainContent = document.getElementById('main-content');
-        const sidebarToggle = document.getElementById('sidebar-toggle');
+        // Populate modules for initial course
+        const courseSelect = document.getElementById('upload-course-select');
+        if (courseSelect) {
+            populateModuleSelect(courseSelect.value);
+            courseSelect.addEventListener('change', () => populateModuleSelect(courseSelect.value));
+        }
 
-        if (sidebarToggle && sidebar && mainContent) {
-            sidebarToggle.addEventListener('click', () => {
-                sidebar.classList.toggle('collapsed');
-                mainContent.classList.toggle('collapsed');
+        // Content type toggle
+        const contentType = document.getElementById('content_type');
+        const slideGroup = document.getElementById('slide-file-group');
+        const videoGroup = document.getElementById('video-url-group');
+        const quizGroup = document.getElementById('quiz-builder-group');
+        if (contentType) {
+            contentType.addEventListener('change', () => {
+                const val = contentType.value;
+                slideGroup.style.display = (val === 'slide') ? 'block' : 'none';
+                videoGroup.style.display = (val === 'video') ? 'block' : 'none';
+                quizGroup.style.display = (val === 'quiz') ? 'block' : 'none';
             });
         }
 
-        // File upload interaction
-        const dropZone = document.getElementById('dropZone');
-        if (dropZone) {
-            dropZone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                dropZone.style.borderColor = 'var(--primary)';
-                dropZone.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
-            });
-
-            dropZone.addEventListener('dragleave', () => {
-                dropZone.style.borderColor = 'var(--border-color)';
-                dropZone.style.backgroundColor = '';
-            });
-
-            dropZone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                dropZone.style.borderColor = 'var(--border-color)';
-                dropZone.style.backgroundColor = '';
-
-                if (e.dataTransfer.files.length) {
-                    alert(`Files selected: ${e.dataTransfer.files.length}`);
+        // Course card click -> show details
+        const courseDetails = document.getElementById('course-details');
+        const modulesList = document.getElementById('modules-list');
+        const detailUsersBody = document.getElementById('detail-users-body');
+        document.querySelectorAll('.module-card.clickable').forEach(card => {
+            card.addEventListener('click', () => {
+                const code = card.getAttribute('data-course');
+                document.getElementById('details-course-title').textContent = code + ' Course';
+                // Populate module list
+                const list = MODULES_BY_COURSE[code] || [];
+                modulesList.innerHTML = list.length
+                  ? '<ul style="margin:0;padding-left:18px;">' + list.map(m => `<li data-module-id="${m.id}">${m.name}</li>`).join('') + '</ul>'
+                  : '<em>No modules defined for this course yet.</em>';
+                // Populate users (filter PROGRESS_ROWS)
+                const rows = PROGRESS_ROWS.filter(r => r.course_code === code);
+                if (rows.length) {
+                    detailUsersBody.innerHTML = rows.map(r => `\n<tr><td>${r.user_name}</td><td><div class='progress-bar'><div class='progress-fill high' style='width:${r.progress_pct}%'></div></div><div class='progress-info'>${r.progress_pct}%</div></td><td>${r.score}%</td><td><span class='status-badge ${r.status==='Completed'?'completed':'pending'}'>${r.status}</span></td></tr>`).join('');
+                } else {
+                    detailUsersBody.innerHTML = '<tr><td colspan="4">No trainees yet.</td></tr>';
                 }
+                courseDetails.style.display = 'block';
+                window.scrollTo({ top: courseDetails.offsetTop - 60, behavior: 'smooth' });
+            });
+        });
+        const closeDetails = document.getElementById('close-details');
+        if (closeDetails) closeDetails.addEventListener('click', () => courseDetails.style.display = 'none');
+
+        // Simple search filter
+        const searchInput = document.getElementById('progress-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
+                const term = searchInput.value.toLowerCase();
+                const tbody = document.querySelector('#progress-table tbody');
+                tbody.querySelectorAll('tr').forEach(tr => {
+                    const txt = tr.textContent.toLowerCase();
+                    tr.style.display = txt.includes(term) ? '' : 'none';
+                });
             });
         }
 
-        // Remove file items
-        document.querySelectorAll('.file-item .remove-btn').forEach(removeBtn => {
-            removeBtn.addEventListener('click', () => {
-                removeBtn.closest('.file-item').remove();
+        // Export report (basic CSV)
+        document.getElementById('export-report-btn')?.addEventListener('click', () => {
+            const header = ['Trainee','Course','Progress','Score','Status','Last Activity'];
+            const lines = [header.join(',')];
+            PROGRESS_ROWS.forEach(r => {
+                lines.push([r.user_name, r.course_code, r.progress_pct + '%', r.score + '%', r.status, r.last_activity || ''].join(','));
             });
-        });
-
-        // Logout functionality
-        const logoutBtn = document.querySelector('.logout-btn');
-        if (logoutBtn) {
-            logoutBtn.addEventListener('click', function() {
-                // Replace with actual logout logic, e.g., redirecting to a logout URL
-                window.location.href = "{{ url_for('logout') }}";
-            });
-        }
-
-        // Generic button click alert for demonstration
-        document.querySelectorAll('.btn').forEach(button => {
-            if (!button.closest('.logout-btn')) { // Avoid re-attaching to logout
-                button.addEventListener('click', function(e) {
-                    // Example action - could be opening a modal, submitting a form, etc.
-                    const actionText = this.innerText.trim();
-                    console.log(`${actionText} button clicked`);
-                });
-            }
-        });
-
-        // Activate section based on URL (only on initial load)
-        if (!window.location.search.includes('section=')) {
-            // If no section param, show dashboard only on first load
-            document.querySelectorAll('.content-section').forEach(sectionDiv => sectionDiv.classList.remove('active'));
-            document.getElementById('dashboard').classList.add('active');
-            document.querySelectorAll('.nav-link').forEach(menuItem => menuItem.classList.remove('active'));
-            const nav = document.querySelector('.nav-link[href*="section=dashboard"]');
-            if (nav) nav.classList.add('active');
-        } else {
-            // If section param exists, show the correct section
-            const urlParams = new URLSearchParams(window.location.search);
-            const section = urlParams.get('section');
-            document.querySelectorAll('.nav-link').forEach(menuItem => menuItem.classList.remove('active'));
-            document.querySelectorAll('.content-section').forEach(sectionDiv => sectionDiv.classList.remove('active'));
-            const nav = document.querySelector(`.nav-link[href*="section=${section}"]`);
-            const sec = document.getElementById(section);
-            if (nav) nav.classList.add('active');
-            if (sec) sec.classList.add('active');
-        }
-
-        // Define modules for TNG and CSG
-        const courseModules = {
-            'TNG': [
-                { name: 'INTRODUCTION TO SECURITY INDUSTRY', progress: 0 },
-                { name: 'ROLE AND RESPONSIBILITIES', progress: 0 },
-                { name: 'ETHICS AND TURNOUT', progress: 0 },
-                { name: 'MALAYSIAN CULTURE & CUSTOMS', progress: 0 },
-                { name: 'PATROLLING & ACCESS CONTROL', progress: 0 },
-                { name: 'REPORT WRITING', progress: 0 },
-                { name: 'CUSTOMER SERVICE', progress: 0 },
-                { name: 'COMMUNICATION', progress: 0 },
-                { name: 'LAWS OF ARREST, SEARCH & USE OF FORCE', progress: 0 },
-                { name: 'FIRE CONTROL & PREVENTION', progress: 0 },
-                { name: 'FIRST AID & CPR', progress: 0 },
-                { name: 'SAFETY AT WORK PLACE', progress: 0 },
-                { name: 'SECURITY DRILL', progress: 0 }
-            ],
-            'CSG': [
-                { name: 'PENGENALAN KEPADA INDUSTRI KESELAMATAN', progress: 0 },
-                { name: 'PERANAN, PENAMPILAN & TANGGUNGJAWAB PENGAWAL KESELAMATAN', progress: 0 },
-                { name: 'ARAHAN TUGAS', progress: 0 },
-                { name: 'KAWALAN KELUAR MASUK', progress: 0 },
-                { name: 'PEMERIKSAAN & PEMERIKSAAN KENDERAAN', progress: 0 },
-                { name: 'RONDAAN', progress: 0 },
-                { name: 'MENULIS LAPORAN', progress: 0 },
-                { name: 'PENGENALAN ALAT KOMUNIKASI', progress: 0 },
-                { name: 'KHIDMAT PELANGGAN', progress: 0 },
-                { name: 'MELAKSANAKAN TUGAS MENGIKUT BATASAN UNDANG-UNDANG', progress: 0 },
-                { name: 'PERTOLONGAN CEMAS DAN CPR', progress: 0 },
-                { name: 'PENCEGAHAN KEBAKARAN DAN BENCANA', progress: 0 },
-                { name: 'LATIHAN SENI MEMPERTAHANKAN DIRI', progress: 0 },
-                { name: 'LATIHAN T-BATON', progress: 0 },
-                { name: 'KAWAD', progress: 0 },
-                { name: 'PENGENALAN DADAH DAN PENYALAHGUNAAN DADAH', progress: 0 },
-                { name: 'PENGENALAN & PERANAN ANGGOTA BERSENJATA & CIT', progress: 0 }
-            ]
-        };
-        const courseUsers = {
-            'TNG': ['John Doe'],
-            'CSG': ['John Doe']
-        };
-        document.addEventListener('DOMContentLoaded', function() {
-            // Populate module select based on course
-            function populateModuleSelect(course) {
-                const moduleSelect = document.getElementById('upload-module-select');
-                moduleSelect.innerHTML = '';
-                if (courseModules[course]) {
-                    courseModules[course].forEach(m => {
-                        const opt = document.createElement('option');
-                        opt.value = m.name;
-                        opt.textContent = m.name;
-                        moduleSelect.appendChild(opt);
-                    });
-                }
-            }
-            const courseSelect = document.getElementById('upload-course-select');
-            if (courseSelect) {
-                courseSelect.addEventListener('change', function() {
-                    populateModuleSelect(this.value);
-                });
-                // Initial population
-                populateModuleSelect(courseSelect.value);
-            }
-        });
-
-        // Course card click handler
-        document.querySelectorAll('.module-card').forEach(card => {
-            card.addEventListener('click', function() {
-                const course = this.getAttribute('data-course');
-                document.getElementById('course-details').style.display = 'block';
-                document.getElementById('details-course-title').innerText = course + ' Details';
-                // Modules - show completion rate for TNG
-                let modulesHtml = '<h3>Modules</h3><table class="recent-table"><thead><tr><th>Module</th><th>Completion Rate</th></tr></thead><tbody>';
-                courseModules[course].forEach(m => {
-                    modulesHtml += `<tr><td>${m.name}</td><td><div style='width:100px;background:var(--border-color);border-radius:5px;overflow:hidden;'><div style='width:${m.progress}%;background:var(--primary);height:12px;border-radius:5px;'></div></div> <span style='margin-left:8px;'>${m.progress}%</span></td></tr>`;
-                });
-                modulesHtml += '</tbody></table>';
-                document.getElementById('modules-list').innerHTML = modulesHtml;
-                // Users - table UI
-                let usersHtml = '<h3>Users with Access</h3><table class="recent-table"><thead><tr><th>Name</th></tr></thead><tbody>';
-                courseUsers[course].forEach(u => {
-                    usersHtml += `<tr><td>${u}</td></tr>`;
-                });
-                usersHtml += '</tbody></table>';
-                document.getElementById('users-list').innerHTML = usersHtml;
-            });
-        });
-        document.getElementById('close-details').addEventListener('click', function() {
-            document.getElementById('course-details').style.display = 'none';
-        });
-
-        // Remove Add Module button and new module input
-        const addModuleBtn = document.getElementById('add-module-btn');
-        const newModuleInput = document.getElementById('new-module-input');
-        if (addModuleBtn) addModuleBtn.style.display = 'none';
-        if (newModuleInput) newModuleInput.style.display = 'none';
-
-        // Module card click: show upload section with tabs (Slides, Video, Quiz)
-        const moduleCards = document.querySelectorAll('.module-card.clickable');
-        moduleCards.forEach(card => {
-            card.addEventListener('click', function() {
-                // Close all other open upload sections
-                document.querySelectorAll('.upload-section').forEach(section => {
-                    if (section !== card.nextElementSibling) {
-                        section.classList.remove('open');
-                    }
-                });
-                // Toggle this card's upload section
-                const uploadSection = card.nextElementSibling;
-                if (uploadSection) {
-                    uploadSection.classList.toggle('open');
-                }
-            });
-        });
-
-        // Tab switching in upload section and modal
-        document.querySelectorAll('.content-tab').forEach(tab => {
-            tab.addEventListener('click', function() {
-                const tabName = this.dataset.tab;
-                // Try to find the closest .upload-section, otherwise use the modal
-                let container = this.closest('.upload-section');
-                if (!container) {
-                    container = document.getElementById('module-upload-modal');
-                }
-                if (!container) return;
-                // Update active tab button
-                container.querySelectorAll('.content-tab').forEach(t => t.classList.remove('active'));
-                this.classList.add('active');
-                // Show active tab content
-                container.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
-                const activeTab = container.querySelector(`.${tabName}-tab`);
-                if (activeTab) activeTab.classList.remove('hidden');
-            });
-        });
-
-        // Close modal when clicking the quit/close button
-        const closeModuleUpload = document.getElementById('close-module-upload');
-        if (closeModuleUpload) {
-            closeModuleUpload.addEventListener('click', function() {
-                const modal = document.getElementById('module-upload-modal');
-                if (modal) modal.style.display = 'none';
-            });
-        }
-
-        // Show module upload modal when button is clicked
-        document.addEventListener('DOMContentLoaded', function() {
-            var showUploadBtn = document.getElementById('show-module-upload');
-            var uploadModal = document.getElementById('module-upload-modal');
-            var closeUploadBtn = document.getElementById('close-module-upload');
-            if (showUploadBtn && uploadModal) {
-                showUploadBtn.onclick = function() {
-                    uploadModal.style.display = 'flex';
-                };
-            }
-            if (closeUploadBtn && uploadModal) {
-                closeUploadBtn.onclick = function() {
-                    uploadModal.style.display = 'none';
-                };
-            }
-        });
-
-        // When clicking Upload Content, always pass the course in the URL
-        document.querySelectorAll('#show-module-upload').forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                const course = this.closest('.module-card').getAttribute('data-course');
-                if (course) {
-                    window.location.href = `/upload_content?course=${encodeURIComponent(course)}`;
-                    e.preventDefault();
-                }
-            });
+            const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'trainer_progress_report.csv';
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
         });
     });
-
-    // Make module cards clickable to show course details
-    const moduleCards = document.querySelectorAll('.module-card.clickable');
-    const courseDetails = document.getElementById('course-details');
-    const closeDetails = document.getElementById('close-details');
-
-    moduleCards.forEach(card => {
-        card.addEventListener('click', () => {
-            document.getElementById('details-course-title').textContent = card.querySelector('.module-title').textContent + ' Details';
-            courseDetails.style.display = 'block';
-            window.scrollTo({ top: courseDetails.offsetTop - 60, behavior: 'smooth' });
-        });
-    });
-    closeDetails.addEventListener('click', () => {
-        courseDetails.style.display = 'none';
-    });
-    </script>
+</script>
 {% endblock %}

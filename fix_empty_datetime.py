@@ -29,7 +29,7 @@ def fix_empty_datetime_strings():
             # Update empty strings to NULL
             cursor.execute("UPDATE user_module SET completion_date = NULL WHERE completion_date = ''")
             conn.commit()
-            print(f"Fixed {count} rows by setting empty completion_date to NULL")
+            print(f"Fixed {count} rows by setting empty_completion_date to NULL")
         else:
             print("No empty completion_date strings found")
         
@@ -49,6 +49,9 @@ def fix_empty_datetime_strings():
         print(f"Error: {e}")
         if 'conn' in locals():
             conn.close()
+
+# Deprecated: SQLite support removed. This fixer is obsolete.
+raise RuntimeError("Deprecated: SQLite maintenance script removed (PostgreSQL only).")
 
 if __name__ == "__main__":
     fix_empty_datetime_strings()

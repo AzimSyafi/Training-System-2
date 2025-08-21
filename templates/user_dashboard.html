@@ -1,162 +1,153 @@
 {% extends "base.html" %}
 
+{% block styles %}
+<style>
+  /* Reuse trainer stat card style */
+  .stats-container { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:20px; margin-bottom:30px; }
+  .stat-card { background:var(--card-bg); border-radius:10px; padding:20px; box-shadow:0 2px 10px rgba(0,0,0,0.05); display:flex; align-items:center; gap:15px; transition:all .3s ease; }
+  .stat-card:hover { transform:translateY(-5px); box-shadow:0 5px 15px rgba(0,0,0,0.12); }
+  .stat-icon { width:50px; height:50px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; }
+  .stat-icon.enrolled { background:rgba(59,130,246,0.15); color:#3b82f6; }
+  .stat-icon.completed { background:rgba(16,185,129,0.15); color:#10b981; }
+  .stat-icon.certificates { background:rgba(245,158,11,0.15); color:#f59e0b; }
+  .stat-icon.rating { background:rgba(239,68,68,0.15); color:#ef4444; }
+  .stat-info { flex:1; }
+  .stat-title { font-size:14px; color:var(--text-secondary); margin-bottom:4px; }
+  .stat-value { font-size:24px; font-weight:600; }
+  .stat-change { font-size:12px; color:var(--text-secondary); display:flex; align-items:center; gap:4px; }
+  .rating-stars i { color:#fbbf24; }
+  .profile-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px; }
+  .info-card { background:var(--card-bg); border-radius:10px; padding:16px 18px; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+  .info-title { font-size:14px; font-weight:600; color:var(--primary-text,#0f172a); display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+  .info-body { font-size:14px; color:var(--text-secondary); }
+  /* Module styles retained in case reused elsewhere but section removed */
+  .modules-section-title { font-size:20px; font-weight:600; margin:30px 0 15px; display:flex; align-items:center; gap:10px; }
+  .module-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:20px; }
+  .module-card { background:var(--card-bg); border-radius:12px; padding:22px 22px 18px; box-shadow:0 2px 10px rgba(0,0,0,0.05); position:relative; border-left:4px solid var(--primary,#3b82f6); transition:.3s ease; cursor:pointer; }
+  .module-card:hover { transform:translateY(-6px); box-shadow:0 6px 18px rgba(0,0,0,0.12); }
+  body.dark-mode .module-card { box-shadow:0 2px 10px rgba(0,0,0,0.4); }
+  body.dark-mode .module-card:hover { box-shadow:0 6px 22px rgba(0,0,0,0.55); }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-4">
-  <h2 class="mb-4 text-2xl font-bold text-blue-900 flex items-center"><i class="fas fa-user-shield mr-2"></i> Trainee Dashboard</h2>
-  <!-- Statistic Cards -->
-  <div class="row mb-5">
-    <div class="col-md-3 mb-3">
-      <div class="card text-center bg-primary text-white shadow">
-        <div class="card-body">
-          <i class="fas fa-book fa-2x mb-2"></i>
-          <h4>{{ user_modules|length }}</h4>
-          <p>Modules Enrolled</p>
-        </div>
+  <h2 class="mb-4" style="font-size:26px; font-weight:600; display:flex; align-items:center; gap:10px;"><i class="fas fa-user-shield"></i> Trainee Dashboard</h2>
+
+  {% set total_modules = user_modules|length %}
+  {% set completed_modules = user_modules|selectattr('is_completed')|list|length %}
+  {% set completion_pct = (completed_modules / total_modules * 100) if total_modules > 0 else 0 %}
+  {% set certificates_count = user.certificates|length %}
+  {% set user_course_code = 'TNG' if user.user_category == 'foreigner' else 'CSG' %}
+  {% set grade = user.get_overall_grade_for_course(user_course_code) %}
+
+  <div class="stats-container">
+    <div class="stat-card">
+      <div class="stat-icon enrolled"><i class="fas fa-book"></i></div>
+      <div class="stat-info">
+        <div class="stat-title">Modules Enrolled</div>
+        <div class="stat-value">{{ total_modules }}</div>
+        <div class="stat-change"><i class="fas fa-layer-group"></i> Total available</div>
       </div>
     </div>
-    <div class="col-md-3 mb-3">
-      <div class="card text-center bg-success text-white shadow">
-        <div class="card-body">
-          <i class="fas fa-check-circle fa-2x mb-2"></i>
-          <h4>{{ user_modules|selectattr('is_completed')|list|length }}</h4>
-          <p>Modules Completed</p>
-        </div>
+    <div class="stat-card">
+      <div class="stat-icon completed"><i class="fas fa-check-circle"></i></div>
+      <div class="stat-info">
+        <div class="stat-title">Modules Completed</div>
+        <div class="stat-value">{{ completed_modules }}</div>
+        <div class="stat-change">{{ completion_pct|round(1) }}% complete</div>
       </div>
     </div>
-    <div class="col-md-3 mb-3">
-      <div class="card text-center bg-warning text-white shadow">
-        <div class="card-body">
-          <i class="fas fa-certificate fa-2x mb-2"></i>
-          <h4>{{ user.certificates|length }}</h4>
-          <p>Certificates</p>
-        </div>
+    <div class="stat-card">
+      <div class="stat-icon certificates"><i class="fas fa-certificate"></i></div>
+      <div class="stat-info">
+        <div class="stat-title">Certificates</div>
+        <div class="stat-value">{{ certificates_count }}</div>
+        <div class="stat-change">Earned</div>
       </div>
     </div>
-    <div class="col-md-3 mb-3">
-      <div class="card text-center bg-info text-white shadow">
-        <div class="card-body">
-          <i class="fas fa-chalkboard-teacher fa-2x mb-2"></i>
-          <h4>{{ user.trainer or 'N/A' }}</h4>
-          <p>Trainer</p>
+    <div class="stat-card">
+      <div class="stat-icon rating"><i class="fas fa-star"></i></div>
+      <div class="stat-info">
+        <div class="stat-title">Rating</div>
+        {% if rating_unlocked %}
+        <div class="stat-value rating-stars">
+          {% for i in range(1,6) %}
+            {% if i <= user.rating_star %}<i class="fas fa-star"></i>{% else %}<i class="far fa-star" style="color:#d1d5db;"></i>{% endif %}
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="stat-value rating-stars" style="font-size:18px; color:#9ca3af;">Locked</div>
+        {% endif %}
+        <div class="stat-change">
+          {%- if rating_unlocked and grade != 'N/A' %}
+            Grade: {{ grade }}
+          {%- elif rating_unlocked and user.rating_label %}
+            {{ user.rating_label }}
+          {%- else %}
+            Complete all modules to unlock
+          {%- endif %}
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Second row of statistic cards -->
-  <div class="row mb-5">
-    <div class="col-md-3 mb-3">
-      <div class="card text-center bg-secondary text-white shadow">
-        <div class="card-body">
-          <i class="fas fa-star fa-2x mb-2"></i>
-          <h4>
-            {% for i in range(1, 6) %}
-              {% if i <= user.rating_star %}
-                <i class="fas fa-star text-warning"></i>
-              {% else %}
-                <i class="far fa-star text-white-50"></i>
-              {% endif %}
-            {% endfor %}
-          </h4>
-          <p>Star Rating</p>
-        </div>
-      </div>
+  {% if not user_modules %}
+    <div class="alert alert-info mb-4">
+      <h5 class="mb-2"><i class="fas fa-info-circle"></i> Welcome!</h5>
+      <p class="mb-3">Enroll to start your training journey.</p>
+      <a href="{{ url_for('enroll_course') }}" class="btn btn-primary"><i class="fas fa-graduation-cap"></i> Enroll in Course</a>
     </div>
-    <div class="col-md-3 mb-3">
-      {% set user_course_type = 'TNG' if user.user_category == 'foreigner' else 'CSG' %}
-      {% set overall_grade = user.get_overall_grade_for_course(user_course_type) %}
-      
-      <div class="card text-center text-white shadow-lg border-0" style="background: linear-gradient(135deg, #ff8c00, #ff6347);">
-        <div class="card-body">
-          <i class="fas fa-chart-line fa-2x mb-2 text-warning"></i>
-          <h4 class="mb-1 fw-bold">
-            {% if overall_grade != 'N/A' and current_user.has_completed_all_modules_in_course(user_course_type) %}
-              {{ overall_grade }}
-            {% else %}
-              N/A
-            {% endif %}
-          </h4>
-          <p class="mb-0">Overall Grade</p>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-6 mb-3">
-      <!-- Empty space for future statistics or content -->
-    </div>
-  </div>
+  {% endif %}
 
-  <!-- Profile Section -->
-  <div class="card mb-4 shadow">
+  <div class="card mb-4 shadow-sm" style="border-radius:12px;">
     <div class="card-body d-flex flex-column flex-md-row align-items-center gap-4">
-      <img src="{{ user.profile_pic_url or url_for('static', filename='default_avatar.png') }}" alt="Profile" class="rounded-circle border border-3 border-primary" style="width: 110px; height: 110px; object-fit: cover;">
-      <div class="flex-1 w-100 row">
-        <div class="col-md-6 mb-2">
+      <img src="{{ user.profile_pic_url or url_for('static', filename='default_avatar.png') }}" alt="Profile" class="rounded-circle border border-3 border-primary" style="width:110px;height:110px;object-fit:cover;">
+      <div class="flex-grow-1 row w-100">
+        <div class="col-sm-6 mb-3">
           <div class="text-muted small">Name</div>
           <div class="fw-semibold">{{ user.full_name }}</div>
         </div>
-        <div class="col-md-6 mb-2">
+        <div class="col-sm-6 mb-3">
           <div class="text-muted small">Email</div>
-          <div class="fw-semibold">{{ user.email }}</div>
+            <div class="fw-semibold">{{ user.email }}</div>
         </div>
-        <div class="col-md-6 mb-2">
+        <div class="col-sm-6 mb-3">
           <div class="text-muted small">User ID</div>
           <div class="fw-semibold">{{ user.displayed_id }}</div>
         </div>
-        <div class="col-md-6 mb-2">
+        <div class="col-sm-6 mb-3">
           <div class="text-muted small">Phone</div>
           <div class="fw-semibold">{{ user.emergency_contact or 'N/A' }}</div>
         </div>
       </div>
     </div>
   </div>
-  <!-- Details Section -->
-  <div class="row mb-4">
-    <div class="col-md-6 mb-3">
-      <div class="card shadow">
-        <div class="card-body">
-          <div class="fw-semibold text-primary mb-1"><i class="fas fa-briefcase me-2"></i>Working Experience</div>
-          <div class="text-muted">{{ user.working_experience or '2+ years in security (example)' }}</div>
-        </div>
-      </div>
+
+  <div class="profile-grid mb-4">
+    <div class="info-card">
+      <div class="info-title"><i class="fas fa-briefcase"></i>Working Experience</div>
+      <div class="info-body">{{ user.working_experience or '—' }}</div>
     </div>
-    <div class="col-md-6 mb-3">
-      <div class="card shadow">
-        <div class="card-body">
-          <div class="fw-semibold text-primary mb-1"><i class="fas fa-building me-2"></i>Current Workplace</div>
-          <div class="text-muted">{{ user.current_workplace or 'Current Position/Placement' }}</div>
-        </div>
-      </div>
+    <div class="info-card">
+      <div class="info-title"><i class="fas fa-building"></i>Current Workplace</div>
+      <div class="info-body">{{ user.current_workplace or '—' }}</div>
     </div>
-    <div class="col-md-6 mb-3">
-      <div class="card shadow">
-        <div class="card-body">
-          <div class="fw-semibold text-primary mb-1"><i class="fas fa-shield-alt me-2"></i>Agency Info</div>
-          <div class="text-muted">{{ user.agency.agency_name if user.agency else 'Agency Name' }}</div>
-        </div>
-      </div>
+    <div class="info-card">
+      <div class="info-title"><i class="fas fa-shield-alt"></i>Agency</div>
+      <div class="info-body">{{ user.agency.agency_name if user.agency else '—' }}</div>
     </div>
-    <div class="col-md-6 mb-3">
-      <div class="card shadow">
-        <div class="card-body">
-          <div class="fw-semibold text-primary mb-1"><i class="fas fa-user-friends me-2"></i>Emergency Contact</div>
-          <div class="text-muted">{{ user.emergency_relationship or 'Contact Name' }}<br>
-            <span class="small">{{ user.emergency_relationship_type or 'Relationship' }}</span>
-          </div>
-          <div class="text-muted mt-1">{{ user.emergency_contact or 'Contact Number' }}</div>
-        </div>
+    <div class="info-card">
+      <div class="info-title"><i class="fas fa-user-friends"></i>Emergency Contact</div>
+      <div class="info-body">
+        {{ user.emergency_relationship or '—' }}<br>
+        <span class="small">{{ user.emergency_relationship_type or '' }}</span><br>
+        <span>{{ user.emergency_contact or '' }}</span>
       </div>
     </div>
   </div>
-  <!-- Enrollment Section -->
-  {% if not user_modules %}
-    <div class="alert alert-info">
-      <h5><i class="fas fa-info-circle"></i> Welcome to Security Guard Training!</h5>
-      <p>You need to enroll in the Security Guard Training course to begin your learning journey.</p>
-      <a href="{{ url_for('enroll_course') }}" class="btn btn-primary">
-        <i class="fas fa-graduation-cap"></i> Enroll in Course
-      </a>
-    </div>
-  {% endif %}
-  <!-- Progress Overview -->
+
+  {# My Modules section removed per request #}
+
 </div>
 {% endblock %}

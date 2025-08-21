@@ -27,7 +27,9 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None)
 
     # Find the module name for the certificate (first module of this type)
     module = Module.query.filter_by(module_type=course_type.upper()).first()
-    module_name = module.module_name if module else course_type
+    if not module:
+        raise ValueError(f"No module found for course type {course_type}")
+    module_name = module.module_name
     # Create overlay PDF with user info
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
@@ -43,8 +45,21 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None)
         stars = 4
     else:
         stars = 5
+
+    # Grade calculation (standard scale). Assumption: percentage 0-100.
+    if percent >= 90:
+        grade = 'A'
+    elif percent >= 80:
+        grade = 'B'
+    elif percent >= 70:
+        grade = 'C'
+    elif percent >= 60:
+        grade = 'D'
+    else:
+        grade = 'F'
+
     # Try to fetch existing certificate for this user/module
-    cert = Certificate.query.filter_by(user_id=user_id, module_id=module.module_id).order_by(Certificate.issue_date.desc()).first() if module else None
+    cert = Certificate.query.filter_by(user_id=user_id, module_id=module.module_id).order_by(Certificate.issue_date.desc()).first()
     passport_ic = getattr(user, 'passport_number', None) or getattr(user, 'ic_number', None) or getattr(user, 'number_series', None) or 'N/A'
     # Place Name (centered at 425, 290), Times New Roman, 28pt, Black
     can.setFont("Times-Roman", 28)
@@ -68,10 +83,12 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None)
     # Display overall percentage under the stars
     can.setFont("Times-Roman", 14)
     can.drawCentredString(425, 185, f"Overall Percentage: {percent}%")
+    # Display grade under the overall percentage
+    can.drawCentredString(425, 170, f"Grade: {grade}")
     # Set font size for text and date to 12
     can.setFont("Times-Roman", 12)
-     can.drawCentredString(425, 170, "received training and fulfilled the requirements on")
-    can.drawCentredString(425, 140, date_str)
+    can.drawCentredString(425, 155, "received training and fulfilled the requirements on")
+    can.drawCentredString(425, 135, date_str)
     can.save()
     packet.seek(0)
 
@@ -90,7 +107,7 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None)
         cert = Certificate(
             user_id=user_id,
             module_type=course_type,
-            module_id=module.module_id if module else None,
+            module_id=module.module_id,
             issue_date=datetime.now().date(),
             star_rating=stars,
             score=overall_percentage,  # Save overall_percentage as score for reference
@@ -104,7 +121,8 @@ if __name__ == "__main__":
     from app import app
     with app.app_context():
         try:
-            cert_path = generate_certificate(1, 'TNG')
+            # Example standalone generation with a placeholder overall percentage
+            cert_path = generate_certificate(1, 'TNG', 75)
             print(f"Certificate generated at: {cert_path}")
         except Exception as e:
             print(f"Error generating certificate: {e}")

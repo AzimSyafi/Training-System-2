@@ -293,6 +293,53 @@
                 document.addEventListener('DOMContentLoaded', function() {
                   const quizFormContainer = document.getElementById('quiz-form-container');
                   const moduleId = {{ module.module_id|tojson }};
+                  let cachedQuiz = null;
+                  let isReattempt = false;
+
+                  function renderQuiz(quiz){
+                    let html = '<form id="user-quiz-form">';
+                    quiz.forEach((q, idx) => {
+                      html += `<div class='mb-3'><label class='form-label'><b>Q${idx+1}:</b> ${q.text}</label>`;
+                      q.answers.forEach((a, aIdx) => {
+                        html += `<div class='form-check'><input class='form-check-input' type='radio' name='q${idx}' id='q${idx}a${aIdx}' value='${aIdx}' required><label class='form-check-label' for='q${idx}a${aIdx}'>${a.text}</label></div>`;
+                      });
+                      html += '</div>';
+                    });
+                    html += '<button type="submit" class="btn btn-success">' + (isReattempt ? 'Submit Reattempt' : 'Submit Quiz') + '</button>';
+                    if(!isReattempt){
+                      html += ' <button type="button" class="btn btn-outline-secondary" id="reattempt-btn" style="display:none;">Reattempt</button>';
+                    }
+                    quizFormContainer.innerHTML = html;
+                    const formEl = document.getElementById('user-quiz-form');
+                    formEl.addEventListener('submit', submitHandler);
+                  }
+
+                  function submitHandler(e){
+                    e.preventDefault();
+                    const answers = cachedQuiz.map((q, idx) => parseInt(new FormData(e.target).get(`q${idx}`), 10));
+                    fetch(`/api/submit_quiz/${moduleId}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ answers, is_reattempt: isReattempt })
+                    })
+                    .then(res => res.json())
+                    .then(result => {
+                      let feedback = `<div class='alert alert-info'><b>Your Score:</b> ${result.score || 0}%<br>${result.feedback || ''}<br><b>Grade:</b> ${result.grade_letter || 'A'} (Attempts: ${result.reattempt_count || 0})</div>`;
+                      feedback += `<button class='btn btn-warning' id='start-reattempt'>Reattempt Quiz</button>`;
+                      quizFormContainer.innerHTML = feedback;
+                      const btn = document.getElementById('start-reattempt');
+                      if(btn){
+                        btn.addEventListener('click', function(){
+                          isReattempt = true;
+                          renderQuiz(cachedQuiz);
+                        });
+                      }
+                    })
+                    .catch(() => {
+                      quizFormContainer.innerHTML = '<div class="alert alert-danger">Error submitting quiz. Please try again.</div>';
+                    });
+                  }
+
                   fetch(`/api/load_quiz/${moduleId}`)
                     .then(res => res.json())
                     .then(quiz => {
@@ -300,34 +347,8 @@
                         quizFormContainer.innerHTML = '<div class="alert alert-info">No quiz available for this module.</div>';
                         return;
                       }
-                      let html = '<form id="user-quiz-form">';
-                      quiz.forEach((q, idx) => {
-                        html += `<div class='mb-3'><label class='form-label'><b>Q${idx+1}:</b> ${q.text}</label>`;
-                        q.answers.forEach((a, aIdx) => {
-                          html += `<div class='form-check'><input class='form-check-input' type='radio' name='q${idx}' id='q${idx}a${aIdx}' value='${aIdx}' required><label class='form-check-label' for='q${idx}a${aIdx}'>${a.text}</label></div>`;
-                        });
-                        html += '</div>';
-                      });
-                      html += '<button type="submit" class="btn btn-success">Submit Quiz</button></form>';
-                      quizFormContainer.innerHTML = html;
-                      document.getElementById('user-quiz-form').addEventListener('submit', function(e) {
-                        e.preventDefault();
-                        const formData = new FormData(e.target);
-                        const answers = quiz.map((q, idx) => parseInt(formData.get(`q${idx}`), 10));
-                        fetch(`/api/submit_quiz/${moduleId}`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ answers })
-                        })
-                        .then(res => res.json())
-                        .then(result => {
-                          let feedback = `<div class='alert alert-info'><b>Your Score:</b> ${result.score}%<br>${result.feedback || ''}</div>`;
-                          quizFormContainer.innerHTML = feedback;
-                        })
-                        .catch(() => {
-                          quizFormContainer.innerHTML = '<div class="alert alert-danger">Error submitting quiz. Please try again.</div>';
-                        });
-                      });
+                      cachedQuiz = quiz;
+                      renderQuiz(quiz);
                     })
                     .catch(() => {
                       quizFormContainer.innerHTML = '<div class="alert alert-danger">Failed to load quiz.</div>';

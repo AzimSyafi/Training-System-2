@@ -23,6 +23,16 @@
             } catch (e) { /* ignore */ }
         })();
     </script>
+    <script>
+        // Early sidebar collapse application to avoid flash of expanded sidebar
+        (function(){
+            try {
+                if(localStorage.getItem('sidebar-collapsed') === 'true') {
+                    document.documentElement.classList.add('prefers-sidebar-collapsed');
+                }
+            } catch(e) {/* ignore */}
+        })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
@@ -48,8 +58,12 @@
             --nav-tabs-link-hover-bg: #f1f5f9;
             --nav-tabs-link-active-bg: #ffffff;
             --nav-tabs-link-active-color: #111827;
+            --sidebar-expanded: 200px; /* updated for demo integration */
+            --sidebar-collapsed: 78px;  /* collapsed width updated from 70px */
+            --nav-item-padding-y: 0.9rem; /* increased from 0.65rem */
+            --nav-item-min-height: 48px;   /* ensure enough vertical space */
+            --sidebar-font-size: 1.05rem; /* slightly enlarged sidebar text */
         }
-        /* Dark mode variables: applied either when body has .dark-mode or during early load when html has .darkmode */
         body.dark-mode,
         html.darkmode body {
             --bg-body: #0f172a;
@@ -73,213 +87,70 @@
             --nav-tabs-link-active-bg: #1e293b;
             --nav-tabs-link-active-color: #f1f5f9;
         }
-        /* Base body styles; transitions enabled only after first paint */
         body { background-color: var(--bg-body); color: var(--text-color); }
         body.theme-transition { transition: background-color .3s, color .3s; }
         a { color: var(--link-color); }
         a:hover { color: var(--link-hover-color); }
-        .sidebar { background: var(--sidebar-bg); }
-        .sidebar .nav-link { color: var(--sidebar-link); }
-        .sidebar .nav-link.active, .sidebar .nav-link:hover { background: var(--sidebar-link-hover-bg); color: #fff; border-left: 3px solid var(--sidebar-link-active-border); }
-        .card { background: var(--card-bg); border: 1px solid var(--border-color); transition: background-color .3s, color .3s, border-color .3s; }
-        .alert { transition: background-color .3s, color .3s; }
-        /* Toggle button */
-        #theme-toggle-btn {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            z-index: 1100;
-            background: var(--card-bg);
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-            border-radius: 999px;
-            width: 42px;
-            height: 42px;
+        .sidebar { background: var(--sidebar-bg); width: var(--sidebar-expanded); min-height: 100vh; position: fixed; top: 0; left: 0; z-index: 100; display: flex; flex-direction: column; max-height: 100vh; overflow-y: auto; transition: width .3s ease; }
+        .sidebar.collapsed { width: var(--sidebar-collapsed); overflow-y: hidden; }
+        body.no-sidebar .sidebar { display: none; }
+        .main-content { margin-left: var(--sidebar-expanded); padding: 2rem 1rem 1rem 1rem; transition: margin-left .3s ease; }
+        .main-content.collapsed { margin-left: var(--sidebar-collapsed); }
+        body.no-sidebar .main-content { margin-left: 0; }
+
+        .sidebar nav { padding-top: .25rem; }
+        .sidebar .nav-link { /* updated vertical sizing */
             display: flex;
             align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-            transition: background-color .3s, color .3s, border-color .3s, transform .2s;
-        }
-        #theme-toggle-btn:hover { transform: scale(1.05); }
-        body.dark-mode #theme-toggle-btn { background: var(--card-bg); color: var(--text-color); }
-        /* When sidebar present, slightly offset inside to avoid overlap */
-        body:not(.no-sidebar) #theme-toggle-btn { right: 16px; }
-        /* Forms */
-        .form-control, .form-select { background: var(--input-bg); color: var(--input-text); border: 1px solid var(--input-border); }
-        .form-control:focus, .form-select:focus { background: var(--input-bg); color: var(--input-text); border-color: var(--link-color); }
-        body.dark-mode .form-control::placeholder { color: #94a3b8; }
-        /* Dark mode form disabled/readonly state fixes */
-        body.dark-mode .form-control:disabled,
-        html.darkmode body .form-control:disabled,
-        body.dark-mode .form-control[disabled],
-        html.darkmode body .form-control[disabled],
-        body.dark-mode .form-control[readonly],
-        html.darkmode body .form-control[readonly] { background-color:#334155!important; color:#e2e8f0!important; border-color:#475569!important; opacity:1!important; }
-        body.dark-mode .form-select:disabled,
-        html.darkmode body .form-select:disabled,
-        body.dark-mode .form-select[disabled],
-        html.darkmode body .form-select[disabled] { background-color:#334155!important; color:#e2e8f0!important; border-color:#475569!important; opacity:1!important; }
-        body.dark-mode .input-group-text, html.darkmode body .input-group-text { background-color:#334155; color:#f1f5f9; border-color:#475569; }
-        body.dark-mode .form-check-input, html.darkmode body .form-check-input { background-color:#1e293b; border-color:#475569; }
-        body.dark-mode .form-check-input:checked, html.darkmode body .form-check-input:checked { background-color:#3b82f6; border-color:#3b82f6; }
-        body.dark-mode .form-control:focus, html.darkmode body .form-control:focus { background-color:#1e293b; color:#f1f5f9; border-color:#60a5fa; box-shadow:0 0 0 .15rem rgba(96,165,250,.25); }
-        /* Tables */
-        .table { color: var(--text-color); }
-        .table thead th { border-color: var(--border-color); }
-        .table td, .table th { border-color: var(--border-color); }
-        .table-striped > tbody > tr:nth-of-type(odd) > * { --bs-table-accent-bg: var(--table-striped-bg); color: var(--text-color); }
-        /* Modals */
-        .modal-content { background: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); }
-        .modal-header, .modal-footer { border-color: var(--border-color); }
-        /* Dropdown */
-        .dropdown-menu { background: var(--dropdown-bg); border: 1px solid var(--border-color); }
-        .dropdown-item { color: var(--dropdown-link); }
-        .dropdown-item:hover, .dropdown-item:focus { background: var(--sidebar-link-hover-bg); color: #fff; }
-        /* Nav tabs */
-        .nav-tabs { border-color: var(--nav-tabs-border); }
-        .nav-tabs .nav-link { color: var(--text-color); border-color: transparent; }
-        .nav-tabs .nav-link:hover { background: var(--nav-tabs-link-hover-bg); border-color: var(--nav-tabs-border); }
-        .nav-tabs .nav-link.active { background: var(--nav-tabs-link-active-bg); color: var(--nav-tabs-link-active-color); border-color: var(--nav-tabs-border) var(--nav-tabs-border) var(--nav-tabs-link-active-bg); }
-        /* Badges, list groups */
-        .list-group-item { background: var(--card-bg); color: var(--text-color); border-color: var(--border-color); }
-        /* Keep existing layout styles and responsive behavior */
-        .sidebar {
-            width: 220px;
-            min-height: 100vh;
-            /* background removed to let earlier variable-based background apply */
-            color: #fff;
-            position: fixed;
-            top: 0;
-            left: 0;
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-            transition: width 0.3s;
-            overflow-y: auto; /* Make sidebar scrollable */
-            max-height: 100vh; /* Prevent overflow beyond viewport */
-        }
-        .sidebar.collapsed {
-            width: 80px;
-        }
-        .sidebar.collapsed .nav-link .link-text,
-        .sidebar.collapsed .logout .link-text {
-            display: none;
-        }
-        .sidebar.collapsed .nav-link, .sidebar.collapsed .logout {
-            justify-content: center;
-        }
-        #sidebar-toggle {
-            color: white;
-            display: flex;
-            align-items: center;
-            padding: 0.75rem 1.5rem;
-            height: 68px; /* give it some height */
-            border-left: 3px solid transparent;
-        }
-        .sidebar.collapsed #sidebar-toggle {
-            justify-content: center;
-            padding: 0.75rem 1.5rem;
-        }
-        .sidebar .nav {
-            flex: 1;
-            flex-direction: column;
-            padding: 1rem 0;
-        }
-        .sidebar .nav-link {
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            border-left: 3px solid transparent;
-        }
-        .sidebar .nav-link.active, .sidebar .nav-link:hover {
-            background: var(--sidebar-link-hover-bg);
-            color: #fff;
-            border-left: 3px solid var(--sidebar-link-active-border);
-        }
-        .sidebar .logout {
-            margin: 1rem 0 0 0;
-            padding: 1rem 1.5rem;
-            border-top: 1px solid rgba(255,255,255,0.1);
-        }
-        .main-content {
-            margin-left: 220px;
-            padding: 2rem 1rem 1rem 1rem;
-            transition: margin-left 0.3s;
-        }
-        .main-content.collapsed {
-            margin-left: 80px;
-        }
-        /* Remove left offset when there is no sidebar (landing, login, signup) */
-        body.no-sidebar .main-content {
-            margin-left: 0;
-        }
-        .star-rating { color: #fbbf24; font-size: 1.1em; }
-        .card { border-radius: 0.75rem; }
-        .badge { border-radius: 0.5rem; font-size: 1em; }
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 100vw;
-                min-height: auto;
-                position: relative;
-            }
-            .main-content {
-                margin-left: 0;
-                padding: 1rem;
-            }
-        }
-        .user-info {
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            display: flex;
-            align-items: center;
-            gap: 1rem;
+            gap: .85rem;
+            padding: var(--nav-item-padding-y) 1rem;
+            min-height: var(--nav-item-min-height);
+            position: relative;
+            line-height: 1.2;
             overflow: hidden;
-            white-space: nowrap;
-            justify-content: space-between; /* allow menu button on right */
+            color: #fff;
+            font-size: var(--sidebar-font-size);
         }
-        .sidebar.collapsed .user-info {
-            gap: 0;
+        .sidebar .nav-link i { min-width: 20px; text-align: center; color: #fff; }
+        .sidebar .nav-link .link-text { display: inline-block; white-space: nowrap; max-width: 140px; overflow: hidden; opacity: 1; transition: max-width .28s ease, opacity .2s ease; color: #fff; }
+        .sidebar .nav-link.active, .sidebar .nav-link:hover { background: var(--sidebar-link-hover-bg); color: #fff; border-left: 3px solid var(--sidebar-link-active-border); }
+        .sidebar.collapsed .nav-link { /* keep same vertical padding when collapsed */
             justify-content: center;
-            padding-left: 0;
-            padding-right: 0;
+            gap: 0;
+            padding: var(--nav-item-padding-y) 0;
+            min-height: var(--nav-item-min-height);
         }
-        .user-menu-btn { color:#fff; }
-        .user-menu-btn:hover { color:#f1f5f9; }
-        .sidebar.collapsed .user-menu-btn { padding:0; }
-        .sidebar.collapsed .user-info { gap:0.5rem; }
-        /* Ensure dropdown aligns over narrow collapsed sidebar */
-        .sidebar.collapsed .dropdown-menu { min-width: 140px; }
-        /* Avatar circle styles (restored) */
-        .user-avatar { width:40px; height:40px; border-radius:50%; background:#3b82f6; display:flex; align-items:center; justify-content:center; font-size:1.2rem; font-weight:600; color:#fff; flex-shrink:0; }
-        .user-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
-        .sidebar.collapsed .user-avatar { width:38px; height:38px; font-size:1rem; }
-        /* Bottom user section */
-        .user-footer { border-top:1px solid rgba(255,255,255,0.15); padding:0.65rem 0.75rem 0.55rem; display:flex; flex-direction:column; gap:0.4rem; }
-        .user-info.bottom { border:0; padding:0; justify-content:space-between; overflow:visible; }
-        /* Clean dropdown styling */
-        .user-footer .dropdown-menu { background:var(--card-bg); border:1px solid var(--border-color); padding:.25rem 0; min-width:170px; font-size:.85rem; box-shadow:0 6px 18px rgba(0,0,0,0.18); }
-        .user-footer .dropdown-item { padding:0.45rem 0.85rem; }
-        .user-footer .dropdown-item i { width:16px; text-align:center; }
-        .user-footer .dropdown-divider { margin:0.3rem 0; border-color:var(--border-color); }
-        .sidebar .dropdown-menu { z-index:500; }
-        /* Dark mode accent for active icon */
-        .dark-mode-indicator-active { color:#fbbf24; }
-        /* Remove kebab button styles (no longer used) */
-        .user-kebab-btn { display:none!important; }
-        /* Avatar dropdown trigger styling */
-        .avatar-dropdown-toggle { background:transparent; border:0; padding:0; position:relative; }
-        .avatar-dropdown-toggle:focus-visible { outline:2px solid #fff; outline-offset:2px; border-radius:50%; }
-        /* Adjust user footer layout without kebab gap */
-        .user-info.bottom { gap:0.75rem; }
-        /* Dropup menu custom positioning tweaks (open above) */
-        .user-footer .dropup .dropdown-menu { margin-bottom:0.4rem; }
-        /* Ensure right alignment inside sidebar */
-        .user-footer .dropdown-menu-end { right:0; left:auto; }
-        /* --- Dark mode overrides for hardcoded light utility classes (consistency fix) --- */
+        .sidebar.collapsed .nav-link .link-text { max-width: 0; opacity: 0; }
+
+        #sidebar-toggle { height: 60px; background: none; border: 0; color: #fff; font-size: var(--sidebar-font-size); width: 100%; display: flex; align-items: center; gap: .85rem; padding: .65rem 1rem; cursor: pointer; text-align: left; overflow: hidden; }
+        #sidebar-toggle i { min-width: 20px; text-align: center; color: #fff; }
+        #sidebar-toggle:hover { background: var(--sidebar-link-hover-bg); color: #fff; }
+        .sidebar.collapsed #sidebar-toggle { height: 60px; justify-content: center; gap: 0; padding: .65rem 0; }
+
+        .sidebar__spacer { flex: 1 1 auto; }
+        .profile-block { position: relative; padding: 1rem; display: flex; align-items: center; }
+        .profile-trigger { display: flex; align-items: center; gap: .8rem; width: 100%; background: none; border: 0; color: #fff; cursor: pointer; border-radius: 6px; padding: 4px; text-align: left; min-height: var(--nav-item-min-height); font-size: var(--sidebar-font-size); }
+        .profile-trigger:hover { background: rgba(255, 255, 255, .1); }
+        .profile-avatar { width: 46px; height: 46px; border-radius: 50%; background: #3b82f6; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 1.05rem; overflow: hidden; flex-shrink: 0; }
+        .profile-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .profile-text { display: flex; flex-direction: column; overflow: hidden; }
+        .profile-text .user-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sidebar.collapsed .profile-block { padding: .75rem 0 .9rem; justify-content: center; }
+        .sidebar.collapsed .profile-trigger { justify-content: center; width: auto; }
+        .sidebar.collapsed .profile-text { max-width: 0; opacity: 0; }
+
+        /* Floating profile menu (detached from sidebar) */
+        .profile-menu { position: fixed; top:0; left:0; opacity:0; visibility:hidden; transform:translateY(4px); transition:opacity .18s ease, transform .18s ease, visibility .18s; background: var(--card-bg); color: var(--text-color); border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.18); padding:.5rem 0; width:220px; list-style:none; margin:0; z-index:1000; }
+        .profile-menu.open { opacity:1; visibility:visible; transform:translateY(0); }
+        .profile-menu button, .profile-menu a { display:flex; align-items:center; gap:.65rem; width:100%; background:none; border:0; padding:.55rem 1rem; text-align:left; text-decoration:none; font-size:.9rem; color:inherit; cursor:pointer; }
+        .profile-menu button:hover, .profile-menu a:hover { background: var(--nav-tabs-link-hover-bg, #f1f5f9); }
+        .profile-menu .logout { color:#ef4444; }
+        body.dark-mode .profile-menu { background:var(--card-bg); color:var(--text-color); }
+        @media (max-width:768px){
+            .profile-menu { left:50% !important; top:auto !important; bottom: env(safe-area-inset-bottom, 16px); transform:translate(-50%,4px); width: min(260px,90vw); }
+            .profile-menu.open { transform:translate(-50%,0); }
+        }
+
         body.dark-mode .bg-white, html.darkmode body .bg-white { background-color: var(--card-bg)!important; }
         body.dark-mode .bg-light, html.darkmode body .bg-light { background-color: #1e293b!important; }
         body.dark-mode .text-dark, html.darkmode body .text-dark { color: var(--text-color)!important; }
@@ -300,26 +171,19 @@
         body.dark-mode .text-gray-500, html.darkmode body .text-gray-500 { color: #cbd5e1!important; }
         body.dark-mode .table-dark, html.darkmode body .table-dark { background-color:#24324a; }
         body.dark-mode .table-dark th, body.dark-mode .table-dark td, html.darkmode body .table-dark th, html.darkmode body .table-dark td { border-color: #334155; }
-        /* Buttons (keep primary colors, adjust secondary/light) */
         body.dark-mode .btn-light, html.darkmode body .btn-light { background-color: #334155; color: #f1f5f9; border-color: #475569; }
         body.dark-mode .btn-outline-secondary, html.darkmode body .btn-outline-secondary { color: #f1f5f9; border-color: #64748b; }
         body.dark-mode .btn-outline-secondary:hover, html.darkmode body .btn-outline-secondary:hover { background:#475569; }
-        /* Form feedback / subtle backgrounds */
         body.dark-mode .form-text, html.darkmode body .form-text { color:#94a3b8!important; }
         body.dark-mode .bg-body, html.darkmode body .bg-body { background-color: var(--bg-body)!important; }
-        /* Ensure modals with default .bg-white utilities adapt */
         body.dark-mode .modal-content.bg-white, html.darkmode body .modal-content.bg-white { background-color: var(--card-bg)!important; }
         body.dark-mode .text-secondary, html.darkmode body .text-secondary { color: #cbd5e1!important; }
         body.dark-mode .text-body, html.darkmode body .text-body { color: var(--text-color)!important; }
         body.dark-mode .text-body-secondary, html.darkmode body .text-body-secondary { color:#94a3b8!important; }
-        /* Force table cell backgrounds to dark card tone by default */
         body.dark-mode .table>:not(caption)>*>* , html.darkmode body .table>:not(caption)>*>* { background-color: var(--card-bg)!important; box-shadow: inset 0 0 0 9999px transparent; }
-        /* Restore subtle zebra striping for striped tables */
         body.dark-mode .table-striped>tbody>tr:nth-of-type(odd)>* , html.darkmode body .table-striped>tbody>tr:nth-of-type(odd)>* { background-color:#223047!important; }
         body.dark-mode .table-striped>tbody>tr:nth-of-type(even)>* , html.darkmode body .table-striped>tbody>tr:nth-of-type(even)>* { background-color: var(--card-bg)!important; }
-        /* Hover state */
         body.dark-mode .table-hover>tbody>tr:hover>* , html.darkmode body .table-hover>tbody>tr:hover>* { background-color:#2d405c!important; }
-        /* Bootstrap variable syncing for dark mode to prevent default dark (#212529) text */
         body.dark-mode, html.darkmode body {
             --bs-body-bg: var(--bg-body);
             --bs-body-color: var(--text-color);
@@ -330,76 +194,86 @@
             --bs-dropdown-bg: var(--dropdown-bg);
             --bs-dropdown-color: var(--dropdown-link);
         }
-        /* Force card internal text/headings to adopt theme color */
         body.dark-mode .card, html.darkmode body .card { color: var(--text-color); }
         body.dark-mode .card-header, html.darkmode body .card-header { background: var(--card-bg); color: var(--text-color); border-color: var(--border-color); }
         body.dark-mode .card-body, html.darkmode body .card-body { color: var(--text-color); }
         body.dark-mode .card h1, body.dark-mode .card h2, body.dark-mode .card h3, body.dark-mode .card h4, body.dark-mode .card h5, body.dark-mode .card h6,
         html.darkmode body .card h1, html.darkmode body .card h2, html.darkmode body .card h3, html.darkmode body .card h4, html.darkmode body .card h5, html.darkmode body .card h6 { color: var(--text-color); }
-        /* Ensure table header cells inside dark mode inherit readable text unless explicitly table-dark */
         body.dark-mode .table thead th:not(.bg-white):not(.table-dark), html.darkmode body .table thead th:not(.bg-white):not(.table-dark) { background: var(--card-bg); color: var(--text-color); }
+        .sidebar.collapsed .user-avatar { margin-right:0; }
+        .sidebar.collapsed .nav-link .link-text { opacity:0; width:0; overflow:hidden; }
+        @media (prefers-reduced-motion: reduce) {
+            .user-details, .sidebar .nav-link .link-text { transition:none; }
+        }
+        /* Pre-paint collapsed state (removed after JS initializes) */
+        html.prefers-sidebar-collapsed body:not(.no-sidebar) .sidebar { width: var(--sidebar-collapsed); overflow-y:hidden; }
+        html.prefers-sidebar-collapsed body:not(.no-sidebar) .main-content { margin-left: var(--sidebar-collapsed); }
+        html.prefers-sidebar-collapsed body:not(.no-sidebar) .sidebar .nav-link { justify-content:center; gap:0; padding: var(--nav-item-padding-y) 0; }
+        html.prefers-sidebar-collapsed body:not(.no-sidebar) .sidebar .nav-link .link-text { max-width:0; opacity:0; }
+        html.prefers-sidebar-collapsed body:not(.no-sidebar) .sidebar .profile-block { padding:.75rem 0 .9rem; justify-content:center; }
+        html.prefers-sidebar-collapsed body:not(.no-sidebar) .sidebar .profile-trigger { justify-content:center; width:auto; }
+        html.prefers-sidebar-collapsed body:not(.no-sidebar) .sidebar .profile-text { max-width:0; opacity:0; }
     </style>
     {% block styles %}{% endblock %}
 </head>
 <body class="{% if request.endpoint in ['index','login','signup'] %}no-sidebar{% endif %}">
     {% if request.endpoint not in ['index','login','signup'] %}
-    <div class="sidebar" id="sidebar">
-        <button id="sidebar-toggle" class="btn"><i class="fas fa-bars"></i></button>
-        <nav class="nav flex-column">
+    <div class="sidebar" id="sidebar" aria-label="Main Sidebar">
+        <button id="sidebar-toggle" aria-expanded="true" aria-controls="sidebar" type="button">
+            <i class="fas fa-bars"></i><span class="link-text"></span>
+        </button>
+        <nav class="nav flex-column" aria-label="Primary Navigation">
             {% if current_user.is_authenticated and current_user.__class__.__name__ == 'Trainer' %}
-                <a class="nav-link {% if request.endpoint=='trainer_portal' and request.view_args.get('section') == 'dashboard' %}active{% endif %}" href="{{ url_for('trainer_portal', section='dashboard') }}"><i class="fas fa-gauge"></i> <span class="link-text">Dashboard</span></a>
-                <a class="nav-link {% if request.endpoint=='trainer_portal' and request.view_args.get('section') == 'progress' %}active{% endif %}" href="{{ url_for('trainer_portal', section='progress') }}"><i class="fas fa-chart-line"></i> <span class="link-text">Trainee Progress</span></a>
-                <a class="nav-link {% if request.endpoint=='trainer_portal' and request.view_args.get('section') == 'courses' %}active{% endif %}" href="{{ url_for('trainer_portal', section='courses') }}"><i class="fas fa-book"></i> <span class="link-text">My Courses</span></a>
+                <a class="nav-link {% if request.endpoint=='trainer_portal' and request.view_args.get('section') == 'dashboard' %}active{% endif %}" href="{{ url_for('trainer_portal', section='dashboard') }}"><i class="fas fa-gauge"></i><span class="link-text">Dashboard</span></a>
+                <a class="nav-link {% if request.endpoint=='trainer_portal' and request.view_args.get('section') == 'progress' %}active{% endif %}" href="{{ url_for('trainer_portal', section='progress') }}"><i class="fas fa-chart-line"></i><span class="link-text">Trainee Progress</span></a>
+                <a class="nav-link {% if request.endpoint=='trainer_portal' and request.view_args.get('section') == 'courses' %}active{% endif %}" href="{{ url_for('trainer_portal', section='courses') }}"><i class="fas fa-book"></i><span class="link-text">My Courses</span></a>
             {% elif current_user.is_authenticated and current_user.__class__.__name__ != 'Admin' %}
-                <a class="nav-link {% if request.endpoint=='user_dashboard' %}active{% endif %}" href="{{ url_for('user_dashboard') }}"><i class="fas fa-gauge"></i> <span class="link-text">Dashboard</span></a>
-                <a class="nav-link {% if request.endpoint=='profile' %}active{% endif %}" href="{{ url_for('profile') }}"><i class="fas fa-user"></i> <span class="link-text">My Profile</span></a>
-                <a class="nav-link {% if request.endpoint=='courses' %}active{% endif %}" href="{{ url_for('courses') }}"><i class="fas fa-layer-group"></i> <span class="link-text">Courses</span></a>
-                <a class="nav-link {% if request.endpoint=='my_certificates' %}active{% endif %}" href="{{ url_for('my_certificates') }}"><i class="fas fa-certificate"></i> <span class="link-text">Certificates</span></a>
-                <a class="nav-link {% if request.endpoint=='agency' %}active{% endif %}" href="{{ url_for('agency') }}"><i class="fas fa-building"></i> <span class="link-text">Agency</span></a>
+                <a class="nav-link {% if request.endpoint=='user_dashboard' %}active{% endif %}" href="{{ url_for('user_dashboard') }}"><i class="fas fa-gauge"></i><span class="link-text">Dashboard</span></a>
+                <a class="nav-link {% if request.endpoint=='profile' %}active{% endif %}" href="{{ url_for('profile') }}"><i class="fas fa-user"></i><span class="link-text">My Profile</span></a>
+                <a class="nav-link {% if request.endpoint=='courses' %}active{% endif %}" href="{{ url_for('courses') }}"><i class="fas fa-layer-group"></i><span class="link-text">Courses</span></a>
+                <a class="nav-link {% if request.endpoint=='my_certificates' %}active{% endif %}" href="{{ url_for('my_certificates') }}"><i class="fas fa-certificate"></i><span class="link-text">Certificates</span></a>
+                <a class="nav-link {% if request.endpoint=='agency' %}active{% endif %}" href="{{ url_for('agency') }}"><i class="fas fa-building"></i><span class="link-text">Agency</span></a>
             {% elif current_user.is_authenticated and current_user.__class__.__name__ == 'Admin' %}
-                <a class="nav-link {% if request.endpoint=='admin_dashboard' %}active{% endif %}" href="{{ url_for('admin_dashboard') }}"><i class="fas fa-gauge"></i> <span class="link-text">Dashboard</span></a>
-                <a class="nav-link {% if request.endpoint=='admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><i class="fas fa-user-gear"></i> <span class="link-text">Accounts Management</span></a>
-                <a class="nav-link {% if request.endpoint=='admin_course_management' %}active{% endif %}" href="{{ url_for('admin_course_management') }}"><i class="fas fa-layer-group"></i> <span class="link-text">Course Management</span></a>
-                <a class="nav-link {% if request.endpoint=='admin_certificates' %}active{% endif %}" href="{{ url_for('admin_certificates') }}"><i class="fas fa-certificate"></i> <span class="link-text">Certificates</span></a>
-                <a class="nav-link {% if request.endpoint=='monitor_progress' %}active{% endif %}" href="{{ url_for('monitor_progress') }}"><i class="fas fa-chart-line"></i> <span class="link-text">Progress Monitor</span></a>
-                <a class="nav-link {% if request.endpoint=='admin_agencies' %}active{% endif %}" href="{{ url_for('admin_agencies') }}"><i class="fas fa-building"></i> <span class="link-text">Agency Management</span></a>
+                <a class="nav-link {% if request.endpoint=='admin_dashboard' %}active{% endif %}" href="{{ url_for('admin_dashboard') }}"><i class="fas fa-gauge"></i><span class="link-text">Dashboard</span></a>
+                <a class="nav-link {% if request.endpoint=='admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><i class="fas fa-user-gear"></i><span class="link-text">Account</span></a>
+                <a class="nav-link {% if request.endpoint=='admin_course_management' %}active{% endif %}" href="{{ url_for('admin_course_management') }}"><i class="fas fa-layer-group"></i><span class="link-text">Course</span></a>
+                <a class="nav-link {% if request.endpoint=='admin_certificates' %}active{% endif %}" href="{{ url_for('admin_certificates') }}"><i class="fas fa-certificate"></i><span class="link-text">Certificates</span></a>
+                <a class="nav-link {% if request.endpoint=='monitor_progress' %}active{% endif %}" href="{{ url_for('monitor_progress') }}"><i class="fas fa-chart-line"></i><span class="link-text">Progress Monitor</span></a>
+                <a class="nav-link {% if request.endpoint=='admin_agencies' %}active{% endif %}" href="{{ url_for('admin_agencies') }}"><i class="fas fa-building"></i><span class="link-text">Agency</span></a>
             {% else %}
-                <a class="nav-link {% if request.endpoint=='login' %}active{% endif %}" href="{{ url_for('login') }}"><i class="fas fa-sign-in-alt"></i> <span class="link-text">Login</span></a>
-                <a class="nav-link {% if request.endpoint=='signup' %}active{% endif %}" href="{{ url_for('signup') }}"><i class="fas fa-user-plus"></i> <span class="link-text">Sign Up</span></a>
+                <a class="nav-link {% if request.endpoint=='login' %}active{% endif %}" href="{{ url_for('login') }}"><i class="fas fa-sign-in-alt"></i><span class="link-text">Login</span></a>
+                <a class="nav-link {% if request.endpoint=='signup' %}active{% endif %}" href="{{ url_for('signup') }}"><i class="fas fa-user-plus"></i><span class="link-text">Sign Up</span></a>
             {% endif %}
         </nav>
+        <div class="sidebar__spacer"></div>
         {% if current_user.is_authenticated %}
-        <div class="user-footer mt-auto">
-            <div class="user-info bottom d-flex align-items-center gap-2">
-                <div class="d-flex align-items-center gap-2 flex-grow-1">
-                    <div class="dropup">
-                        <button class="avatar-dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="User menu">
-                            <div class="user-avatar">
-                                {% if current_user.profile_pic %}
-                                    <img src="{{ url_for('static', filename='profile_pics/' + current_user.profile_pic) }}" alt="User Avatar">
-                                {% else %}
-                                    {{ current_user.username[0]|upper }}
-                                {% endif %}
-                            </div>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow">
-                            <li><button class="dropdown-item d-flex align-items-center gap-2" id="darkmode-toggle" type="button"><i class="fas fa-moon" id="darkmode-icon"></i><span>Dark Mode</span></button></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <form action="{{ url_for('logout') }}" method="post" class="m-0">
-                                    <button class="dropdown-item d-flex align-items-center gap-2 text-danger" type="submit"><i class="fas fa-sign-out-alt"></i><span>Logout</span></button>
-                                </form>
-                            </li>
-                        </ul>
-                    </div>
-                    <div class="user-details">
-                        <div class="user-name">{{ current_user.username }}</div>
-                    </div>
+        <div class="profile-block" id="profileBlock">
+            <button class="profile-trigger" id="profileTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="profileMenu">
+                <div class="profile-avatar">
+                    {% if current_user.profile_pic %}
+                        <img src="{{ url_for('static', filename='profile_pics/' + current_user.profile_pic) }}" alt="User avatar">
+                    {% else %}
+                        {{ current_user.username[0]|upper }}
+                    {% endif %}
                 </div>
-            </div>
+                <div class="profile-text"><span class="user-name link-text">{{ current_user.username }}</span></div>
+            </button>
         </div>
         {% endif %}
     </div>
+    {% endif %}
+    <!-- Floating profile menu placed once at root -->
+    {% if current_user.is_authenticated %}
+    <ul class="profile-menu" id="profileMenu" role="menu" aria-label="User menu">
+        <li role="presentation">
+            <button id="darkmode-toggle" type="button" role="menuitem" class="d-flex align-items-center gap-2"><i class="fas fa-moon" id="darkmode-icon"></i><span>Dark Mode</span></button>
+        </li>
+        <li role="presentation">
+            <form action="{{ url_for('logout') }}" method="post" class="m-0" role="none">
+                <button class="logout d-flex align-items-center gap-2" type="submit" role="menuitem"><i class="fas fa-sign-out-alt"></i><span>Logout</span></button>
+            </form>
+        </li>
+    </ul>
     {% endif %}
     <div class="main-content{% if request.endpoint == 'index' %} w-100 m-0 p-0{% endif %}" id="main-content">
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -418,54 +292,106 @@
     <script>
         document.addEventListener('DOMContentLoaded', function(){
             const ALWAYS_LIGHT = {{ 'true' if always_light else 'false' }};
-            const sidebar=document.getElementById('sidebar');
-            const mainContent=document.getElementById('main-content');
-            const sidebarToggle=document.getElementById('sidebar-toggle');
-            const darkToggleBtn=document.getElementById('darkmode-toggle');
-            const darkToggleIcon=document.getElementById('darkmode-icon');
-            function applyTheme(theme){
-                if(theme==='dark' && !ALWAYS_LIGHT){
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('main-content');
+            const sidebarToggle = document.getElementById('sidebar-toggle');
+            const darkToggleBtn = document.getElementById('darkmode-toggle');
+            const darkToggleIcon = document.getElementById('darkmode-icon');
+            const profileBlock = document.getElementById('profileBlock');
+            const profileTrigger = document.getElementById('profileTrigger');
+            const profileMenu = document.getElementById('profileMenu');
+
+            function applyTheme(theme) {
+                if (theme === 'dark' && !ALWAYS_LIGHT) {
                     document.body.classList.add('dark-mode');
-                    if(darkToggleIcon){ darkToggleIcon.classList.remove('fa-moon'); darkToggleIcon.classList.add('fa-sun','dark-mode-indicator-active'); }
+                    if (darkToggleIcon) { darkToggleIcon.classList.remove('fa-moon'); darkToggleIcon.classList.add('fa-sun', 'dark-mode-indicator-active'); }
                 } else {
                     document.body.classList.remove('dark-mode');
                     document.documentElement.classList.remove('darkmode');
-                    if(darkToggleIcon){ darkToggleIcon.classList.remove('fa-sun','dark-mode-indicator-active'); darkToggleIcon.classList.add('fa-moon'); }
+                    if (darkToggleIcon) { darkToggleIcon.classList.remove('fa-sun', 'dark-mode-indicator-active'); darkToggleIcon.classList.add('fa-moon'); }
                 }
             }
-            const saved=localStorage.getItem('theme-preference');
-            const prefers=window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if(ALWAYS_LIGHT){
-                applyTheme('light');
-            } else {
-                applyTheme(saved || (prefers ? 'dark':'light'));
-            }
-            requestAnimationFrame(()=>document.body.classList.add('theme-transition'));
-            if(darkToggleBtn && !ALWAYS_LIGHT){
-                darkToggleBtn.addEventListener('click',()=>{
-                    const newTheme=document.body.classList.contains('dark-mode')? 'light':'dark';
+
+            const saved = localStorage.getItem('theme-preference');
+            const prefers = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (ALWAYS_LIGHT) { applyTheme('light'); } else { applyTheme(saved || (prefers ? 'dark' : 'light')); }
+            requestAnimationFrame(() => document.body.classList.add('theme-transition'));
+
+            if (darkToggleBtn && !ALWAYS_LIGHT) {
+                darkToggleBtn.addEventListener('click', () => {
+                    const newTheme = document.body.classList.contains('dark-mode') ? 'light' : 'dark';
                     applyTheme(newTheme);
                     localStorage.setItem('theme-preference', newTheme);
-                    if(newTheme==='dark') document.documentElement.classList.add('darkmode'); else document.documentElement.classList.remove('darkmode');
+                    if (newTheme === 'dark') document.documentElement.classList.add('darkmode'); else document.documentElement.classList.remove('darkmode');
                 });
-            } else if (darkToggleBtn && ALWAYS_LIGHT){
-                // Disable interaction on always-light pages
+            } else if (darkToggleBtn && ALWAYS_LIGHT) {
                 darkToggleBtn.disabled = true;
                 darkToggleBtn.classList.add('disabled');
             }
-            if(sidebar && localStorage.getItem('sidebar-collapsed')==='true'){
-                sidebar.classList.add('collapsed');
-                if(mainContent) mainContent.classList.add('collapsed');
-            }
-            if(sidebarToggle){
-                sidebarToggle.addEventListener('click',()=>{
+
+            if (sidebar && mainContent && sidebarToggle) {
+                if (localStorage.getItem('sidebar-collapsed') === 'true') {
+                    sidebar.classList.add('collapsed');
+                    mainContent.classList.add('collapsed');
+                }
+                // Remove pre-paint helper class now that real classes are applied
+                document.documentElement.classList.remove('prefers-sidebar-collapsed');
+                function updateAria() { sidebarToggle.setAttribute('aria-expanded', !sidebar.classList.contains('collapsed')); }
+                updateAria();
+                sidebarToggle.addEventListener('click', () => {
                     sidebar.classList.toggle('collapsed');
-                    if(mainContent) mainContent.classList.toggle('collapsed');
+                    mainContent.classList.toggle('collapsed');
                     localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+                    updateAria();
                 });
+            } else {
+                // Ensure helper removed even if sidebar absent
+                document.documentElement.classList.remove('prefers-sidebar-collapsed');
+            }
+
+            function closeMenu(){ if(profileMenu){ profileMenu.classList.remove('open'); if(profileTrigger) profileTrigger.setAttribute('aria-expanded','false'); } }
+            function positionMenu(){
+                if(!profileTrigger || !profileMenu || !sidebar) return;
+                if(window.matchMedia('(max-width:768px)').matches){
+                    // mobile bottom sheet style handled by CSS
+                    return;
+                }
+                const triggerRect = profileTrigger.getBoundingClientRect();
+                const sidebarRect = sidebar.getBoundingClientRect();
+                const gap = 8;
+                // Place to right of sidebar
+                const left = sidebarRect.right + gap;
+                // Align vertically centered to trigger
+                const menuHeight = profileMenu.offsetHeight || 0;
+                let top = triggerRect.top + (triggerRect.height/2) - (menuHeight/2);
+                // Clamp within viewport
+                const margin = 12;
+                if(top < margin) top = margin;
+                const maxTop = window.innerHeight - menuHeight - margin;
+                if(top > maxTop) top = maxTop;
+                profileMenu.style.left = left + 'px';
+                profileMenu.style.top = top + 'px';
+            }
+            if(profileTrigger && profileMenu){
+                profileTrigger.addEventListener('click', (e)=>{
+                    e.stopPropagation();
+                    const opening = !profileMenu.classList.contains('open');
+                    closeMenu();
+                    if(opening){
+                        profileMenu.classList.add('open');
+                        profileTrigger.setAttribute('aria-expanded','true');
+                        // Wait next frame so menu has dimensions
+                        requestAnimationFrame(()=>{ positionMenu(); });
+                    }
+                });
+                window.addEventListener('resize', ()=>{ if(profileMenu.classList.contains('open')) positionMenu(); });
+                window.addEventListener('scroll', ()=>{ if(profileMenu.classList.contains('open')) positionMenu(); }, { passive:true });
+                document.addEventListener('click', (e)=>{ if(profileMenu.classList.contains('open') && !profileMenu.contains(e.target)) closeMenu(); });
+                document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeMenu(); });
             }
         });
     </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
+

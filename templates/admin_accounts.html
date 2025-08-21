@@ -3,7 +3,7 @@
 <div class="container">
   <div class="p-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-      <h2 class="m-0"><i class="fas fa-user-gear"></i> Accounts Management</h2>
+      <h2 class="m-0"><i class="fas fa-user-gear"></i> Account</h2>
       <div class="d-flex gap-2">
         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAccountModal">
           <i class="fas fa-user-plus"></i> Create Account
@@ -85,8 +85,7 @@
                 <th>Series</th>
                 <th>Name</th>
                 <th>Email</th>
-                <th>Course</th>
-                <th>Module</th>
+                <th>Assigned Course</th>
                 <th>Availability</th>
                 <th>Contact</th>
                 <th>Status</th>
@@ -100,8 +99,7 @@
                 <td>{{ t.number_series or '' }}</td>
                 <td>{{ t.name }}</td>
                 <td>{{ t.email }}</td>
-                <td>{{ t.course or '—' }}</td>
-                <td>{% if t.module %}{{ t.module.series_number or '' }} {{ t.module.module_name }}{% else %}—{% endif %}</td>
+                <td>{% if t.course %}{{ t.course }}{% else %}—{% endif %}</td>
                 <td>{{ t.availability or '—' }}</td>
                 <td>{{ t.contact_number or '—' }}</td>
                 <td><span class="badge {% if t.active_status %}bg-success{% else %}bg-secondary{% endif %}" id="trainer-status-{{ t.trainer_id }}">{% if t.active_status %}Active{% else %}Inactive{% endif %}</span></td>
@@ -182,18 +180,16 @@
           <div class="row g-3">
             <div class="col-md-6"><label class="form-label">Name</label><input id="edit-name" name="name" class="form-control" required></div>
             <div class="col-md-6"><label class="form-label">Email</label><input id="edit-email" name="email" type="email" class="form-control" required></div>
-            <div class="col-md-6"><label class="form-label">Course</label><input id="edit-course" name="course" class="form-control"></div>
-            <div class="col-md-6"><label class="form-label">Availability</label><input id="edit-availability" name="availability" placeholder="Mon-Fri 9AM-5PM" class="form-control"></div>
-            <div class="col-md-6"><label class="form-label">Contact Number</label><input id="edit-contact" name="contact_number" class="form-control"></div>
-            <!-- Label changed from Assigned Module to Assigned Course -->
             <div class="col-md-6"><label class="form-label">Assigned Course</label>
-              <select id="edit-module-id" name="module_id" class="form-select">
+              <select id="edit-course" name="course" class="form-select">
                 <option value="">-- None --</option>
-                {% for m in modules %}
-                  <option value="{{ m.module_id }}">{{ m.module_type }} - {{ m.series_number or 'N/A' }} - {{ m.module_name }}</option>
+                {% for c in courses %}
+                  <option value="{{ c.code }}">{{ c.code }} - {{ c.name }}</option>
                 {% endfor %}
               </select>
             </div>
+            <div class="col-md-6"><label class="form-label">Availability</label><input id="edit-availability" name="availability" placeholder="Mon-Fri 9AM-5PM" class="form-control"></div>
+            <div class="col-md-6"><label class="form-label">Contact Number</label><input id="edit-contact" name="contact_number" class="form-control"></div>
           </div>
         </div>
         <div class="modal-footer">
@@ -219,7 +215,6 @@ function showTempAlert(msg, type='info', timeout=3000) {
   el.className = `alert alert-${type} position-fixed top-0 end-0 m-3 shadow`; el.innerHTML = msg;
   setTimeout(()=>{ if(el) el.remove(); }, timeout);
 }
-// --- Users actions ---
 function viewUserProgress(id){
  fetch(`/api/user_progress/${id}`).then(r=>r.json()).then(data=>{
   let html='<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Module</th><th>Status</th><th>Score</th><th>Completed</th></tr></thead><tbody>';
@@ -229,12 +224,11 @@ function viewUserProgress(id){
 }
 function resetUserProgress(id,name){ if(!confirm(`Reset all progress for ${name}?`)) return; fetch('{{ url_for('reset_user_progress') }}',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`user_id=${id}`}).then(r=>r.json()).then(resp=>{showTempAlert(resp.message||'Done',resp.success?'success':'danger'); if(resp.success){const cell=document.getElementById(`user-rating-${id}`); if(cell) cell.innerHTML='<i class="far fa-star text-muted"></i>'.repeat(5);} }).catch(()=>showTempAlert('Reset failed','danger')); }
 function deleteUser(id,name){ if(!confirm(`Delete user ${name}?`)) return; fetch('{{ url_for('delete_user') }}',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`user_id=${id}`}).then(r=>r.json()).then(resp=>{ if(resp.success){ const row=document.getElementById(`user-row-${id}`); if(row) row.remove(); } showTempAlert(resp.message||'Action done',resp.success?'success':'danger'); }).catch(()=>showTempAlert('Delete failed','danger')); }
-// --- Trainer actions ---
-function openEditTrainer(id){ const row=document.getElementById(`trainer-row-${id}`); if(!row) return; document.getElementById('edit-trainer-id').value=id; document.getElementById('edit-name').value=row.children[2].innerText.trim(); document.getElementById('edit-email').value=row.children[3].innerText.trim(); document.getElementById('edit-course').value=row.children[4].innerText.trim()==='—'?'':row.children[4].innerText.trim(); document.getElementById('edit-availability').value=row.children[6].innerText.trim()==='—'?'':row.children[6].innerText.trim(); document.getElementById('edit-contact').value=row.children[7].innerText.trim()==='—'?'':row.children[7].innerText.trim(); const moduleCell=row.children[5].innerText.trim(); const select=document.getElementById('edit-module-id'); if(moduleCell==='—') select.value=''; else { [...select.options].forEach(o=>{ if(moduleCell.includes(o.text)) select.value=o.value; }); } new bootstrap.Modal(document.getElementById('editTrainerModal')).show(); }
-const editForm=document.getElementById('editTrainerForm'); editForm.addEventListener('submit',e=>{e.preventDefault(); const id=document.getElementById('edit-trainer-id').value; const fd=new FormData(editForm); fetch(`/admin/trainer/${id}/update`,{method:'POST',body:fd}).then(r=>r.json()).then(resp=>{ if(resp.success){ const row=document.getElementById(`trainer-row-${id}`); if(row){ row.children[2].innerText=fd.get('name'); row.children[3].innerText=fd.get('email'); row.children[4].innerText=fd.get('course')||'—'; const sel=document.getElementById('edit-module-id'); const txt=sel.selectedIndex>=0?sel.options[sel.selectedIndex].text:''; row.children[5].innerText=fd.get('module_id')?txt:'—'; row.children[6].innerText=fd.get('availability')||'—'; row.children[7].innerText=fd.get('contact_number')||'—'; } showTempAlert('Trainer updated','success'); bootstrap.Modal.getInstance(document.getElementById('editTrainerModal')).hide(); } else showTempAlert(resp.message||'Update failed','danger'); }).catch(()=>showTempAlert('Error updating','danger')); });
+// Trainer actions
+function openEditTrainer(id){ const row=document.getElementById(`trainer-row-${id}`); if(!row) return; document.getElementById('edit-trainer-id').value=id; document.getElementById('edit-name').value=row.children[2].innerText.trim(); document.getElementById('edit-email').value=row.children[3].innerText.trim(); const courseVal=row.children[4].innerText.trim(); const select=document.getElementById('edit-course'); [...select.options].forEach(o=>{ if(o.value===courseVal) select.value=o.value; }); document.getElementById('edit-availability').value=row.children[5].innerText.trim()==='—'?'':row.children[5].innerText.trim(); document.getElementById('edit-contact').value=row.children[6].innerText.trim()==='—'?'':row.children[6].innerText.trim(); new bootstrap.Modal(document.getElementById('editTrainerModal')).show(); }
+const editForm=document.getElementById('editTrainerForm'); editForm.addEventListener('submit',e=>{e.preventDefault(); const id=document.getElementById('edit-trainer-id').value; const fd=new FormData(editForm); fetch(`/admin/trainer/${id}/update`,{method:'POST',body:fd}).then(r=>r.json()).then(resp=>{ if(resp.success){ const row=document.getElementById(`trainer-row-${id}`); if(row){ row.children[2].innerText=fd.get('name'); row.children[3].innerText=fd.get('email'); row.children[4].innerText=fd.get('course')||'—'; row.children[5].innerText=fd.get('availability')||'—'; row.children[6].innerText=fd.get('contact_number')||'—'; } showTempAlert('Trainer updated','success'); bootstrap.Modal.getInstance(document.getElementById('editTrainerModal')).hide(); } else showTempAlert(resp.message||'Update failed','danger'); }).catch(()=>showTempAlert('Error updating','danger')); });
 function toggleActive(id){ fetch(`/admin/trainer/${id}/toggle_active`,{method:'POST'}).then(r=>r.json()).then(resp=>{ if(resp.success){ const badge=document.getElementById(`trainer-status-${id}`); if(badge){ badge.classList.remove('bg-success','bg-secondary'); if(resp.active_status){ badge.classList.add('bg-success'); badge.innerText='Active'; } else { badge.classList.add('bg-secondary'); badge.innerText='Inactive'; } } showTempAlert('Status toggled','success'); } else showTempAlert(resp.message||'Toggle failed','danger'); }).catch(()=>showTempAlert('Error toggling','danger')); }
-function deleteTrainer(id,name){ if(!confirm(`Delete trainer ${name}?`)) return; fetch(`/admin/trainer/${id}/delete`,{method:'POST'}).then(r=>r.json()).then(resp=>{ if(resp.success){ const row=document.getElementById(`trainer-row-${id}`); if(row) row.remove(); } showTempAlert(resp.message||'Action done', resp.success?'success':'danger'); }).catch(()=>showTempAlert('Delete failed','danger')); }
-// Auto-open create modal if requested (legacy param)
+function deleteTrainer(id,name){ if(!confirm(`Delete trainer ${name}?`)) return; fetch(`/admin/trainer/${id}/delete`,{method:'POST'}).then(r=>r.json()).then(resp=>{ if(resp.success){ const row=document.getElementById(`trainer-row-${id}`); if(row) row.remove(); showTempAlert('Trainer deleted','success'); } else showTempAlert(resp.message||'Action failed','danger'); }).catch(()=>showTempAlert('Delete failed','danger')); }
 {% if request.args.get('show_create_modal') %}document.addEventListener('DOMContentLoaded',()=>{ new bootstrap.Modal(document.getElementById('createAccountModal')).show(); });{% endif %}
 </script>
 {% endblock %}

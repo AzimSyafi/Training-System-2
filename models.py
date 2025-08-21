@@ -175,7 +175,7 @@ class User(UserMixin, db.Model):
 
     def EligibleForCertificate(self, course_type=None):
         """
-        Returns True if the user has completed ALL modules of the given course_type with score > 50.
+        Returns True if the user has completed ALL modules of the given course_type and the overall average score is >= 50.
         If course_type is None, returns False.
         """
         if not course_type:
@@ -190,11 +190,12 @@ class User(UserMixin, db.Model):
         completed_modules = UserModule.query.filter_by(user_id=self.User_id, is_completed=True).filter(UserModule.module_id.in_(all_module_ids)).all()
         if len(completed_modules) != len(all_modules):
             return False
-        # Check all completed modules have score > 50
-        for module in completed_modules:
-            if module.score <= 50:
-                return False
-        return True
+        # Overall average (ignore None)
+        scores = [um.score for um in completed_modules if um.score is not None]
+        if not scores:
+            return False
+        average = sum(scores) / len(scores)
+        return average >= 50
 
     def generateUserid(self):
         last_user = User.query.filter_by(agency_id=self.agency_id).order_by(User.User_id.desc()).first()
@@ -224,22 +225,18 @@ class User(UserMixin, db.Model):
         return len(completed_modules) == len(all_modules)
 
     def get_overall_grade_for_course(self, course_type):
-        """Get the overall grade (A, B, C, etc.) based on the highest reattempt count across all modules in the course"""
-        all_modules = Module.query.filter_by(module_type=course_type).all()
-        if not all_modules:
+        """Return overall letter grade based ONLY on course-level reattempt_count.
+        A = 0 course reattempts, B = 1, etc. >=26 => Z+.
+        If course not found, return 'N/A'. If no progress row yet, treat as 0 (A)."""
+        from models import Course, UserCourseProgress
+        course = Course.query.filter(Course.code.ilike(course_type)).first()
+        if not course:
             return 'N/A'
-
-        user_modules = UserModule.query.filter_by(user_id=self.User_id).filter(
-            UserModule.module_id.in_([m.module_id for m in all_modules])
-        ).all()
-
-        if not user_modules:
-            return 'N/A'
-
-        max_reattempts = max(um.reattempt_count for um in user_modules)
-        if max_reattempts >= 26:
+        ucp = UserCourseProgress.query.filter_by(user_id=self.User_id, course_id=course.course_id).first()
+        attempts = (ucp.reattempt_count if ucp and ucp.reattempt_count else 0)
+        if attempts >= 26:
             return 'Z+'
-        return chr(ord('A') + max_reattempts)
+        return chr(ord('A') + attempts)
 
 class Course(db.Model):
     __tablename__ = 'course'
@@ -560,10 +557,12 @@ class UserCourseProgress(db.Model):
     __tablename__ = 'user_course_progress'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.User_id'), nullable=False)
-    course_id = db.Column(db.Integer, nullable=False)  # Adjust if you have a Course model
+    course_id = db.Column(db.Integer, nullable=False)
     completed = db.Column(db.Boolean, default=False)
     completion_date = db.Column(db.DateTime)
     certificate_url = db.Column(db.String(255))
+    # New: Track how many full course reattempts (resets) the user has done
+    reattempt_count = db.Column(db.Integer, default=0)
 
     def mark_complete(self, certificate_url=None):
         self.completed = True
@@ -571,6 +570,11 @@ class UserCourseProgress(db.Model):
         if certificate_url:
             self.certificate_url = certificate_url
         db.session.commit()
+
+    def get_grade_letter(self):
+        if self.reattempt_count >= 26:
+            return 'Z+'
+        return chr(ord('A') + (self.reattempt_count or 0))
 
 # --- Automatic prefixed number_series assignment ---
 @event.listens_for(User, 'before_insert')

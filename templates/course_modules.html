@@ -7,15 +7,19 @@
       <i class="fas fa-arrow-left"></i> Back to Courses
     </a>
 
-    <!-- Reattempt Button - Only show if user has completed all modules -->
+    <!-- Reattempt Button - Only show if user has completed all modules AND overall score < 50% -->
     {% set course_type = modules[0].module_type if modules else '' %}
-    {% if current_user.has_completed_all_modules_in_course(course_type) %}
-    <button id="reattemptBtn" class="btn btn-warning" onclick="reattemptCourse('{{ course_type.lower() }}')">
+    {% if current_user.has_completed_all_modules_in_course(course_type) and overall_percentage is defined and overall_percentage < 50 %}
+    <button id="reattemptBtn" class="btn btn-warning" onclick="reattemptCourse('{{ course_type.lower() }}')" title="Overall score {{ overall_percentage }}% (below 50%) - you can reattempt">
       <i class="fas fa-redo"></i> Reattempt Course
     </button>
     {% endif %}
   </div>
-  <h2 class="text-3xl font-bold mb-6 text-blue-900">{{ course_name }}</h2>
+  <h2 class="text-3xl font-bold mb-1 text-blue-900">{{ course_name }}</h2>
+  {# Show overall score ONLY after all modules are completed #}
+  {% if overall_percentage is defined and current_user.has_completed_all_modules_in_course(course_type) %}
+    <p class="text-sm text-gray-600 mb-6">Overall Score: <span class="font-semibold {% if overall_percentage < 50 %}text-red-600{% elif overall_percentage > 75 %}text-green-600{% else %}text-blue-600{% endif %}">{{ overall_percentage }}%</span></p>
+  {% endif %}
 
   {% set first_incomplete_found = false %}
   {% for module in modules %}
@@ -114,10 +118,11 @@
               <div id="quiz-user-view-{{ module.module_id }}">
                 {% if user_module and user_module.is_completed %}
                   <div class="alert alert-success mb-3">You have already completed this quiz. Review your answers below.</div>
+                  <button class="btn btn-warning mb-3" onclick="startReattempt({{ module.module_id }})">Reattempt Quiz</button>
+                  <div id="reattempt-container-{{ module.module_id }}" class="mb-4"></div>
                   <div id="quiz-review-{{ module.module_id }}"></div>
                   <script>
                     document.addEventListener('DOMContentLoaded', function() {
-                      // Fetch both quiz and user answers
                       Promise.all([
                         fetch(`/api/load_quiz/{{ module.module_id }}`).then(res => res.json()),
                         fetch(`/api/user_quiz_answers/{{ module.module_id }}`).then(res => res.json())
@@ -134,9 +139,9 @@
                             let isUser = userAnswered && userAnswers[idx] === aIdx;
                             let isCorrect = a.isCorrect;
                             let style = '';
-                            if (isUser && isCorrect) style = 'background:#d4edda;font-weight:bold;'; // green for correct user answer
-                            else if (isUser && !isCorrect) style = 'background:#f8d7da;font-weight:bold;'; // red for wrong user answer
-                            else if (!userAnswered && isCorrect) style = 'background:#d1ecf1;'; // blue for correct answer only if user did not answer
+                            if (isUser && isCorrect) style = 'background:#d4edda;font-weight:bold;';
+                            else if (isUser && !isCorrect) style = 'background:#f8d7da;font-weight:bold;';
+                            else if (!userAnswered && isCorrect) style = 'background:#d1ecf1;';
                             html += `<li style='${style}padding:4px 8px;border-radius:4px;margin-bottom:2px;'>`;
                             if (isUser) html += `<i class='fas fa-user-check'></i> `;
                             html += `${a.text}`;
@@ -162,42 +167,7 @@
                             document.getElementById('quiz-form-{{ module.module_id }}').innerHTML = '<p class="text-gray-600 mb-4">No quiz available for this module.</p>';
                             return;
                           }
-                          let html = '';
-                          quiz.forEach((q, qIdx) => {
-                            html += `<div class='mb-6 p-4 bg-white border rounded'><div class='font-semibold mb-2'>Q${qIdx+1}: ${q.text}</div>`;
-                            q.answers.forEach((a, aIdx) => {
-                              html += `<div class='flex items-center mb-1'><input type='radio' name='quiz-q${qIdx}-m{{ module.module_id }}' id='quiz-q${qIdx}-a${aIdx}-m{{ module.module_id }}' value='${aIdx}' class='mr-2 quiz-radio' data-qidx='${qIdx}' data-moduleid='{{ module.module_id }}'> <label for='quiz-q${qIdx}-a${aIdx}-m{{ module.module_id }}'>${a.text}</label></div>`;
-                            });
-                            html += `</div>`;
-                          });
-                          // Render submit button as disabled initially
-                          html += `<button class='btn btn-primary' id='submit-quiz-btn-{{ module.module_id }}' onclick='submitUserQuiz({{ module.module_id }}, ${quiz.length})' disabled>Submit Quiz</button>`;
-                          document.getElementById('quiz-form-{{ module.module_id }}').innerHTML = html;
-                          // Add event listeners for progress update and enabling submit
-                          const radios = document.querySelectorAll('#quiz-form-{{ module.module_id }} .quiz-radio');
-                          const submitBtn = document.getElementById('submit-quiz-btn-{{ module.module_id }}');
-                          console.log('Quiz radios found:', radios.length);
-                          console.log('Submit button found:', !!submitBtn);
-                          radios.forEach(radio => {
-                            radio.addEventListener('change', function() {
-                              // updateQuizProgress({{ module.module_id }}, quiz.length); // Removed undefined function
-                              // Check if all questions have an answer selected
-                              let allAnswered = true;
-                              for (let i = 0; i < quiz.length; i++) {
-                                const name = `quiz-q${i}-m{{ module.module_id }}`;
-                                const checked = document.querySelector(`#quiz-form-{{ module.module_id }} input[name='${name}']:checked`);
-                                console.log(`Question ${i} checked:`, !!checked);
-                                if (!checked) {
-                                  allAnswered = false;
-                                  break;
-                                }
-                              }
-                              if (submitBtn) {
-                                submitBtn.disabled = !allAnswered;
-                                console.log('Submit button disabled:', submitBtn.disabled);
-                              }
-                            });
-                          });
+                          renderQuizForm({{ module.module_id }}, quiz, false);
                         });
                     });
                   </script>
@@ -216,6 +186,9 @@
 
 {% block scripts %}
 <script>
+// Maintain state of quizzes loaded per module
+const quizCache = {};
+
 function toggleModule(moduleId) {
   var content = document.getElementById('module-content-' + moduleId);
   var chevron = document.getElementById('chevron-' + moduleId);
@@ -231,31 +204,51 @@ function toggleModule(moduleId) {
   }
 }
 
-function submitUserQuiz(moduleId, questionCount) {
-  // Collect answers
+function renderQuizForm(moduleId, quiz, isReattempt){
+  quizCache[moduleId] = quiz;
+  let html = '';
+  quiz.forEach((q, qIdx) => {
+    html += `<div class='mb-6 p-4 bg-white border rounded'><div class='font-semibold mb-2'>Q${qIdx+1}: ${q.text}</div>`;
+    q.answers.forEach((a, aIdx) => {
+      html += `<div class='flex items-center mb-1'><input type='radio' name='quiz-q${qIdx}-m${moduleId}' id='quiz-q${qIdx}-a${aIdx}-m${moduleId}' value='${aIdx}' class='mr-2 quiz-radio' data-qidx='${qIdx}' data-moduleid='${moduleId}'> <label for='quiz-q${qIdx}-a${aIdx}-m${moduleId}'>${a.text}</label></div>`;
+    });
+    html += `</div>`;
+  });
+  html += `<button class='btn btn-${isReattempt ? 'warning' : 'primary'}' id='submit-quiz-btn-${moduleId}' onclick='submitUserQuiz(${moduleId}, ${quiz.length}, ${isReattempt})' disabled>${isReattempt ? 'Submit Reattempt' : 'Submit Quiz'}</button>`;
+  const containerId = isReattempt ? `reattempt-container-${moduleId}` : `quiz-form-${moduleId}`;
+  const container = document.getElementById(containerId);
+  if(container){ container.innerHTML = html; }
+  const radios = document.querySelectorAll(`#${containerId} .quiz-radio`);
+  const submitBtn = document.getElementById(`submit-quiz-btn-${moduleId}`);
+  radios.forEach(radio => {
+    radio.addEventListener('change', function(){
+      let allAnswered = true;
+      for (let i = 0; i < quiz.length; i++) {
+        const name = `quiz-q${i}-m${moduleId}`;
+        const checked = document.querySelector(`#${containerId} input[name='${name}']:checked`);
+        if(!checked){ allAnswered = false; break; }
+      }
+      if(submitBtn){ submitBtn.disabled = !allAnswered; }
+    });
+  });
+}
+
+function submitUserQuiz(moduleId, questionCount, isReattempt=false) {
   const answers = [];
   for (let i = 0; i < questionCount; i++) {
     const name = `quiz-q${i}-m${moduleId}`;
-    // Use querySelectorAll to avoid duplicate IDs/names issues
-    const checked = document.querySelector(`#quiz-form-${moduleId} input[name='${name}']:checked`);
-    if (checked) {
-      answers.push(parseInt(checked.value));
-    } else {
-      answers.push(null);
-    }
+    const checked = document.querySelector(`input[name='${name}']:checked`);
+    answers.push(checked ? parseInt(checked.value) : null);
   }
-  // Send answers to backend
   fetch(`/api/submit_quiz/${moduleId}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ answers }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answers, is_reattempt: isReattempt })
   })
     .then(res => res.json())
     .then(data => {
       if (data.success) {
-        alert('Quiz submitted successfully!');
+        alert(`Quiz submitted! Score: ${data.score}%, Grade: ${data.grade_letter} (Attempts: ${data.reattempt_count})`);
         location.reload();
       } else {
         alert('Quiz submission failed: ' + (data.message || 'Unknown error'));
@@ -264,6 +257,16 @@ function submitUserQuiz(moduleId, questionCount) {
     .catch(err => {
       alert('Error submitting quiz: ' + err);
     });
+}
+
+function startReattempt(moduleId){
+  if(!quizCache[moduleId]){
+    fetch(`/api/load_quiz/${moduleId}`)
+      .then(r=>r.json())
+      .then(q=>{ if(q && q.length){ renderQuizForm(moduleId, q, true); } else { alert('No quiz available.'); } });
+  } else {
+    renderQuizForm(moduleId, quizCache[moduleId], true);
+  }
 }
 
 // Reattempt course function
