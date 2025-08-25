@@ -52,7 +52,7 @@
                 {% if key in existing_certs %}
                   <span class="badge bg-info"><i class="fas fa-check"></i> Issued</span>
                 {% elif um.is_completed and um.score > 50 %}
-                  <form method="POST" action="{{ url_for('issue_certificate') }}" class="d-inline">
+                  <form method="POST" action="{{ safe_url_for('issue_certificate') }}" class="d-inline">
                     <input type="hidden" name="user_id" value="{{ user.User_id }}">
                     <input type="hidden" name="module_id" value="{{ module.module_id }}">
                     <button type="submit" class="btn btn-sm btn-outline-success"><i class="fas fa-certificate"></i> Issue</button>

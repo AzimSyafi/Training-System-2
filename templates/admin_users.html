@@ -107,7 +107,7 @@
         <h5 class="modal-title" id="createUserModalLabel"><i class="fas fa-user-plus"></i> Create New Account</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <form method="POST" action="{{ url_for('create_user') }}">
+      <form method="POST" action="{{ safe_url_for('create_user') }}">
         <div class="modal-body">
           <div class="row">
             <div class="col-md-6">
@@ -207,7 +207,7 @@ function viewUserProgress(userId) {
 
 function resetUserProgress(userId, userName) {
     if (!confirm(`Reset all progress for ${userName}?`)) return;
-    fetch("{{ url_for('reset_user_progress') }}", {
+    fetch("{{ safe_url_for('reset_user_progress') }}", {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `user_id=${userId}`
@@ -228,7 +228,7 @@ function resetUserProgress(userId, userName) {
 
 function deleteUser(userId, fullName) {
     if (!confirm(`Delete user ${fullName}? This cannot be undone.`)) return;
-    fetch("{{ url_for('delete_user') }}", {
+    fetch("{{ safe_url_for('delete_user') }}", {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `user_id=${userId}`

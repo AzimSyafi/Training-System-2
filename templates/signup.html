@@ -169,24 +169,22 @@
       if (userCategory.value === 'citizen') {
         icField.style.display = 'block';
         passportField.style.display = 'none';
-        icInput.required = true;
-        passportInput.required = false;
-        passportInput.value = '';
+        // Do not enforce required at signup; collect later in onboarding
+        if (icInput) icInput.required = false;
+        if (passportInput) passportInput.required = false;
       } else if (userCategory.value === 'foreigner') {
         icField.style.display = 'none';
         passportField.style.display = 'block';
-        icInput.required = false;
-        passportInput.required = true;
-        icInput.value = '';
+        if (icInput) icInput.required = false;
+        if (passportInput) passportInput.required = false;
       }
     } else {
       icField.style.display = 'none';
       passportField.style.display = 'none';
-      icInput.required = false;
-      passportInput.required = false;
-      icInput.value = '';
-      passportInput.value = '';
+      if (icInput) icInput.required = false;
+      if (passportInput) passportInput.required = false;
     }
   }
+  window.addEventListener('DOMContentLoaded', toggleIdField);
 </script>
 {% endblock %}

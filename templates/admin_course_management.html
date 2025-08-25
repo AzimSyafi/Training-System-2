@@ -32,12 +32,12 @@
         <div class="card mb-4 shadow-sm">
           <div class="card-header d-flex justify-content-between align-items-center">
             <span class="fw-semibold">Course Details</span>
-            <form action="{{ url_for('delete_course', course_id=course.course_id) }}" method="post" onsubmit="return confirm('Delete this course?');">
+            <form action="{{ safe_url_for('delete_course', course_id=course.course_id) }}" method="post" onsubmit="return confirm('Delete this course?');">
               <button class="btn btn-sm btn-outline-danger" type="submit"><i class="fas fa-trash"></i></button>
             </form>
           </div>
           <div class="card-body">
-            <form class="row g-3" action="{{ url_for('update_course', course_id=course.course_id) }}" method="post">
+            <form class="row g-3" action="{{ safe_url_for('update_course', course_id=course.course_id) }}" method="post">
               <div class="col-md-6">
                 <label class="form-label">Name</label>
                 <input class="form-control" name="name" value="{{ course.name }}" required>
@@ -71,7 +71,7 @@
           </div>
           <div class="add-module-section {% if course.modules|length != 0 %}d-none{% endif %}" id="addModuleForm-{{ course.course_id }}">
             <div class="card-body border-bottom">
-              <form class="row g-3" action="{{ url_for('add_course_module', course_id=course.course_id) }}" method="post">
+              <form class="row g-3" action="{{ safe_url_for('add_course_module', course_id=course.course_id) }}" method="post">
                 <div class="col-md-5">
                   <label class="form-label">Module Name</label>
                   <input class="form-control" name="module_name" required>
@@ -116,7 +116,7 @@
                       <div class="btn-group btn-group-sm" role="group">
                         <button type="button" class="btn btn-outline-secondary module-toggle" data-panel="edit" data-module-id="{{ m.module_id }}"><i class="fas fa-pen"></i></button>
                         <button type="button" class="btn btn-outline-info module-toggle" data-panel="content" data-module-id="{{ m.module_id }}"><i class="fas fa-photo-film"></i></button>
-                        <form action="{{ url_for('delete_course_module', module_id=m.module_id) }}" method="post" onsubmit="return confirm('Delete module?');">
+                        <form action="{{ safe_url_for('delete_course_module', module_id=m.module_id) }}" method="post" onsubmit="return confirm('Delete module?');">
                           <button class="btn btn-outline-danger" type="submit"><i class="fas fa-trash"></i></button>
                         </form>
                       </div>
@@ -126,7 +126,7 @@
                     <td colspan="6" class="p-0">
                       <div class="module-panel panel-edit d-none" id="editModuleForm-{{ m.module_id }}" data-course-id="{{ course.course_id }}">
                         <div class="bg-light p-3 border-top">
-                          <form class="row g-2" action="{{ url_for('update_course_module', module_id=m.module_id) }}" method="post">
+                          <form class="row g-2" action="{{ safe_url_for('update_course_module', module_id=m.module_id) }}" method="post">
                             <div class="col-md-4">
                               <label class="form-label small mb-0">Name</label>
                               <input class="form-control form-control-sm" name="module_name" value="{{ m.module_name }}" required>
@@ -165,7 +165,7 @@
                           </ul>
                           <div class="tab-content">
                             <div class="tab-pane fade show active" id="slide-pane-{{ m.module_id }}">
-                              <form class="row g-2" action="{{ url_for('manage_module_content', module_id=m.module_id) }}" method="post" enctype="multipart/form-data">
+                              <form class="row g-2" action="{{ safe_url_for('manage_module_content', module_id=m.module_id) }}" method="post" enctype="multipart/form-data">
                                 <input type="hidden" name="content_type" value="slide">
                                 <div class="col-md-6">
                                   <input type="file" name="slide_file" class="form-control form-control-sm" accept=".pdf,.ppt,.pptx">
@@ -178,7 +178,7 @@
                               <div class="text-end mt-1"><button type="button" class="btn btn-link btn-sm text-decoration-none module-panel-close" data-target="contentForm-{{ m.module_id }}">Close</button></div>
                             </div>
                             <div class="tab-pane fade" id="video-pane-{{ m.module_id }}">
-                              <form class="row g-2" action="{{ url_for('manage_module_content', module_id=m.module_id) }}" method="post">
+                              <form class="row g-2" action="{{ safe_url_for('manage_module_content', module_id=m.module_id) }}" method="post">
                                 <input type="hidden" name="content_type" value="video">
                                 <div class="col-md-8">
                                   <input class="form-control form-control-sm" name="youtube_url" placeholder="YouTube URL" value="{{ m.youtube_url }}">
@@ -189,7 +189,7 @@
                               </form>
                             </div>
                             <div class="tab-pane fade" id="quiz-pane-{{ m.module_id }}">
-                              <form class="row g-2 quiz-form" id="quiz-form-{{ m.module_id }}" action="{{ url_for('manage_module_content', module_id=m.module_id) }}" method="post" enctype="multipart/form-data" data-module-id="{{ m.module_id }}">
+                              <form class="row g-2 quiz-form" id="quiz-form-{{ m.module_id }}" action="{{ safe_url_for('manage_module_content', module_id=m.module_id) }}" method="post" enctype="multipart/form-data" data-module-id="{{ m.module_id }}">
                                 <input type="hidden" name="content_type" value="quiz">
                                 <div class="col-12">
                                   <div id="quiz-questions-{{ m.module_id }}" class="quiz-questions" data-module-id="{{ m.module_id }}"></div>
@@ -235,7 +235,7 @@
 <div class="modal fade" id="createCourseModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
-      <form method="post" action="{{ url_for('create_course') }}">
+      <form method="post" action="{{ safe_url_for('create_course') }}">
         <div class="modal-header">
           <h5 class="modal-title">New Course</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>

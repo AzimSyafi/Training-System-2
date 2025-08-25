@@ -8,7 +8,7 @@
         <div class="card mb-4">
             <div class="card-body">
                 <h5>Upload Certificate Template</h5>
-                <form action="{{ url_for('upload_cert_template') }}" method="post" enctype="multipart/form-data">
+                <form action="{{ safe_url_for('upload_cert_template') }}" method="post" enctype="multipart/form-data">
                     <div class="mb-3">
                         <input type="file" name="cert_template" accept="application/pdf,image/*" class="form-control" required>
                     </div>
@@ -26,7 +26,7 @@
             <div class="card">
                 <div class="card-body">
                     <div class="table-responsive">
-                        <form action="{{ url_for('delete_certificates_bulk') }}" method="post" onsubmit="return confirm('Are you sure you want to delete the selected certificates?');">
+                        <form action="{{ safe_url_for('delete_certificates_bulk') }}" method="post" onsubmit="return confirm('Are you sure you want to delete the selected certificates?');">
                         <table class="table table-striped">
                             <thead>
                                 <tr>
@@ -82,12 +82,11 @@
             <div class="alert alert-info">
                 <h5><i class="fas fa-info-circle"></i> No Certificates Issued</h5>
                 <p>No certificates have been issued yet. Certificates are automatically issued when users complete modules with a passing score (>50%).</p>
-                <a href="{{ url_for('monitor_progress') }}" class="btn btn-primary">
+                <a href="{{ safe_url_for('monitor_progress') }}" class="btn btn-primary">
                     <i class="fas fa-chart-line"></i> Monitor Progress
                 </a>
             </div>
         {% endif %}
-        </div>
     </div>
 </div>
 {% endblock %}

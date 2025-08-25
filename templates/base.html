@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Security Training System{% endblock %}</title>
-    {% set always_light = request.endpoint in ['index','login','signup'] %}
+    {% set always_light = request.endpoint in ['index','login','signup','onboarding'] %}
     <script>
         // Early theme application (skip dark for always-light endpoints)
         (function() {
@@ -216,8 +216,8 @@
     </style>
     {% block styles %}{% endblock %}
 </head>
-<body class="{% if request.endpoint in ['index','login','signup'] %}no-sidebar{% endif %}">
-    {% if request.endpoint not in ['index','login','signup'] %}
+<body class="{% if request.endpoint in ['index','login','signup','onboarding'] %}no-sidebar{% endif %}">
+    {% if request.endpoint not in ['index','login','signup','onboarding'] %}
     <div class="sidebar" id="sidebar" aria-label="Main Sidebar">
         <button id="sidebar-toggle" aria-expanded="true" aria-controls="sidebar" type="button">
             <i class="fas fa-bars"></i><span class="link-text"></span>
@@ -228,7 +228,7 @@
                 <a class="nav-link {% if request.endpoint=='trainer_portal' and request.view_args.get('section') == 'progress' %}active{% endif %}" href="{{ url_for('trainer_portal', section='progress') }}"><i class="fas fa-chart-line"></i><span class="link-text">Trainee Progress</span></a>
                 <a class="nav-link {% if request.endpoint=='trainer_portal' and request.view_args.get('section') == 'courses' %}active{% endif %}" href="{{ url_for('trainer_portal', section='courses') }}"><i class="fas fa-book"></i><span class="link-text">My Courses</span></a>
             {% elif current_user.is_authenticated and current_user.__class__.__name__ != 'Admin' %}
-                <a class="nav-link {% if request.endpoint=='user_dashboard' %}active{% endif %}" href="{{ url_for('user_dashboard') }}"><i class="fas fa-gauge"></i><span class="link-text">Dashboard</span></a>
+                <a class="nav-link {% if request.endpoint=='user_dashboard' %}active{% endif %}" href="{{ safe_url_for('user_dashboard') }}"><i class="fas fa-gauge"></i><span class="link-text">Dashboard</span></a>
                 <a class="nav-link {% if request.endpoint=='profile' %}active{% endif %}" href="{{ url_for('profile') }}"><i class="fas fa-user"></i><span class="link-text">My Profile</span></a>
                 <a class="nav-link {% if request.endpoint=='courses' %}active{% endif %}" href="{{ url_for('courses') }}"><i class="fas fa-layer-group"></i><span class="link-text">Courses</span></a>
                 <a class="nav-link {% if request.endpoint=='my_certificates' %}active{% endif %}" href="{{ url_for('my_certificates') }}"><i class="fas fa-certificate"></i><span class="link-text">Certificates</span></a>
