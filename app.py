@@ -55,6 +55,27 @@ os.makedirs(UPLOAD_CONTENT_FOLDER, exist_ok=True)
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 
+# --- Helpers ---
+def _series_sort(modules):
+    """Sort modules by series_number naturally, handling prefixes like CSG001/TNG002 or mixed.
+    Falls back to by module_id when series_number missing."""
+    def key(m: Module):
+        s = (getattr(m, 'series_number', None) or '').strip()
+        if not s:
+            return ("", 0)
+        # Extract alpha prefix and numeric suffix
+        prefix = ''.join([ch for ch in s if ch.isalpha()])
+        digits = ''.join([ch for ch in s if ch.isdigit()])
+        try:
+            num = int(digits) if digits else 0
+        except Exception:
+            num = 0
+        return (prefix.upper(), num)
+    try:
+        return sorted(modules, key=key)
+    except Exception:
+        return sorted(modules, key=lambda m: getattr(m, 'module_id', 0))
+
 def extract_youtube_id(url):
     """Extracts YouTube video ID from a URL."""
     if not isinstance(url, str):
@@ -195,6 +216,12 @@ def serve_upload(filename):
         return send_from_directory(slides_dir, filename)
     from flask import abort
     return abort(404)
+
+# Also expose a dedicated endpoint for slides to match template links
+@app.route('/slides/<path:filename>')
+def serve_uploaded_slide(filename):
+    slides_dir = os.path.join(app.root_path, 'static', 'uploads')
+    return send_from_directory(slides_dir, filename)
 
 # Home route
 @app.route('/')
@@ -423,10 +450,10 @@ def user_dashboard():
     if not isinstance(current_user, User):
         return redirect(url_for('login'))
 
-    # Determine allowed course code based on user category
+    # Determine allowed course code based on user category (legacy single-course logic)
     allowed_code = 'TNG' if current_user.user_category == 'foreigner' else 'CSG'
 
-    # Only show modules belonging to the allowed course code
+    # Only show modules belonging to the allowed course code (legacy behavior retained)
     user_modules = (UserModule.query
                      .join(Module, UserModule.module_id == Module.module_id)
                      .filter(UserModule.user_id == current_user.User_id,
@@ -439,10 +466,49 @@ def user_dashboard():
     # Precompute whether rating should be shown (all modules completed)
     rating_unlocked = current_user.has_completed_all_modules_in_course(allowed_code)
 
+    # NEW: Build per-course progress cards (all eligible courses for user category)
+    from models import Course
+    eligible_courses = Course.query.filter(
+        (Course.allowed_category == 'both') | (Course.allowed_category == current_user.user_category)
+    ).all()
+    courses_progress = []
+    user_cat = (getattr(current_user, 'user_category', 'citizen') or 'citizen').lower()
+    for course in eligible_courses:
+        code_u = (course.code or '').upper()
+        # Hard mapping guard: hide CSG for foreigners and TNG for citizens
+        if (code_u == 'CSG' and user_cat != 'citizen') or (code_u == 'TNG' and user_cat != 'foreigner'):
+            continue
+        # Prefer explicit relation; fall back by module_type code if relation not set
+        course_modules = list(course.modules) if getattr(course, 'modules', None) else []
+        if not course_modules:
+            course_modules = Module.query.filter(Module.module_type == course.code.upper()).all()
+        # Apply natural series sorting for consistency
+        course_modules = _series_sort(course_modules)
+        module_ids = [m.module_id for m in course_modules]
+        total = len(module_ids)
+        if total:
+            completed_count = UserModule.query.filter(
+                UserModule.user_id == current_user.User_id,
+                UserModule.is_completed.is_(True),
+                UserModule.module_id.in_(module_ids)
+            ).count()
+        else:
+            completed_count = 0
+        progress_pct = int((completed_count / total) * 100) if total > 0 else 0
+        courses_progress.append({
+            'id': course.course_id,
+            'code': course.code,
+            'name': course.name,
+            'progress': progress_pct,
+            'total_modules': total,
+            'completed_modules': completed_count
+        })
+
     return render_template('user_dashboard.html',
                          user=current_user,
                          user_modules=user_modules,
                          available_modules=available_modules,
+                         courses_progress=courses_progress,
                          rating_star=current_user.rating_star,
                          rating_unlocked=rating_unlocked)
 
@@ -495,12 +561,25 @@ def view_module(module_id):
         return redirect(url_for('login'))
 
     module = Module.query.get_or_404(module_id)
+    # Enforce access based on module's course/category
+    code = (module.module_type or '').upper()
+    course = Course.query.filter_by(code=code).first() if code else None
+    user_cat = (getattr(current_user, 'user_category', 'citizen') or 'citizen').lower()
+    if course:
+        course_cat = (course.allowed_category or 'both').lower()
+        if course_cat not in ('both', user_cat):
+            flash('This module belongs to a course not available for your category.', 'warning')
+            return redirect(url_for('courses'))
+    else:
+        if (code == 'CSG' and user_cat != 'citizen') or (code == 'TNG' and user_cat != 'foreigner'):
+            flash('This module belongs to a course not available for your category.', 'warning')
+            return redirect(url_for('courses'))
+
     user_module = UserModule.query.filter_by(
         user_id=current_user.User_id,
         module_id=module_id
     ).first()
 
-    # Get all modules for the same course/type as the current module
     modules = Module.query.filter_by(module_type=module.module_type).all()
 
     if not user_module:
@@ -509,510 +588,149 @@ def view_module(module_id):
 
     return render_template('module_view.html', module=module, user_module=user_module, modules=modules)
 
-@app.route('/complete_module/<int:module_id>', methods=['POST'])
+# ---- Admin Accounts: missing endpoints ----
+@app.route('/admin/users')
 @login_required
-def complete_module(module_id):
-    if isinstance(current_user, Admin):
-        return redirect(url_for('admin_dashboard'))
-    if isinstance(current_user, Trainer):
-        return redirect(url_for('trainer_portal'))
-    if not isinstance(current_user, User):
-        return redirect(url_for('login'))
-
-    user_module = UserModule.query.filter_by(
-        user_id=current_user.User_id,
-        module_id=module_id
-    ).first()
-
-    if user_module:
-        score = float(request.form['score'])
-        user_module.complete_module(score)
-
-        # Color coding based on score
-        color = current_user.get_color_by_score(score)
-        flash(f'Module completed with score: {score}% (Status: {color})')
-
-        # Check if eligible for certificate
-        if current_user.EligibleForCertificate():
-            # Issue certificate
-            admin = Admin.query.first()  # Get any admin for certificate issuance
-            if admin:
-                # fixed method name
-                admin.issueCertificate(current_user.User_id, module_id)
-                flash('Certificate issued successfully!')
-
-        # Check if user completed all modules of this course type
-        module = Module.query.get(module_id)
-        if module:
-            course_type = module.module_type
-            # Debug output for certificate eligibility
-            import sys
-            print(f"[DEBUG] Checking certificate eligibility for user {current_user.User_id}", file=sys.stderr)
-            print(f"[DEBUG] Module ID: {module_id}", file=sys.stderr)
-            if module:
-                course_type = module.module_type
-                print(f"[DEBUG] Course type: {course_type}", file=sys.stderr)
-                all_course_modules = Module.query.filter_by(module_type=course_type).all()
-                all_module_ids = [m.module_id for m in all_course_modules]
-                print(f"[DEBUG] All module IDs for course: {all_module_ids}", file=sys.stderr)
-                completed_modules = UserModule.query.filter_by(user_id=current_user.User_id, is_completed=True).filter(UserModule.module_id.in_(all_module_ids)).all()
-                print(f"[DEBUG] Completed modules: {[{'id': um.module_id, 'score': um.score} for um in completed_modules]}", file=sys.stderr)
-                eligible = current_user.EligibleForCertificate(course_type)
-                print(f"[DEBUG] Eligible for certificate: {eligible}", file=sys.stderr)
-                if eligible:
-                    # Calculate overall_percentage for this user and course_type
-                    all_course_modules = Module.query.filter_by(module_type=course_type).all()
-                    all_module_ids = [m.module_id for m in all_course_modules]
-                    completed_modules = UserModule.query.filter_by(user_id=current_user.User_id, is_completed=True).filter(UserModule.module_id.in_(all_module_ids)).all()
-                    total_correct = 0
-                    total_questions = 0
-                    import json
-                    for um in completed_modules:
-                        if um.quiz_answers:
-                            try:
-                                selected_indices = json.loads(um.quiz_answers)
-                                module = Module.query.get(um.module_id)
-                                if module and module.quiz_json:
-                                    quiz = json.loads(module.quiz_json)
-                                    for idx, selected in enumerate(selected_indices):
-                                        if idx < len(quiz):
-                                            total_questions += 1
-                                            answers = quiz[idx].get('answers', [])
-                                            if isinstance(selected, int) and 0 <= selected < len(answers):
-                                                if answers[selected].get('isCorrect') in [True, 'true', 'True', 1, '1']:
-                                                    total_correct += 1
-                            except Exception:
-                                continue
-                    overall_percentage = int((total_correct / total_questions) * 100) if total_questions > 0 else 0
-                    from generate_certificate import generate_certificate
-                    cert_path = generate_certificate(current_user.User_id, course_type, overall_percentage)
-                    print(f"[DEBUG] Certificate generated at: {cert_path}", file=sys.stderr)
-                    flash(f'Congratulations! You have completed all modules for {course_type}. Certificate generated.')
-                    # Ensure course progress exists upon completion through manual module completion path
-                    try:
-                        from models import UserCourseProgress, Course
-                        course_obj = Course.query.filter(Course.code.ilike(course_type)).first()
-                        if course_obj:
-                            ucp = UserCourseProgress.query.filter_by(user_id=current_user.User_id, course_id=course_obj.course_id).first()
-                            if not ucp:
-                                db.session.add(UserCourseProgress(user_id=current_user.User_id, course_id=course_obj.course_id, reattempt_count=0))
-                                db.session.commit()
-                    except Exception as ce:
-                        db.session.rollback()
-                        print(f'[COURSE PROGRESS CREATE ERROR] {ce}')
-    return redirect(url_for('user_dashboard'))
-
-@app.route('/my_certificates')
-@login_required
-def my_certificates():
-    if isinstance(current_user, Admin):
-        return redirect(url_for('admin_dashboard'))
-    if isinstance(current_user, Trainer):
-        return redirect(url_for('trainer_portal'))
-    if not isinstance(current_user, User):
-        return redirect(url_for('login'))
-
-    certificates = Certificate.query.filter_by(user_id=current_user.User_id).all()
-    from models import UserModule, Module
-    import json
-    user_modules = UserModule.query.filter_by(user_id=current_user.User_id).all()
-    total_correct = 0
-    total_questions = 0
-    for um in user_modules:
-        if um.quiz_answers:
-            try:
-                # quiz_answers is a list of selected answer indices
-                selected_indices = json.loads(um.quiz_answers)
-                module = Module.query.get(um.module_id)
-                if module and module.quiz_json:
-                    quiz = json.loads(module.quiz_json)
-                    for idx, selected in enumerate(selected_indices):
-                        if idx < len(quiz):
-                            answers = quiz[idx].get('answers', [])
-                            total_questions += 1
-                            if isinstance(selected, int) and 0 <= selected < len(answers):
-                                if answers[selected].get('isCorrect') in [True, 'true', 'True', 1, '1']:
-                                    total_correct += 1
-            except Exception:
-                continue
-    overall_percentage = int((total_correct / total_questions) * 100) if total_questions > 0 else 0
-    for cert in certificates:
-        user_module = UserModule.query.filter_by(user_id=cert.user_id, module_id=cert.module_id).first()
-        score = user_module.score if user_module else 0
-        cert.star_rating = max(1, min(5, int(round(score / 20))))
-        cert.overall_score = int(score) if user_module else 0
-    return render_template('my_certificates.html', certificates=certificates, overall_percentage=overall_percentage)
-
-# Admin Dashboard and Workflow
-@app.route('/admin_dashboard')
-@login_required
-def admin_dashboard():
-    print(f"[DEBUG] Accessing admin_dashboard, session['user_type']: {session.get('user_type')}, current_user: {type(current_user)}")
+def admin_users():
     if not isinstance(current_user, Admin):
         if isinstance(current_user, User):
             return redirect(url_for('user_dashboard'))
+
         if isinstance(current_user, Trainer):
             return redirect(url_for('trainer_portal'))
         return redirect(url_for('login'))
+    users = User.query.order_by(User.User_id.asc()).all()
+    trainers = Trainer.query.order_by(Trainer.trainer_id.asc()).all()
+    courses = Course.query.order_by(Course.name.asc()).all()
+    return render_template('admin_accounts.html', users=users, trainers=trainers, courses=courses)
 
-    # Get dashboard statistics
-    management = Management.query.first()
-    if not management:
-        # Create default management entry
-        management = Management(
-            manager_name='System Administrator',
-            designation='Admin',
-            email=current_user.email
-        )
-        db.session.add(management)
+@app.route('/create_user', methods=['POST'])
+@login_required
+def create_user():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    role = request.form.get('role')
+    full_name = request.form.get('full_name')
+    email = request.form.get('email')
+    password = request.form.get('password')
+    if not role or not full_name or not email or not password:
+        flash('All fields are required', 'danger')
+        return redirect(url_for('admin_users', show_create_modal=1))
+    try:
+        if role == 'admin':
+            if Admin.query.filter_by(email=email).first():
+                flash('Email already in use', 'danger')
+                return redirect(url_for('admin_users', show_create_modal=1))
+            a = Admin(username=full_name, email=email, role='admin')
+            a.set_password(password)
+            db.session.add(a)
+        elif role == 'trainer':
+            if Trainer.query.filter_by(email=email).first():
+                flash('Email already in use', 'danger')
+                return redirect(url_for('admin_users', show_create_modal=1))
+            t = Trainer(name=full_name, email=email)
+            t.set_password(password)
+            db.session.add(t)
+        else:
+            flash('Invalid role', 'danger')
+            return redirect(url_for('admin_users', show_create_modal=1))
         db.session.commit()
+        flash('Account created', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error creating account: {e}', 'danger')
+    return redirect(url_for('admin_users'))
 
-    dashboard_data = management.getDashboard()
-    return render_template('admin_dashboard.html', dashboard=dashboard_data)
-
-@app.route('/admin/modules')
+@app.route('/admin/trainer/<int:trainer_id>/update', methods=['POST'])
 @login_required
-def admin_modules():
-    # Deprecated: redirect to new course management page
+def update_trainer(trainer_id):
     if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-    return redirect(url_for('admin_course_management'))
-
-# ------------------------
-# Course Management (New)
-# ------------------------
-# Helper to sort modules by numeric part of series_number
-import re as _re
-
-def _series_sort(mods):
-    def key(m):
-        sn = (m.series_number or '').strip()
-        match = _re.search(r'(\d+)$', sn)
-        return (int(match.group(1)) if match else 0, sn)
-    return sorted(mods, key=key)
-
-@app.route('/admin/course_management')
-@login_required
-def admin_course_management():
-    if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-    courses = Course.query.order_by(Course.name).all()
-    # Preload modules grouped by course with proper numeric ordering
-    course_modules = {}
-    for c in courses:
-        raw_mods = Module.query.filter_by(course_id=c.course_id).all()
-        course_modules[c.course_id] = _series_sort(raw_mods)
-    return render_template('admin_course_management.html', courses=courses, course_modules=course_modules)
-
-@app.route('/admin/courses', methods=['POST'])
-@login_required
-def create_course():
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
-    name = request.form.get('name')
-    code = request.form.get('code')
-    description = request.form.get('description')
-    allowed_category = request.form.get('allowed_category', 'both')
-    if not name or not code:
-        flash('Name and Code are required', 'danger')
-        return redirect(url_for('admin_course_management'))
-    code = code.upper().strip()
-    if Course.query.filter_by(code=code).first():
-        flash('Course code already exists', 'danger')
-        return redirect(url_for('admin_course_management'))
-    course = Course(name=name, code=code, description=description, allowed_category=allowed_category)
-    db.session.add(course)
-    db.session.commit()
-    flash('Course created', 'success')
-    return redirect(url_for('admin_course_management'))
-
-@app.route('/admin/courses/<int:course_id>/update', methods=['POST'])
-@login_required
-def update_course(course_id):
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
-    course = Course.query.get_or_404(course_id)
-    course.name = request.form.get('name', course.name)
-    course.description = request.form.get('description', course.description)
-    course.allowed_category = request.form.get('allowed_category', course.allowed_category)
-    db.session.commit()
-    flash('Course updated', 'success')
-    return redirect(url_for('admin_course_management'))
-
-@app.route('/admin/courses/<int:course_id>/delete', methods=['POST'])
-@login_required
-def delete_course(course_id):
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
-    course = Course.query.get_or_404(course_id)
-    if course.modules and len(course.modules) > 0:
-        flash('Cannot delete course with existing modules. Remove modules first.', 'danger')
-        return redirect(url_for('admin_course_management'))
-    db.session.delete(course)
-    db.session.commit()
-    flash('Course deleted', 'success')
-    return redirect(url_for('admin_course_management'))
-
-@app.route('/admin/courses/<int:course_id>/modules', methods=['POST'])
-@login_required
-def add_course_module(course_id):
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
-    course = Course.query.get_or_404(course_id)
-    module_name = request.form.get('module_name')
-    series_number = request.form.get('series_number')
-    content = request.form.get('content')
-    if not module_name:
-        flash('Module name required', 'danger')
-        return redirect(url_for('admin_course_management'))
-
-    # Ensure PostgreSQL sequence is aligned with current max(module_id) to avoid duplicate key errors
-    def ensure_module_sequence():
-        try:
-            from sqlalchemy import text
-            max_id = db.session.execute(text("SELECT COALESCE(MAX(module_id),0) FROM module")).scalar() or 0
-            # Advance sequence only if it's behind
-            current_seq = db.session.execute(text("SELECT last_value FROM module_module_id_seq"))\
-                .scalar() if db.session.bind.dialect.name == 'postgresql' else None
-            if current_seq is None or current_seq < max_id:
-                db.session.execute(text("SELECT setval('module_module_id_seq', :new_val, true)"), {'new_val': max_id})
-                db.session.commit()
-        except Exception as e:
-            app.logger.warning(f"Module sequence sync skipped: {e}")
-
-    if db.session.bind and db.session.bind.dialect.name == 'postgresql':
-        ensure_module_sequence()
-
-    module = Module(module_name=module_name,
-                    module_type=course.code.upper(),
-                    series_number=series_number,
-                    content=content,
-                    course_id=course.course_id)
-    db.session.add(module)
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    t = Trainer.query.get_or_404(trainer_id)
+    t.name = request.form.get('name', t.name)
+    t.email = request.form.get('email', t.email)
+    t.course = request.form.get('course', t.course)
+    t.availability = request.form.get('availability', t.availability)
+    t.contact_number = request.form.get('contact_number', t.contact_number)
     try:
         db.session.commit()
-    except IntegrityError:
-        # Retry once after forcing sequence realignment
+        return jsonify({'success': True})
+    except Exception as e:
         db.session.rollback()
-        if db.session.bind and db.session.bind.dialect.name == 'postgresql':
-            ensure_module_sequence()
-        db.session.add(module)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/admin/trainer/<int:trainer_id>/toggle_active', methods=['POST'])
+@login_required
+def toggle_trainer_active(trainer_id):
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    t = Trainer.query.get_or_404(trainer_id)
+    t.active_status = not bool(t.active_status)
+    try:
         db.session.commit()
-    flash('Module added', 'success')
-    return redirect(url_for('admin_course_management'))
+        return jsonify({'success': True, 'active_status': t.active_status})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-@app.route('/admin/modules/<int:module_id>/update', methods=['POST'])
+@app.route('/admin/trainer/<int:trainer_id>/delete', methods=['POST'])
 @login_required
-def update_course_module(module_id):
+def delete_trainer(trainer_id):
     if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
-    module = Module.query.get_or_404(module_id)
-    # module_type enforced by course; don't allow change
-    module.module_name = request.form.get('module_name', module.module_name)
-    module.series_number = request.form.get('series_number', module.series_number)
-    module.content = request.form.get('content', module.content)
-    db.session.commit()
-    flash('Module updated', 'success')
-    return redirect(url_for('admin_course_management'))
-
-@app.route('/admin/modules/<int:module_id>/delete', methods=['POST'])
-@login_required
-def delete_course_module(module_id):
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
-    module = Module.query.get_or_404(module_id)
-    db.session.delete(module)
-    db.session.commit()
-    flash('Module deleted', 'success')
-    return redirect(url_for('admin_course_management'))
-
-@app.route('/admin/modules/<int:module_id>/content', methods=['POST'])
-@login_required
-def manage_module_content(module_id):
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
-    module = Module.query.get_or_404(module_id)
-    content_type = request.form.get('content_type')
-    if content_type == 'slide':
-        file = request.files.get('slide_file')
-        if file and file.filename and file.filename.lower().endswith(('.pdf', '.pptx')):
-            from werkzeug.utils import secure_filename
-            filename = secure_filename(file.filename)
-            # prevent collision
-            base, ext = os.path.splitext(filename)
-            counter = 1
-            target_path = os.path.join(UPLOAD_CONTENT_FOLDER, filename)
-            while os.path.exists(target_path):
-                filename = f"{base}_{counter}{ext}"
-                target_path = os.path.join(UPLOAD_CONTENT_FOLDER, filename)
-                counter += 1
-            file.save(target_path)
-            module.slide_url = filename
-            db.session.commit()
-            flash('Slide uploaded', 'success')
-        else:
-            flash('Invalid slide file', 'danger')
-    elif content_type == 'video':
-        youtube_url = request.form.get('youtube_url')
-        module.youtube_url = youtube_url
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    t = Trainer.query.get_or_404(trainer_id)
+    try:
+        db.session.delete(t)
         db.session.commit()
-        flash('Video URL saved', 'success')
-    elif content_type == 'quiz':
-        # Support up to 5 questions: quiz_question_1..5, answer_1_1..answer_5_5, correct_answer_1..5
-        quiz_payload = []
-        any_new_pattern = False
-        for qn in range(1, 6):
-            q_text = request.form.get(f'quiz_question_{qn}')
-            if q_text:
-                any_new_pattern = True
-                answers = []
-                correct_idx = request.form.get(f'correct_answer_{qn}')
-                for an in range(1, 6):
-                    ans_text = request.form.get(f'answer_{qn}_{an}')
-                    if ans_text:
-                        answers.append({
-                            'text': ans_text,
-                            'isCorrect': str(an) == str(correct_idx)
-                        })
-                if answers:
-                    quiz_payload.append({'question': q_text, 'answers': answers})
-        if not any_new_pattern:
-            # Fallback to legacy single-question field names
-            question = request.form.get('quiz_question')
-            if question:
-                answers = []
-                correct_index = request.form.get('correct_answer')
-                for i in range(1, 6):
-                    ans_text = request.form.get(f'answer_{i}')
-                    if ans_text:
-                        answers.append({'text': ans_text, 'isCorrect': str(i) == str(correct_index)})
-                if answers:
-                    quiz_payload.append({'question': question, 'answers': answers})
-        if quiz_payload:
-            import json as _json
-            module.quiz_json = _json.dumps(quiz_payload)
-            db.session.commit()
-            flash(f'Quiz saved ({len(quiz_payload)} question(s))', 'success')
-        else:
-            flash('Quiz data incomplete', 'danger')
-    else:
-        flash('Unknown content type', 'danger')
-    return redirect(url_for('admin_course_management'))
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-@app.route('/trainer/upload_content', methods=['GET', 'POST'])
+@app.route('/reset_user_progress', methods=['POST'])
 @login_required
-def upload_content():
-    """Trainer-facing content upload page (slides / video URL / quiz)."""
-    if not isinstance(current_user, Trainer):
-        # Only trainers permitted
-        return redirect(url_for('login'))
-    modules = Module.query.order_by(Module.module_type.asc(), Module.series_number.asc()).all()
-    if request.method == 'POST':
-        module_id = request.form.get('module_id')
-        content_type = request.form.get('content_type')
-        if not module_id or not content_type:
-            flash('Module and content type required', 'danger')
-            return redirect(url_for('upload_content'))
-        module = Module.query.get(module_id)
-        if not module:
-            flash('Selected module not found', 'danger')
-            return redirect(url_for('upload_content'))
-        try:
-            if content_type == 'slide':
-                file = request.files.get('slide_file')
-                if file and file.filename and file.filename.lower().endswith(('.pdf', '.pptx')):
-                    filename = secure_filename(file.filename)
-                    base, ext = os.path.splitext(filename)
-                    counter = 1
-                    target_path = os.path.join(UPLOAD_CONTENT_FOLDER, filename)
-                    while os.path.exists(target_path):
-                        filename = f"{base}_{counter}{ext}"
-                        target_path = os.path.join(UPLOAD_CONTENT_FOLDER, filename)
-                        counter += 1
-                    file.save(target_path)
-                    module.slide_url = filename
-                    db.session.commit()
-                    flash('Slide uploaded', 'success')
-                else:
-                    flash('Invalid slide file', 'danger')
-            elif content_type == 'video':
-                youtube_url = request.form.get('youtube_url')
-                module.youtube_url = youtube_url
-                db.session.commit()
-                flash('Video URL saved', 'success')
-            elif content_type == 'quiz':
-                quiz_payload = []
-                any_new_pattern = False
-                for qn in range(1, 6):
-                    q_text = request.form.get(f'quiz_question_{qn}')
-                    if q_text:
-                        any_new_pattern = True
-                        answers = []
-                        correct_idx = request.form.get(f'correct_answer_{qn}')
-                        for an in range(1, 6):
-                            ans_text = request.form.get(f'answer_{qn}_{an}')
-                            if ans_text:
-                                answers.append({'text': ans_text, 'isCorrect': str(an) == str(correct_idx)})
-                        if answers:
-                            quiz_payload.append({'question': q_text, 'answers': answers})
-                if not any_new_pattern:
-                    # Legacy single-question fallback
-                    question = request.form.get('quiz_question')
-                    if question:
-                        answers = []
-                        correct_index = request.form.get('correct_answer')
-                        for i in range(1, 6):
-                            ans_text = request.form.get(f'answer_{i}')
-                            if ans_text:
-                                answers.append({'text': ans_text, 'isCorrect': str(i) == str(correct_index)})
-                        if answers:
-                            quiz_payload.append({'question': question, 'answers': answers})
-                if quiz_payload:
-                    module.quiz_json = json.dumps(quiz_payload)
-                    db.session.commit()
-                    flash(f'Quiz saved ({len(quiz_payload)} question(s))', 'success')
-                else:
-                    flash('Quiz data incomplete', 'danger')
-            else:
-                flash('Unknown content type', 'danger')
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f'Trainer content upload error: {e}')
-            flash(f'Error saving content: {e}', 'danger')
-        return redirect(url_for('upload_content'))
-    return render_template('upload_content.html', modules=modules)
-
-# API endpoints for dynamic data
-@app.route('/api/user_progress/<int:user_id>')
-@login_required
-def get_user_progress(user_id):
+def reset_user_progress():
     if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return jsonify({'error': 'Unauthorized'}), 403
-        if isinstance(current_user, Trainer):
-            return jsonify({'error': 'Unauthorized'}), 403
-        return jsonify({'error': 'Unauthorized'}), 403
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    user_id = request.form.get('user_id')
+    if not user_id:
+        return jsonify({'success': False, 'message': 'user_id required'}), 400
+    u = User.query.get(user_id)
+    if not u:
+        return jsonify({'success': False, 'message': 'User not found'}), 404
+    try:
+        UserModule.query.filter_by(user_id=u.User_id).delete()
+        Certificate.query.filter_by(user_id=u.User_id).delete()
+        u.rating_star = 0
+        u.rating_label = ''
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Progress reset'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-    user_modules = UserModule.query.filter_by(user_id=user_id).all()
-    progress_data = []
-
-    for um in user_modules:
-        progress_data.append({
-            'module_name': um.module.module_name,
-            'is_completed': um.is_completed,
-            'score': um.score,
-            'completion_date': um.completion_date.isoformat() if um.completion_date and str(um.completion_date).strip() else None
-        })
-
-    return jsonify(progress_data)
+@app.route('/delete_user', methods=['POST'])
+@login_required
+def delete_user():
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    user_id = request.form.get('user_id')
+    if not user_id:
+        return jsonify({'success': False, 'message': 'user_id required'}), 400
+    u = User.query.get(user_id)
+    if not u:
+        return jsonify({'success': False, 'message': 'User not found'}), 404
+    try:
+        UserModule.query.filter_by(user_id=u.User_id).delete()
+        Certificate.query.filter_by(user_id=u.User_id).delete()
+        from models import WorkHistory
+        WorkHistory.query.filter_by(user_id=u.User_id).delete()
+        db.session.delete(u)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'User deleted'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/courses')
 @login_required
@@ -1023,64 +741,78 @@ def courses():
         return redirect(url_for('trainer_portal'))
     if not isinstance(current_user, User):
         return redirect(url_for('login'))
-    user_category = getattr(current_user, 'user_category', 'citizen')
-    expected_code = 'TNG' if user_category == 'foreigner' else 'CSG'
-    base_q = Course.query.filter((Course.allowed_category == 'both') | (Course.allowed_category == user_category))
-    available_courses = [c for c in base_q.order_by(Course.name).all() if c.code.upper() == expected_code]
-    if not available_courses:
-        flash('No courses available for your category yet.', 'warning')
-        return render_template('courses.html', course_progress=[], user=current_user, user_category=user_category)
+    user_category = (getattr(current_user, 'user_category', 'citizen') or 'citizen').lower()
+    # Fetch only courses allowed for this user's category (case-insensitive)
+    all_courses = (Course.query
+                   .filter((db.func.lower(Course.allowed_category) == 'both') | (db.func.lower(Course.allowed_category) == user_category))
+                   .order_by(Course.name)
+                   .all())
     course_progress = []
     import json as pyjson
-    for course in available_courses:
-        modules = course.modules or Module.query.filter(Module.module_type == course.code.upper()).all()
-        total = len(modules)
-        if total == 0:
-            percent = 0
-            overall_percentage = 0
-        else:
-            module_ids = [m.module_id for m in modules]
-            completed_q = (UserModule.query
-                           .filter_by(user_id=current_user.User_id, is_completed=True)
-                           .filter(UserModule.module_id.in_(module_ids)))
-            completed = completed_q.count()
-            percent = int((completed / total) * 100)
-            # overall score: aggregate all quiz answers correctness; fallback to avg score
-            total_correct = 0; total_questions = 0
-            user_modules = completed_q.all()
-            for um in user_modules:
-                if not um.quiz_answers:
-                    continue
-                try:
-                    selected_indices = pyjson.loads(um.quiz_answers)
-                except Exception:
-                    continue
-                mod_obj = next((m for m in modules if m.module_id == um.module_id), None)
-                if mod_obj and mod_obj.quiz_json:
+    for course in all_courses:
+        code_u = (course.code or '').upper()
+        # Hard mapping guard: hide CSG for foreigners and TNG for citizens
+        if (code_u == 'CSG' and user_category != 'citizen') or (code_u == 'TNG' and user_category != 'foreigner'):
+            continue
+        course_cat = (course.allowed_category or 'both').lower()
+        allowed = True  # by query filter and hard mapping, these are allowed
+        percent = 0
+        overall_percentage = 0
+        try:
+            modules = course.modules or Module.query.filter(Module.module_type == course.code.upper()).all()
+            total = len(modules)
+            if allowed and total:
+                module_ids = [m.module_id for m in modules]
+                completed_q = (UserModule.query
+                               .filter_by(user_id=current_user.User_id, is_completed=True)
+                               .filter(UserModule.module_id.in_(module_ids)))
+                completed = completed_q.count()
+                percent = int((completed / total) * 100) if total else 0
+                # overall score: aggregate all quiz answers correctness; fallback to avg score
+                total_correct = 0
+                total_questions = 0
+                user_modules = completed_q.all()
+                for um in user_modules:
+                    if not um.quiz_answers:
+                        continue
                     try:
-                        quiz = pyjson.loads(mod_obj.quiz_json)
+                        selected_indices = pyjson.loads(um.quiz_answers)
                     except Exception:
-                        quiz = []
-                    for idx, sel in enumerate(selected_indices):
-                        if idx < len(quiz):
-                            answers = quiz[idx].get('answers', [])
-                            total_questions += 1
-                            if isinstance(sel, int) and 0 <= sel < len(answers):
-                                if answers[sel].get('isCorrect') in [True, 'true', 'True', 1, '1']:
-                                    total_correct += 1
-            if total_questions:
-                overall_percentage = int((total_correct / total_questions) * 100)
-            else:
-                # fallback average score across completed modules
-                scores = [um.score for um in user_modules] or [0]
-                overall_percentage = int(sum(scores)/len(scores))
+                        continue
+                    mod_obj = next((m for m in modules if m.module_id == um.module_id), None)
+                    if mod_obj and mod_obj.quiz_json:
+                        try:
+                            quiz = pyjson.loads(mod_obj.quiz_json)
+                        except Exception:
+                            quiz = []
+                        for idx, sel in enumerate(selected_indices):
+                            if idx < len(quiz):
+                                answers = quiz[idx].get('answers', [])
+                                total_questions += 1
+                                if isinstance(sel, int) and 0 <= sel < len(answers):
+                                    if answers[sel].get('isCorrect') in [True, 'true', 'True', 1, '1']:
+                                        total_correct += 1
+                if total_questions:
+                    overall_percentage = int((total_correct / total_questions) * 100)
+                else:
+                    # fallback average score across completed modules
+                    scores = [um.score for um in user_modules] or [0]
+                    overall_percentage = int(sum(scores)/len(scores)) if scores else 0
+        except Exception as e:
+            app.logger.error(f"Error computing progress for course {course.code}: {e}")
+            percent = percent or 0
+            overall_percentage = overall_percentage or 0
         course_progress.append({
             'code': course.code.lower(),
             'name': course.name,
             'percent': percent,
             'overall_percentage': overall_percentage,
-            'allowed_category': course.allowed_category
+            'allowed_category': course.allowed_category,
+            'locked': not allowed
         })
+    # If there are no courses at all
+    if not course_progress:
+        flash('No courses available yet.', 'warning')
     return render_template('courses.html', course_progress=course_progress, user=current_user, user_category=user_category)
 
 @app.route('/modules/<string:course_code>')
@@ -1094,14 +826,20 @@ def course_modules(course_code):
         return redirect(url_for('login'))
     normalized_code = course_code.upper()
     course = Course.query.filter_by(code=normalized_code).first()
+    # Enforce access restriction by category (with fallback inference if course missing)
+    user_cat = (getattr(current_user, 'user_category', 'citizen') or 'citizen').lower()
     if course:
-        modules = course.modules
-        if not modules:
-            modules = Module.query.filter(Module.module_type == normalized_code).order_by(Module.series_number).all()
-        course_name = course.name
+        course_cat = (course.allowed_category or 'both').lower()
+        if course_cat not in ('both', user_cat):
+            flash('This course is not available for your category.', 'warning')
+            return redirect(url_for('courses'))
     else:
-        modules = Module.query.filter(Module.module_type == normalized_code).order_by(Module.series_number).all()
-        course_name = 'NEPAL SECURITY GUARD TRAINING (TNG)' if normalized_code == 'TNG' else 'CERTIFIED SECURITY GUARD (CSG)'
+        # Infer default policy for known codes
+        if (normalized_code == 'CSG' and user_cat != 'citizen') or (normalized_code == 'TNG' and user_cat != 'foreigner'):
+            flash('This course is not available for your category.', 'warning')
+            return redirect(url_for('courses'))
+    modules = course.modules if course and course.modules else Module.query.filter(Module.module_type == normalized_code).order_by(Module.series_number).all()
+    course_name = (course.name if course else ('NEPAL SECURITY GUARD TRAINING (TNG)' if normalized_code == 'TNG' else 'CERTIFIED SECURITY GUARD (CSG)'))
     if not modules:
         flash('No modules found for this course.')
         return redirect(url_for('courses'))
@@ -1213,6 +951,481 @@ def agency():
     if not agencies:
         agencies = Agency.query.all()
     return render_template('agency.html', agencies=agencies)
+
+# Register a safe url_for for templates to avoid BuildErrors if an endpoint is missing
+from flask import url_for as _flask_url_for
+
+def safe_url_for(endpoint, **values):
+    try:
+        return _flask_url_for(endpoint, **values)
+    except Exception:
+        return '#'
+
+app.jinja_env.globals['safe_url_for'] = safe_url_for
+
+# ------------------------
+# Admin: Dashboard
+# ------------------------
+@app.route('/admin_dashboard')
+@login_required
+def admin_dashboard():
+    if not isinstance(current_user, Admin):
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
+    try:
+        dashboard = Management().getDashboard()
+    except Exception:
+        dashboard = {
+            'total_users': User.query.count(),
+            'total_modules': Module.query.count(),
+            'total_certificates': Certificate.query.count(),
+            'active_trainers': Trainer.query.filter_by(active_status=True).count(),
+            'completion_stats': [],
+            'performance_metrics': None
+        }
+    return render_template('admin_dashboard.html', dashboard=dashboard)
+
+# ------------------------
+# Admin: Course Management
+# ------------------------
+@app.route('/admin_course_management')
+@login_required
+def admin_course_management():
+    if not isinstance(current_user, Admin):
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
+    courses = Course.query.order_by(Course.name.asc()).all()
+    # Build mapping of course_id -> sorted modules list
+    course_modules = {}
+    for c in courses:
+        mods = list(c.modules) if c.modules else []
+        course_modules[c.course_id] = _series_sort(mods)
+    return render_template('admin_course_management.html', courses=courses, course_modules=course_modules)
+
+@app.route('/courses/create', methods=['POST'])
+@login_required
+def create_course():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    name = request.form.get('name', '').strip()
+    code = (request.form.get('code', '') or '').strip().upper()
+    allowed_category = request.form.get('allowed_category', 'both')
+    description = request.form.get('description')
+    if not name or not code:
+        flash('Name and code are required', 'danger')
+        return redirect(url_for('admin_course_management'))
+    if Course.query.filter(Course.code.ilike(code)).first():
+        flash('A course with this code already exists', 'warning')
+        return redirect(url_for('admin_course_management'))
+    try:
+        c = Course(name=name, code=code, allowed_category=allowed_category, description=description)
+        db.session.add(c)
+        db.session.commit()
+        flash('Course created', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to create course: {e}', 'danger')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/courses/<int:course_id>/update', methods=['POST'])
+@login_required
+def update_course(course_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    c = Course.query.get_or_404(course_id)
+    c.name = request.form.get('name', c.name)
+    c.allowed_category = request.form.get('allowed_category', c.allowed_category)
+    c.description = request.form.get('description', c.description)
+    try:
+        db.session.commit()
+        flash('Course updated', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to update course: {e}', 'danger')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/courses/<int:course_id>/delete', methods=['POST'])
+@login_required
+def delete_course(course_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    c = Course.query.get_or_404(course_id)
+    try:
+        # Optionally prevent delete if modules exist
+        if c.modules:
+            for m in list(c.modules):
+                # Detach modules rather than hard delete to avoid cascading issues
+                m.course_id = None
+        db.session.delete(c)
+        db.session.commit()
+        flash('Course deleted', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to delete course: {e}', 'danger')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/courses/<int:course_id>/modules/add', methods=['POST'])
+@login_required
+def add_course_module(course_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    c = Course.query.get_or_404(course_id)
+    name = request.form.get('module_name', '').strip()
+    series = request.form.get('series_number', '')
+    content = request.form.get('content')
+    if not name:
+        flash('Module name is required', 'danger')
+        return redirect(url_for('admin_course_management'))
+    try:
+        m = Module(module_name=name, series_number=series, content=content, course_id=c.course_id, module_type=c.code)
+        db.session.add(m)
+        db.session.commit()
+        flash('Module created', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to create module: {e}', 'danger')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/modules/<int:module_id>/update', methods=['POST'])
+@login_required
+def update_course_module(module_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    m = Module.query.get_or_404(module_id)
+    m.module_name = request.form.get('module_name', m.module_name)
+    m.series_number = request.form.get('series_number', m.series_number)
+    m.content = request.form.get('content', m.content)
+    try:
+        db.session.commit()
+        flash('Module updated', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to update module: {e}', 'danger')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/modules/<int:module_id>/delete', methods=['POST'])
+@login_required
+def delete_course_module(module_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    m = Module.query.get_or_404(module_id)
+    try:
+        # Clean up related user modules and certificates to maintain integrity
+        UserModule.query.filter_by(module_id=m.module_id).delete()
+        Certificate.query.filter_by(module_id=m.module_id).delete()
+        db.session.delete(m)
+        db.session.commit()
+        flash('Module deleted', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to delete module: {e}', 'danger')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/modules/<int:module_id>/content', methods=['POST'])
+@login_required
+def manage_module_content(module_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    m = Module.query.get_or_404(module_id)
+    ctype = request.form.get('content_type')
+    try:
+        if ctype == 'slide':
+            f = request.files.get('slide_file')
+            if f and f.filename:
+                os.makedirs(os.path.join(app.root_path, 'static', 'uploads'), exist_ok=True)
+                fname = secure_filename(f.filename)
+                target = os.path.join(app.root_path, 'static', 'uploads', fname)
+                f.save(target)
+                m.slide_url = fname
+        elif ctype == 'video':
+            m.youtube_url = request.form.get('youtube_url')
+        elif ctype == 'quiz':
+            # Build quiz JSON from dynamic fields quiz_question_{i}, answer_{i}_{j}, correct_answer_{i}
+            questions = []
+            # Determine how many questions by scanning keys
+            indices = []
+            for k in request.form.keys():
+                if k.startswith('quiz_question_'):
+                    try:
+                        indices.append(int(k.split('_')[-1]))
+                    except Exception:
+                        pass
+            indices = sorted(set(indices))
+            for i in indices:
+                qtext = request.form.get(f'quiz_question_{i}', '').strip()
+                if not qtext:
+                    continue
+                answers = []
+                for j in range(1, 6):
+                    atext = request.form.get(f'answer_{i}_{j}')
+                    if atext:
+                        answers.append({'text': atext, 'isCorrect': False})
+                correct_idx = request.form.get(f'correct_answer_{i}')
+                try:
+                    correct_idx = int(correct_idx)
+                except Exception:
+                    correct_idx = 1
+                # Mark correct answer (1-based index)
+                if 1 <= correct_idx <= len(answers):
+                    answers[correct_idx - 1]['isCorrect'] = True
+                questions.append({'question': qtext, 'answers': answers})
+            # Optional quiz image
+            qimg = request.files.get('quiz_image')
+            if qimg and qimg.filename:
+                os.makedirs(os.path.join(app.root_path, 'static', 'uploads'), exist_ok=True)
+                qname = secure_filename(qimg.filename)
+                qpath = os.path.join(app.root_path, 'static', 'uploads', qname)
+                qimg.save(qpath)
+                m.quiz_image = qname
+            m.quiz_json = json.dumps(questions)
+        db.session.commit()
+        flash('Content saved', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to save content: {e}', 'danger')
+    return redirect(url_for('admin_course_management'))
+
+# ------------------------
+# Admin: Maintenance
+# ------------------------
+@app.route('/recalculate_ratings')
+@login_required
+def recalculate_ratings():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    try:
+        # Recalculate module star ratings from average scores
+        mods = Module.query.all()
+        for m in mods:
+            scores = [um.score for um in UserModule.query.filter_by(module_id=m.module_id, is_completed=True).all() if um.score is not None]
+            if scores:
+                avg = sum(scores) / len(scores)
+                stars = max(1, min(5, int(round(avg / 20))))
+                m.star_rating = stars
+            else:
+                m.star_rating = 0
+        # Recalculate user rating_star as average stars across completed modules
+        users = User.query.all()
+        for u in users:
+            ums = UserModule.query.filter_by(user_id=u.User_id, is_completed=True).all()
+            scores = [um.score for um in ums if um.score is not None]
+            if scores:
+                avg = sum(scores) / len(scores)
+                u.rating_star = max(1, min(5, int(round(avg / 20))))
+            else:
+                u.rating_star = 0
+        db.session.commit()
+        flash('Ratings recalculated', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to recalculate ratings: {e}', 'danger')
+    return redirect(url_for('admin_dashboard'))
+
+# ------------------------
+# User: My Certificates
+# ------------------------
+@app.route('/my_certificates')
+@login_required
+def my_certificates():
+    if isinstance(current_user, Admin):
+        return redirect(url_for('admin_dashboard'))
+    if isinstance(current_user, Trainer):
+        return redirect(url_for('trainer_portal'))
+    if not isinstance(current_user, User):
+        return redirect(url_for('login'))
+    certs = Certificate.query.filter_by(user_id=current_user.User_id).order_by(Certificate.issue_date.desc()).all()
+    return render_template('my_certificates.html', certificates=certs, user=current_user)
+
+# ------------------------
+# Admin: Certificates
+# ------------------------
+@app.route('/admin_certificates')
+@login_required
+def admin_certificates():
+    if not isinstance(current_user, Admin):
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
+    certificates = Certificate.query.order_by(Certificate.certificate_id.desc()).all()
+    # Determine current template URL if exists
+    tpl_path = os.path.join(app.root_path, 'static', 'cert_templates', 'Training_cert.pdf')
+    cert_template_url = _flask_url_for('static', filename='cert_templates/Training_cert.pdf') if os.path.exists(tpl_path) else None
+    return render_template('admin_certificates.html', certificates=certificates, cert_template_url=cert_template_url)
+
+@app.route('/admin_certificates/upload_template', methods=['POST'])
+@login_required
+def upload_cert_template():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    file = request.files.get('cert_template')
+    if not file or file.filename == '':
+        flash('No file selected', 'danger')
+        return redirect(url_for('admin_certificates'))
+    try:
+        target_dir = os.path.join(app.root_path, 'static', 'cert_templates')
+        os.makedirs(target_dir, exist_ok=True)
+        filename = secure_filename(file.filename)
+        target_path = os.path.join(target_dir, filename)
+        file.save(target_path)
+        flash('Template uploaded', 'success')
+    except Exception as e:
+        flash(f'Upload failed: {e}', 'danger')
+    return redirect(url_for('admin_certificates'))
+
+@app.route('/admin_certificates/delete', methods=['POST'])
+@login_required
+def delete_certificates_bulk():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    ids = request.form.getlist('cert_ids')
+    if not ids:
+        flash('No certificates selected', 'warning')
+        return redirect(url_for('admin_certificates'))
+    try:
+        for cid in ids:
+            c = Certificate.query.get(cid)
+            if c:
+                db.session.delete(c)
+        db.session.commit()
+        flash('Selected certificates deleted', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Deletion failed: {e}', 'danger')
+    return redirect(url_for('admin_certificates'))
+
+# ------------------------
+# Admin: Progress Monitor
+# ------------------------
+@app.route('/monitor_progress')
+@login_required
+def monitor_progress():
+    if not isinstance(current_user, Admin):
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
+    # Join user modules with users, modules, agencies
+    user_modules = (db.session.query(UserModule, User, Module, Agency)
+        .join(User, UserModule.user_id == User.User_id)
+        .join(Module, UserModule.module_id == Module.module_id)
+        .join(Agency, User.agency_id == Agency.agency_id)
+        .order_by(UserModule.completion_date.desc())
+        .all())
+    existing_certs = {(c.user_id, c.module_id) for c in Certificate.query.all()}
+    return render_template('monitor_progress.html', user_modules=user_modules, existing_certs=existing_certs)
+
+@app.route('/issue_certificate', methods=['POST'])
+@login_required
+def issue_certificate():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    user_id = request.form.get('user_id')
+    module_id = request.form.get('module_id')
+    if not user_id or not module_id:
+        flash('Missing user or module ID', 'danger')
+        return redirect(url_for('monitor_progress'))
+    um = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
+    module = Module.query.get(module_id)
+    if not um or not module:
+        flash('Record not found', 'danger')
+        return redirect(url_for('monitor_progress'))
+    if not um.is_completed or (um.score or 0) <= 50:
+        flash('User not eligible for certificate', 'warning')
+        return redirect(url_for('monitor_progress'))
+    try:
+        # Create certificate entry
+        rating = max(1, min(5, int(round((um.score or 0) / 20))))
+        cert = Certificate(user_id=um.user_id,
+                           module_id=um.module_id,
+                           module_type=module.module_type,
+                           issue_date=date.today(),
+                           star_rating=rating,
+                           score=(um.score or 0),
+                           certificate_url='#')
+        db.session.add(cert)
+        db.session.commit()
+        flash('Certificate issued', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to issue certificate: {e}', 'danger')
+    return redirect(url_for('monitor_progress'))
+
+# ------------------------
+# Admin: Agencies
+# ------------------------
+@app.route('/admin_agencies')
+@login_required
+def admin_agencies():
+    if not isinstance(current_user, Admin):
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        return redirect(url_for('login'))
+    agencies = Agency.query.order_by(Agency.agency_name.asc()).all()
+    return render_template('admin_agencies.html', agencies=agencies)
+
+@app.route('/admin_agencies/add', methods=['POST'])
+@login_required
+def add_agency():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    try:
+        a = Agency(
+            agency_name=request.form.get('agency_name'),
+            PIC=request.form.get('PIC'),
+            contact_number=request.form.get('contact_number'),
+            email=request.form.get('email'),
+            address=request.form.get('address'),
+            Reg_of_Company=request.form.get('Reg_of_Company')
+        )
+        db.session.add(a)
+        db.session.commit()
+        flash('Agency added', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to add agency: {e}', 'danger')
+    return redirect(url_for('admin_agencies'))
+
+@app.route('/admin_agencies/<int:agency_id>/edit', methods=['POST'])
+@login_required
+def edit_agency(agency_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    a = Agency.query.get_or_404(agency_id)
+    try:
+        a.agency_name = request.form.get('agency_name', a.agency_name)
+        a.PIC = request.form.get('PIC', a.PIC)
+        a.contact_number = request.form.get('contact_number', a.contact_number)
+        a.email = request.form.get('email', a.email)
+        a.address = request.form.get('address', a.address)
+        a.Reg_of_Company = request.form.get('Reg_of_Company', a.Reg_of_Company)
+        db.session.commit()
+        flash('Agency updated', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Failed to update agency: {e}', 'danger')
+    return redirect(url_for('admin_agencies'))
+
+# ------------------------
+# Legacy/stub routes
+# ------------------------
+@app.route('/admin_modules')
+@login_required
+def admin_modules():
+    # Redirect old modules page links to new course management
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    return redirect(url_for('admin_course_management'))
 
 # Initialize database function
 def init_db():
@@ -1444,983 +1657,75 @@ def user_courses_dashboard():
         return redirect(url_for('trainer_portal'))
     if not isinstance(current_user, User):
         return redirect(url_for('login'))
-    from models import UserCourseProgress
-    # Query all course progress for the current user
-    user_course_progress = UserCourseProgress.query.filter_by(user_id=current_user.user_id).all()
-    # Build a list of course dicts with progress and details
+
+    # Import required models
+    from models import UserCourseProgress, Course, Module, UserModule
+
+    # Determine eligible courses for this user based on allowed_category
+    user_category = current_user.user_category or 'citizen'
+    eligible_courses = Course.query.filter(
+        (Course.allowed_category == 'both') | (Course.allowed_category == user_category)
+    ).all()
+
+    # Fetch existing course progress rows for user (keyed by course_id)
+    progress_rows = {p.course_id: p for p in UserCourseProgress.query.filter_by(user_id=current_user.User_id).all()}
+
     user_courses = []
-    for progress in user_course_progress:
-        # For now, use course_id as name/id, since no Course model exists
-        user_courses.append({
-            'id': progress.course_id,
-            'name': f'Course {progress.course_id}',
-            'progress': 100 if progress.completed else 0,
-            'module_type': 'TNG' if 'TNG' in str(progress.course_id) else 'CSG'  # Example logic
-        })
-    return render_template('user_courses_dashboard.html', user=current_user, user_courses=user_courses)
-
-@app.route('/api/save_quiz', methods=['POST'])
-def api_save_quiz():
-    data = request.get_json()
-    module_id = data.get('module_id')
-    quiz = data.get('quiz')
-    if not module_id or quiz is None:
-        return jsonify({'success': False, 'error': 'Missing data'}), 400
-    module = Module.query.get(module_id)
-    if not module:
-        return jsonify({'success': False, 'error': 'Module not found'}), 404
-    module.quiz_json = json.dumps(quiz)
-    db.session.commit()
-    return jsonify({'success': True})
-
-@app.route('/api/load_quiz/<int:module_id>', methods=['GET'])
-def api_load_quiz(module_id):
-    from models import Module
-    module = Module.query.get(module_id)
-    if not module or not module.quiz_json:
-        return jsonify([])
-    try:
-        return jsonify(json.loads(module.quiz_json))
-    except Exception:
-        return jsonify([])
-
-@login_required
-@app.route('/api/submit_quiz/<int:module_id>', methods=['POST'])
-def api_submit_quiz(module_id):
-    module = Module.query.get(module_id)
-    if not module or not module.quiz_json:
-        return jsonify({'success': False, 'message': 'No quiz found.'})
-    quiz = json.loads(module.quiz_json)
-    data = request.get_json()
-    answers = data.get('answers', [])
-    is_reattempt = bool(data.get('is_reattempt'))
-    app.logger.debug(f'[QUIZ SUBMIT] module_id={module_id} is_reattempt={is_reattempt}')
-    correct = 0
-    total = len(quiz)
-    # Get user ID
-    user_id = None
-    if hasattr(current_user, 'User_id'):
-        user_id = current_user.User_id
-    elif hasattr(current_user, 'id'):
-        user_id = current_user.id
-
-    if not user_id:
-        return jsonify({'success': False, 'message': 'User not found.'}), 403
-
-    user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
-    if user_module:
-        app.logger.debug(f'[QUIZ SUBMIT] Existing user_module id={user_module.id} reattempt_count(before)={user_module.reattempt_count}')
-    # Prevent resubmission unless it's a reattempt
-    if user_module and user_module.is_completed and not is_reattempt:
-        app.logger.debug('[QUIZ SUBMIT] Blocking duplicate submit (not reattempt).')
-        return jsonify({'success': False, 'message': 'Quiz already completed. You cannot submit again.', 'score': user_module.score, 'feedback': 'Quiz already completed.'}), 403
-
-    # Calculate score
-    for idx, q in enumerate(quiz):
-        if idx < len(answers):
-            ans_idx = answers[idx]
-            if ans_idx is not None and 0 <= ans_idx < len(q['answers']):
-                if q['answers'][ans_idx].get('isCorrect') in [True, 'true', 'True', 1, '1']:
-                    correct += 1
-
-    score = int((correct / total) * 100) if total > 0 else 0
-    feedback = 'Great job!' if score >= 75 else ('Keep practicing.' if score >= 50 else 'Needs improvement.')
-
-    if not user_module:
-        user_module = UserModule(user_id=user_id, module_id=module_id, reattempt_count=0)
-        db.session.add(user_module)
-        app.logger.debug('[QUIZ SUBMIT] Created new user_module record.')
-    if is_reattempt:
-        user_module.reattempt_count = (user_module.reattempt_count or 0) + 1
-        app.logger.debug(f'[QUIZ SUBMIT] Incremented module reattempt_count to {user_module.reattempt_count}')
-        # Removed course-level reattempt sync: course reattempts now counted ONLY via /api/reattempt_course
-        # (Previously we incremented UserCourseProgress here.)
-    user_module.is_completed = True
-    user_module.score = score
-    user_module.completion_date = datetime.now()
-    import json as pyjson
-    user_module.quiz_answers = pyjson.dumps(answers)
-    db.session.commit()
-    app.logger.debug(f'[QUIZ SUBMIT] Final module reattempt_count={user_module.reattempt_count}')
-
-    # Ensure course-level progress record exists if all modules for this course are now completed
-    try:
-        from models import UserCourseProgress, Course
-        course = Course.query.filter(Course.code.ilike(module.module_type)).first()
-        if course:
-            all_course_modules = Module.query.filter_by(module_type=module.module_type).all()
-            all_ids = [m.module_id for m in all_course_modules]
-            completed_count = UserModule.query.filter_by(user_id=user_id, is_completed=True).filter(UserModule.module_id.in_(all_ids)).count()
-            if completed_count == len(all_ids) and len(all_ids) > 0:
-                ucp = UserCourseProgress.query.filter_by(user_id=user_id, course_id=course.course_id).first()
-                if not ucp:
-                    ucp = UserCourseProgress(user_id=user_id, course_id=course.course_id, reattempt_count=0)
-                    db.session.add(ucp)
-                    db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        app.logger.warning(f'Failed to ensure UserCourseProgress after quiz submit: {e}')
-
-    grade_letter = current_user.get_overall_grade_for_course(module.module_type) if hasattr(current_user, 'get_overall_grade_for_course') else user_module.get_grade_letter()
-
-    return jsonify({
-        'success': True,
-        'score': score,
-        'feedback': feedback,
-        'reattempt_count': user_module.reattempt_count,
-        'grade_letter': grade_letter
-    })
-
-@app.route('/admin/agencies')
-@login_required
-def admin_agencies():
-    if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-    agencies = Agency.query.all()
-    return render_template('admin_agencies.html', agencies=agencies)
-
-@app.route('/admin/add_agency', methods=['POST'])
-@login_required
-def add_agency():
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
-    agency_name = request.form.get('agency_name')
-    PIC = request.form.get('PIC')
-    contact_number = request.form.get('contact_number')
-    email = request.form.get('email')
-    address = request.form.get('address')
-    Reg_of_Company = request.form.get('Reg_of_Company')
-    new_agency = Agency(
-        agency_name=agency_name,
-        PIC=PIC,
-        contact_number=contact_number,
-        email=email,
-        address=address,
-        Reg_of_Company=Reg_of_Company
-    )
-    db.session.add(new_agency)
-    db.session.commit()
-    flash('Agency added successfully!', 'success')
-    return redirect(url_for('admin_agencies'))
-
-@app.route('/admin/edit_agency/<int:agency_id>', methods=['POST'])
-@login_required
-def edit_agency(agency_id):
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
-    agency = Agency.query.get_or_404(agency_id)
-    agency.agency_name = request.form.get('agency_name')
-    agency.PIC = request.form.get('PIC')
-    agency.contact_number = request.form.get('contact_number')
-    agency.email = request.form.get('email')
-    agency.address = request.form.get('address')
-    agency.Reg_of_Company = request.form.get('Reg_of_Company')
-    db.session.commit()
-    flash('Agency updated successfully!', 'success')
-    return redirect(url_for('admin_agencies'))
-
-@app.route('/admin/reset_user_progress', methods=['POST'])
-@login_required
-def reset_user_progress():
-    if not hasattr(current_user, 'role') or current_user.role != 'admin':
-        return jsonify({'error': 'Unauthorized'}), 403
-    user_id = request.form.get('user_id')
-    if not user_id:
-        return jsonify({'error': 'User ID required'}), 400
-    try:
-        uid = int(user_id)
-    except ValueError:
-        return jsonify({'error': 'Invalid user ID'}), 400
-    user = User.query.get(uid)
-    if not user:
-        return jsonify({'error': f'User {user_id} not found'}), 404
-    # Reset per-module progress
-    user_modules = UserModule.query.filter_by(user_id=uid).all()
-    for um in user_modules:
-        um.is_completed = False
-        um.score = 0.0
-        um.completion_date = None
-    # Reset user rating
-    user.rating_star = 0
-    user.rating_label = ''
-    db.session.commit()
-    return jsonify({'success': True, 'message': f'Progress and rating reset for user {user_id}.'})
-
-@app.route('/clear_slide/<int:module_id>', methods=['POST'])
-def clear_slide(module_id):
-    module = Module.query.get(module_id)
-    if module and module.slide_url:
-        # Optionally, delete the file from disk
-        slide_path = os.path.join(app.root_path, 'instance', 'uploads', module.slide_url)
-        if os.path.exists(slide_path):
-            try:
-                os.remove(slide_path)
-            except Exception:
-                pass  # Ignore file delete errors
-        module.slide_url = None
-        db.session.commit()
-        return jsonify({'success': True})
-    return jsonify({'success': False, 'error': 'Module or slide not found'}), 404
-
-@app.route('/api/user_quiz_answers/<int:module_id>', methods=['GET'])
-@login_required
-def api_user_quiz_answers(module_id):
-    from models import UserModule
-    user_id = None
-    if hasattr(current_user, 'User_id'):
-        user_id = current_user.User_id
-    elif hasattr(current_user, 'id'):
-        user_id = current_user.id
-    if not user_id:
-        return jsonify([])
-    user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
-    if user_module and user_module.quiz_answers:
-        try:
-            return jsonify(json.loads(user_module.quiz_answers))
-        except Exception:
-            return jsonify([])
-    return jsonify([])
-
-@app.route('/api/save_quiz_progress/<int:module_id>', methods=['POST'])
-@login_required
-def api_save_quiz_progress(module_id):
-    data = request.get_json()
-    partial_answers = data.get('partial_answers', [])
-    user_id = getattr(current_user, 'User_id', getattr(current_user, 'id', None))
-    if not user_id:
-        return jsonify({'success': False, 'error': 'User not found'}), 403
-    user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
-    if not user_module:
-        user_module = UserModule(user_id=user_id, module_id=module_id)
-        db.session.add(user_module)
-    user_module.quiz_partial_answers = json.dumps(partial_answers)
-    db.session.commit()
-    return jsonify({'success': True})
-
-@app.route('/api/get_quiz_progress/<int:module_id>', methods=['GET'])
-@login_required
-def api_get_quiz_progress(module_id):
-    user_id = getattr(current_user, 'User_id', getattr(current_user, 'id', None))
-    if not user_id:
-        return jsonify([])
-    user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
-    if user_module and user_module.quiz_partial_answers:
-        try:
-            return jsonify(json.loads(user_module.quiz_partial_answers))
-        except Exception:
-            return jsonify([])
-    return jsonify([])
-
-@app.route('/api/complete_quiz', methods=['POST'])
-def api_complete_quiz():
-    module = Module.query.get(module_id)
-    if not module or not module.quiz_json:
-        return jsonify({'success': False, 'message': 'No quiz found.'})
-    quiz = json.loads(module.quiz_json)
-    data = request.get_json()
-    answers = data.get('answers', [])
-    is_reattempt = data.get('is_reattempt', False)
-    correct = 0
-    total = len(quiz)
-
-    # Get user ID
-    user_id = None
-    if hasattr(current_user, 'User_id'):
-        user_id = current_user.User_id
-    elif hasattr(current_user, 'id'):
-        user_id = current_user.id
-
-    if not user_id:
-        return jsonify({'success': False, 'message': 'User not found.'}), 403
-
-    # Check existing completion status
-    user_module = UserModule.query.filter_by(user_id=user_id, module_id=module_id).first()
-
-    # Prevent resubmission unless it's a reattempt
-    if user_module and user_module.is_completed and not is_reattempt:
-        return jsonify({'success': False, 'message': 'Quiz already completed. You cannot submit again.', 'score': user_module.score, 'feedback': 'Quiz already completed.'}), 403
-
-    # Calculate score
-    for idx, q in enumerate(quiz):
-        if idx < len(answers):
-            ans_idx = answers[idx]
-            if ans_idx is not None and 0 <= ans_idx < len(q['answers']):
-                if q['answers'][ans_idx].get('isCorrect') in [True, 'true', 'True', 1, '1']:
-                    correct += 1
-
-    score = int((correct / total) * 100) if total > 0 else 0
-    feedback = 'Great job!' if score >= 75 else ('Keep practicing.' if score >= 50 else 'Needs improvement.')
-
-    if not user_module:
-        user_module = UserModule(user_id=user_id, module_id=module_id, reattempt_count=0)
-        db.session.add(user_module)
-
-    # If this is a reattempt, increment the count
-    if is_reattempt:
-        user_module.reattempt_count = (user_module.reattempt_count or 0) + 1
-        app.logger.debug(f'[QUIZ SUBMIT] Incremented module reattempt_count to {user_module.reattempt_count}')
-        # Removed course-level reattempt sync here as well.
-    user_module.is_completed = True
-    user_module.score = score
-    user_module.completion_date = datetime.now()
-    import json as pyjson
-    user_module.quiz_answers = pyjson.dumps(answers)
-    db.session.commit()
-
-    # Ensure course-level progress record exists if all modules for this course are now completed
-    try:
-        from models import UserCourseProgress, Course
-        course = Course.query.filter(Course.code.ilike(module.module_type)).first()
-        if course:
-            all_course_modules = Module.query.filter_by(module_type=module.module_type).all()
-            all_ids = [m.module_id for m in all_course_modules]
-            completed_count = UserModule.query.filter_by(user_id=user_id, is_completed=True).filter(UserModule.module_id.in_(all_ids)).count()
-            if completed_count == len(all_ids) and len(all_ids) > 0:
-                ucp = UserCourseProgress.query.filter_by(user_id=user_id, course_id=course.course_id).first()
-                if not ucp:
-                    ucp = UserCourseProgress(user_id=user_id, course_id=course.course_id, reattempt_count=0)
-                    db.session.add(ucp)
-                    db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        app.logger.warning(f'Failed to ensure UserCourseProgress after quiz submit: {e}')
-
-    grade_letter = current_user.get_overall_grade_for_course(module.module_type) if hasattr(current_user, 'get_overall_grade_for_course') else user_module.get_grade_letter()
-
-    return jsonify({
-        'success': True,
-        'score': score,
-        'feedback': feedback,
-        'reattempt_count': user_module.reattempt_count,
-        'grade_letter': grade_letter
-    })
-
-@app.route('/admin/certificates')
-@login_required
-def admin_certificates():
-    # Admin-only access guard consistent with other admin routes
-    if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-
-    # Fetch all certificates (newest first)
-    certificates = Certificate.query.order_by(Certificate.issue_date.desc()).all()
-
-    # Determine current template availability
-    template_rel_path = os.path.join('static', 'cert_templates', 'Training_cert.pdf')
-    cert_template_url = None
-    if os.path.exists(template_rel_path):
-        cert_template_url = url_for('static', filename='cert_templates/Training_cert.pdf')
-
-    # Backfill certificate_url if missing (legacy rows)
-    updated = False
-    for cert in certificates:
-        if not cert.certificate_url:
-            expected_path = os.path.join('static', 'certificates', f"certificate_{cert.user_id}_{cert.module_type}.pdf")
-            if os.path.exists(expected_path):
-                cert.certificate_url = expected_path.replace('static/', '/static/')
-                updated = True
-            else:
-                # Fallback to a no-op anchor to avoid broken links
-                cert.certificate_url = '#'
-    if updated:
-        try:
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-    return render_template('admin_certificates.html', certificates=certificates, cert_template_url=cert_template_url)
-
-@app.route('/admin/upload_cert_template', methods=['POST'])
-@login_required
-def upload_cert_template():
-    from werkzeug.utils import secure_filename
-    if not hasattr(current_user, 'role') or current_user.role != 'admin':
-        flash('Unauthorized', 'danger')
-        return redirect(url_for('admin_certificates'))
-    file = request.files.get('cert_template')
-    if not file:
-        flash('No file selected', 'danger')
-        return redirect(url_for('admin_certificates'))
-    filename = secure_filename(file.filename)
-    cert_folder = os.path.join('static', 'cert_templates')
-    os.makedirs(cert_folder, exist_ok=True)
-    save_path = os.path.join(cert_folder, 'Training_cert.pdf')
-    file.save(save_path)
-    flash('Certificate template uploaded successfully!', 'success')
-    return redirect(url_for('admin_certificates'))
-
-@app.route('/admin/delete_certificate/<int:cert_id>', methods=['POST'])
-@login_required
-def delete_certificate(cert_id):
-    if not isinstance(current_user, Admin):
-        flash('Unauthorized action.')
-        return redirect(url_for('admin_certificates'))
-    from models import Certificate, db
-    certificate = Certificate.query.get_or_404(cert_id)
-    db.session.delete(certificate)
-    db.session.commit()
-    flash('Certificate deleted successfully!')
-    return redirect(url_for('admin_certificates'))
-
-@app.route('/admin/delete_certificates_bulk', methods=['POST'])
-@login_required
-def delete_certificates_bulk():
-    if not hasattr(current_user, 'role') or current_user.role != 'admin':
-        flash('Unauthorized action.')
-        return redirect(url_for('admin_certificates'))
-    from models import Certificate, db
-    cert_ids = request.form.getlist('cert_ids')
-    if not cert_ids:
-        flash('No certificates selected.', 'warning')
-        return redirect(url_for('admin_certificates'))
-    deleted = 0
-    for cert_id in cert_ids:
-        cert = Certificate.query.get(cert_id)
-        if cert:
-            db.session.delete(cert)
-            deleted += 1
-    db.session.commit()
-    flash(f'{deleted} certificate(s) deleted successfully!', 'success')
-    return redirect(url_for('admin_certificates'))
-
-@app.route('/admin/assign_trainer', methods=['GET', 'POST'])
-@login_required
-def assign_trainer():
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
-    from models import User, Trainer
-    users = User.query.all()
-    trainers = Trainer.query.all()
-    if request.method == 'POST':
-        user_id = request.form.get('user_id')
-        trainer_id = request.form.get('trainer_id')
-        user = User.query.get(user_id)
-        if user and trainer_id:
-            user.trainer_id = trainer_id
-            from models import db
-            db.session.commit()
-            flash('Trainer assigned successfully!', 'success')
-        return redirect(url_for('assign_trainer'))
-    return render_template('assign_trainer.html', users=users, trainers=trainers)
-
-@app.route('/admin/users')
-@login_required
-def admin_users():
-    if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-    users = Registration.getUserList()
-    trainers = Trainer.query.order_by(Trainer.name.asc()).all()
-    modules = Module.query.order_by(Module.module_type.asc()).all()
-    # Added courses for course-only assignment in account management
-    courses = Course.query.order_by(Course.name.asc()).all()
-    return render_template('admin_accounts.html', users=users, trainers=trainers, modules=modules, courses=courses)
-
-# --- Trainer management endpoints for account management page ---
-@app.route('/admin/trainer/<int:trainer_id>/update', methods=['POST'])
-@login_required
-def update_trainer(trainer_id):
-    if not isinstance(current_user, Admin):
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
-    trainer = Trainer.query.get_or_404(trainer_id)
-    name = request.form.get('name')
-    email = request.form.get('email')
-    course = request.form.get('course')  # now storing course code only
-    availability = request.form.get('availability')
-    contact_number_raw = request.form.get('contact_number', '').strip()
-    # Update fields if provided
-    if name: trainer.name = name
-    if email: trainer.email = email
-    trainer.course = course if course else None
-    trainer.availability = availability
-    # Contact number sanitation
-    if contact_number_raw == '':
-        trainer.contact_number = None
-    else:
-        # Accept only digits; reject otherwise
-        if contact_number_raw.isdigit():
-            try:
-                trainer.contact_number = int(contact_number_raw)
-            except ValueError:
-                return jsonify({'success': False, 'message': 'Contact number out of range'}), 400
-        else:
-            return jsonify({'success': False, 'message': 'Invalid contact number (digits only)'}), 400
-    # Clear module assignment (course-level only for now)
-    trainer.module_id = None
-    try:
-        db.session.commit()
-        return jsonify({'success': True, 'trainer': {
-            'id': trainer.trainer_id,
-            'name': trainer.name,
-            'email': trainer.email,
-            'course': trainer.course,
-            'availability': trainer.availability,
-            'contact_number': trainer.contact_number if trainer.contact_number is not None else '',
-            'active_status': trainer.active_status
-        }})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/admin/trainer/<int:trainer_id>/toggle_active', methods=['POST'])
-@login_required
-def toggle_trainer_active(trainer_id):
-    if not isinstance(current_user, Admin):
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
-    trainer = Trainer.query.get_or_404(trainer_id)
-    trainer.active_status = not trainer.active_status
-    try:
-        db.session.commit()
-        return jsonify({'success': True, 'active_status': trainer.active_status})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/admin/trainer/<int:trainer_id>/delete', methods=['POST'])
-@login_required
-def delete_trainer(trainer_id):
-    if not isinstance(current_user, Admin):
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
-    trainer = Trainer.query.get_or_404(trainer_id)
-    try:
-        db.session.delete(trainer)
-        db.session.commit()
-        return jsonify({'success': True})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/admin/monitor_progress')
-@login_required
-def monitor_progress():
-    if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-    # Gather user module progress with related user, module, agency
-    user_modules = []
-    try:
-        # Eager load minimal fields
-        all_user_modules = UserModule.query.all()
-        # Build cert lookup
-        existing_certs = {(c.user_id, c.module_id) for c in Certificate.query.all()}
-        # Cache lookups to reduce queries
-        users_cache = {u.User_id: u for u in User.query.all()}
-        modules_cache = {m.module_id: m for m in Module.query.all()}
-        agencies_cache = {a.agency_id: a for a in Agency.query.all()}
-        for um in all_user_modules:
-            user = users_cache.get(um.user_id)
-            module = modules_cache.get(um.module_id)
-            agency = agencies_cache.get(user.agency_id) if user else None
-            if user and module and agency:
-                user_modules.append((um, user, module, agency))
-    except Exception as e:
-        flash(f'Error loading progress: {e}', 'danger')
-        user_modules = []
-        existing_certs = set()
-    return render_template('monitor_progress.html', user_modules=user_modules, existing_certs=existing_certs)
-
-@app.route('/admin/issue_certificate', methods=['POST'])
-@login_required
-def issue_certificate():
-    if not isinstance(current_user, Admin):
-        flash('Unauthorized', 'danger')
-        return redirect(url_for('monitor_progress'))
-    user_id = request.form.get('user_id')
-    module_id = request.form.get('module_id')
-    if not user_id or not module_id:
-        flash('Missing user or module id', 'warning')
-        return redirect(url_for('monitor_progress'))
-    try:
-        uid = int(user_id)
-        mid = int(module_id)
-    except ValueError:
-        flash('Invalid identifiers supplied', 'danger')
-        return redirect(url_for('monitor_progress'))
-    user_module = UserModule.query.filter_by(user_id=uid, module_id=mid).first()
-    module = Module.query.get(mid)
-    user = User.query.get(uid)
-    if not user or not module or not user_module:
-        flash('Record not found', 'danger')
-        return redirect(url_for('monitor_progress'))
-    if not user_module.is_completed or user_module.score < 50:
-        flash('User not eligible for certificate (must complete with score >= 50).', 'warning')
-        return redirect(url_for('monitor_progress'))
-    # Prevent duplicates
-    existing_cert = Certificate.query.filter_by(user_id=uid, module_id=mid).order_by(Certificate.issue_date.desc()).first()
-    if existing_cert:
-        flash('Certificate already issued for this module.', 'info')
-        return redirect(url_for('monitor_progress'))
-    # Compute overall percentage across course/module_type for better rating consistency
-    course_type = module.module_type
-    related_modules = Module.query.filter_by(module_type=course_type).all()
-    related_ids = [m.module_id for m in related_modules]
-    completed_related = UserModule.query.filter_by(user_id=uid, is_completed=True).filter(UserModule.module_id.in_(related_ids)).all()
-    total_correct = 0
-    total_questions = 0
-    import json as pyjson
-    for um in completed_related:
-        if um.quiz_answers:
-            try:
-                selected = pyjson.loads(um.quiz_answers)
-                mod = modules_cache.get(um.module_id) if 'modules_cache' in globals() else Module.query.get(um.module_id)
-                if mod and mod.quiz_json:
-                    quiz = pyjson.loads(mod.quiz_json)
-                for idx, sel in enumerate(selected):
-                    if idx < len(quiz):
-                        answers = quiz[idx].get('answers', [])
-                        total_questions += 1
-                        if isinstance(sel, int) and 0 <= sel < len(answers):
-                            if answers[sel].get('isCorrect') in [True, 'true', 'True', 1, '1']:
-                                total_correct += 1
-            except Exception:
-                continue
-    overall_percentage = int((total_correct / total_questions) * 100) if total_questions else int(user_module.score)
-    try:
-        from generate_certificate import generate_certificate
-        generate_certificate(uid, course_type, overall_percentage)
-        flash('Certificate issued successfully!', 'success')
-    except Exception as e:
-        flash(f'Failed to generate certificate: {e}', 'danger')
-    return redirect(url_for('monitor_progress'))
-
-@app.route('/admin/recalculate_ratings')
-@login_required
-def recalculate_ratings():
-    if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-    try:
-        users = User.query.all()
-        for user in users:
-            completed = [um for um in user.user_modules if um.is_completed]
-            if not completed:
-                user.rating_star = 0
-                user.rating_label = ''
-                continue
-            avg_score = sum(um.score for um in completed) / len(completed)
-            if avg_score < 50:
-                stars = 1; label = 'Needs Improvement'
-            elif avg_score > 75:
-                stars = 5; label = 'Great Job'
-            else:
-                stars = 3; label = 'Keep Practicing'
-            user.rating_star = stars
-            user.rating_label = label
-        db.session.commit()
-        flash('User ratings recalculated.', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Error recalculating ratings: {e}', 'danger')
-    return redirect(url_for('admin_dashboard'))
-
-@app.route('/admin/modules/create', methods=['GET', 'POST'])
-@login_required
-def create_module():
-    if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-    if request.method == 'POST':
-        module_name = request.form.get('module_name')
-        module_type = request.form.get('module_type')
-        series_number = request.form.get('series_number')
-        content = request.form.get('content')
-        if not module_name or not module_type:
-            flash('Module name and type are required', 'danger')
-            return render_template('create_module.html')
-        # Create legacy/standalone module (course_id left null). Keeps backward compat with old templates.
-        m = Module(module_name=module_name.strip(),
-                   module_type=module_type.strip().upper(),
-                   series_number=series_number.strip() if series_number else None,
-                   content=content)
-        db.session.add(m)
-        try:
-            db.session.commit()
-            flash('Module created', 'success')
-            return redirect(url_for('admin_course_management'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error creating module: {e}', 'danger')
-    return render_template('create_module.html')
-
-@app.route('/admin/create_user', methods=['GET', 'POST'])
-@login_required
-def create_user():
-    # Only admins can access
-    if not isinstance(current_user, Admin):
-        if isinstance(current_user, User):
-            return redirect(url_for('user_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-    if request.method == 'POST':
-        full_name = request.form.get('full_name', '').strip()
-        email = request.form.get('email', '').strip().lower()
-        password = request.form.get('password')
-        role = request.form.get('role')
-        if not full_name or not email or not password or role not in ['admin', 'trainer']:
-            flash('All fields are required and role must be admin or trainer', 'danger')
-            return render_template('create_user.html')
-        # Prevent duplicate across Admin & Trainer tables
-        existing_admin = Admin.query.filter_by(email=email).first()
-        existing_trainer = Trainer.query.filter_by(email=email).first()
-        if existing_admin or existing_trainer:
-            flash('Email already in use', 'danger')
-            return render_template('create_user.html')
-        try:
-            if role == 'admin':
-                new_admin = Admin(username=full_name, email=email)
-                new_admin.set_password(password)
-                db.session.add(new_admin)
-            else:  # trainer
-                # Generate prefixed number_series TRYYYYNNNN
-                from datetime import datetime, UTC
-                year = datetime.now(UTC).strftime('%Y')
-                prefix = f'TR{year}'
-                # Find max existing sequence for this year
-                existing_series = [t.number_series for t in Trainer.query.filter(Trainer.number_series.like(f'{prefix}%')).all() if t.number_series]
-                next_seq = 1
-                if existing_series:
-                    try:
-                        seq_numbers = []
-                        for s in existing_series:
-                            tail = s.replace(prefix, '')
-                            if tail.isdigit():
-                                seq_numbers.append(int(tail))
-                        if seq_numbers:
-                            next_seq = max(seq_numbers) + 1
-                    except Exception:
-                        pass
-                series = f"{prefix}{str(next_seq).zfill(4)}"
-                new_trainer = Trainer(name=full_name, email=email, active_status=True, number_series=series)
-                new_trainer.set_password(password)
-                db.session.add(new_trainer)
-            db.session.commit()
-            flash(f'{role.capitalize()} account created successfully', 'success')
-            return redirect(url_for('admin_users'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error creating account: {e}', 'danger')
-    return render_template('create_user.html')
-
-@app.route('/admin/user/delete', methods=['POST'])
-@login_required
-def delete_user():
-    if not isinstance(current_user, Admin):
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
-    user_id = request.form.get('user_id') or request.json.get('user_id') if request.is_json else None
-    if not user_id:
-        return jsonify({'success': False, 'message': 'user_id required'}), 400
-    try:
-        uid = int(user_id)
-    except ValueError:
-        return jsonify({'success': False, 'message': 'Invalid user_id'}), 400
-    user = User.query.get(uid)
-    if not user:
-        return jsonify({'success': False, 'message': 'User not found'}), 404
-    try:
-        # Delete related objects explicitly (if no cascading FK constraints)
-        UserModule.query.filter_by(user_id=uid).delete()
-        Certificate.query.filter_by(user_id=uid).delete()
-        try:
-            from models import WorkHistory
-            WorkHistory.query.filter_by(user_id=uid).delete()
-        except Exception:
-            pass
-        db.session.delete(user)
-        db.session.commit()
-        return jsonify({'success': True, 'message': f'User {uid} deleted'})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': f'Error deleting user: {e}'})
-
-@app.route('/api/complete_course', methods=['POST'])
-@login_required
-def api_complete_course():
-    """Complete a course explicitly from Courses page and auto-issue certificate if eligible.
-    Expects JSON: {course_code: "TNG"}
-    Success if user has completed all modules for that course and overall course score >=50.
-    Returns certificate_url if newly generated or already exists."""
-    if not isinstance(current_user, User):
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
-    try:
-        data = request.get_json(silent=True) or {}
-        course_code = (data.get('course_code') or '').strip().upper()
-        if not course_code:
-            return jsonify({'success': False, 'message': 'course_code missing'}), 400
-        course = Course.query.filter_by(code=course_code).first()
-        if not course:
-            return jsonify({'success': False, 'message': 'Course not found'}), 404
-        if course.allowed_category not in ['both', current_user.user_category]:
-            return jsonify({'success': False, 'message': 'Course not allowed for your category'}), 403
-        modules = course.modules
-        if not modules:
-            modules = Module.query.filter(Module.module_type == course_code).all()
-        module_ids = [m.module_id for m in modules]
-        if not module_ids:
-            return jsonify({'success': False, 'message': 'No modules defined for this course yet'}), 400
-        user_modules = UserModule.query.filter_by(user_id=current_user.User_id, is_completed=True).\
-            filter(UserModule.module_id.in_(module_ids)).all()
-        all_completed = len(user_modules) == len(module_ids)
-        if not all_completed:
-            return jsonify({'success': False, 'message': 'You have not completed all modules yet'}), 400
-        # Compute overall_percentage (aggregate quiz correctness; fallback to avg score)
-        import json as pyjson
-        total_correct = 0
-        total_questions = 0
-        for um in user_modules:
-            if not um.quiz_answers:
-                continue
-            try:
-                selected_indices = pyjson.loads(um.quiz_answers)
-            except Exception:
-                continue
-            module_obj = next((m for m in modules if m.module_id == um.module_id), None)
-            if module_obj and module_obj.quiz_json:
-                try:
-                    quiz = pyjson.loads(module_obj.quiz_json)
-                except Exception:
-                    quiz = []
-                for idx, sel in enumerate(selected_indices):
-                    if idx < len(quiz):
-                        answers = quiz[idx].get('answers', [])
-                        total_questions += 1
-                        if isinstance(sel, int) and 0 <= sel < len(answers):
-                            if answers[sel].get('isCorrect') in [True, 'true', 'True', 1, '1']:
-                                total_correct += 1
-        overall_percentage = int((total_correct / total_questions) * 100) if total_questions else int(user_module.score)
-        if overall_percentage < 50:
-            return jsonify({'success': False, 'message': f'Course average score {overall_percentage}% is below 50%. Improve any module score and retry.', 'overall_percentage': overall_percentage}), 400
-        # Update user rating based on overall_percentage (aligned with certificate star logic thresholds)
-        if overall_percentage < 20:
-            stars = 1
-        elif overall_percentage < 40:
-            stars = 2
-        elif overall_percentage < 60:
-            stars = 3
-        elif overall_percentage < 70:
-            stars = 4
-        else:
-            stars = 5
-        if overall_percentage < 50:
-            label = 'Needs Improvement'
-        elif overall_percentage > 75:
-            label = 'Great Job'
-        else:
-            label = 'Keep Practicing'
-        try:
-            current_user.rating_star = stars
-            current_user.rating_label = label
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-        # Correct certificate lookup by module_type
-        existing_cert = Certificate.query.filter_by(user_id=current_user.User_id, module_type=course_code).order_by(Certificate.issue_date.desc()).first()
-        if existing_cert:
-            return jsonify({'success': True, 'message': 'Certificate already issued previously', 'certificate_url': existing_cert.certificate_url, 'overall_percentage': overall_percentage, 'stars': stars, 'rating_label': label})
-        try:
-            from generate_certificate import generate_certificate
-            cert_path = generate_certificate(current_user.User_id, course_code, overall_percentage)
-        except Exception as e:
-            app.logger.exception('Certificate generation failed')
-            return jsonify({'success': False, 'message': f'Certificate generation failed: {e}'}), 500
-        new_cert = Certificate.query.filter_by(user_id=current_user.User_id, module_type=course_code).order_by(Certificate.issue_date.desc()).first()
-        cert_url = new_cert.certificate_url if new_cert else None
-        return jsonify({'success': True, 'certificate_url': cert_url, 'overall_percentage': overall_percentage, 'stars': stars, 'rating_label': label})
-    except Exception as e:
-        app.logger.exception('Unexpected error completing course')
-        return jsonify({'success': False, 'message': f'Unexpected error: {e}'}), 500
-
-@app.route('/api/reattempt_course/<string:course_code>', methods=['POST'])
-@login_required
-def api_reattempt_course(course_code: str):
-    """Reset a course's module progress so user can reattempt (allowed if completed but under threshold)."""
-    if not isinstance(current_user, User):
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
-    code = (course_code or '').strip().upper()
-    course = Course.query.filter_by(code=code).first()
-    if not course:
-        return jsonify({'success': False, 'message': 'Course not found'}), 404
-    if course.allowed_category not in ['both', current_user.user_category]:
-        return jsonify({'success': False, 'message': 'Course not allowed for your category'}), 403
-    modules = course.modules
-    if not modules:
-        modules = Module.query.filter(Module.module_type == code).all()
-    if not modules:
-        return jsonify({'success': False, 'message': 'No modules for this course'}), 400
-    module_ids = [m.module_id for m in modules]
-    # Determine current overall percentage (like above) to ensure reattempt makes sense
-    import json as pyjson
-    user_modules = UserModule.query.filter_by(user_id=current_user.User_id).filter(UserModule.module_id.in_(module_ids)).all()
-    total_correct = 0; total_questions = 0
-    for um in user_modules:
-        if not um.quiz_answers:
+    created_any = False
+    for course in eligible_courses:
+        code_u = (course.code or '').upper()
+        # Hard mapping guard: hide CSG for foreigners and TNG for citizens
+        if (code_u == 'CSG' and user_category != 'citizen') or (code_u == 'TNG' and user_category != 'foreigner'):
             continue
-        try:
-            selected_indices = pyjson.loads(um.quiz_answers)
-        except Exception:
-            continue
-        module_obj = next((m for m in modules if m.module_id == um.module_id), None)
-        if module_obj and module_obj.quiz_json:
-            try:
-                quiz = pyjson.loads(module_obj.quiz_json)
-            except Exception:
-                quiz = []
-            for idx, sel in enumerate(selected_indices):
-                if idx < len(quiz):
-                    answers = quiz[idx].get('answers', [])
-                    total_questions += 1
-                    if isinstance(sel, int) and 0 <= sel < len(answers):
-                        if answers[sel].get('isCorrect') in [True, 'true', 'True', 1, '1']:
-                            total_correct += 1
-    overall_percentage = int((total_correct / total_questions) * 100) if total_questions else 0
-    has_cert = Certificate.query.filter_by(user_id=current_user.User_id, module_type=code).first() is not None
-    # Correct all_completed calculation without undefined user_progress
-    all_completed = len([um for um in user_modules if um.is_completed]) == len(module_ids)
-    if not (all_completed or has_cert):
-        return jsonify({'success': False, 'message': 'You must finish the course before reattempting'}), 400
-    if overall_percentage >= 50:
-        return jsonify({'success': False, 'message': 'Reattempt allowed only if overall score below 50%'}), 400
-    # Reset
-    for um in user_modules:
-        if um.module_id in module_ids:
-            um.is_completed = False
-            um.score = 0
-            um.quiz_answers = None
-            um.completion_date = None
-    try:
-        # Increment / create course progress reattempt_count
-        from models import UserCourseProgress
-        ucp = UserCourseProgress.query.filter_by(user_id=current_user.User_id, course_id=course.course_id).first()
+        # Gather modules belonging to this course
+        course_modules = Module.query.filter_by(course_id=course.course_id).all()
+        if not course_modules:
+            course_modules = Module.query.filter(Module.module_type == code_u).all()
+        module_ids = [m.module_id for m in course_modules]
+        total = len(module_ids)
+        if total:
+            completed_count = UserModule.query.filter(
+                UserModule.user_id == current_user.User_id,
+                UserModule.is_completed.is_(True),
+                UserModule.module_id.in_(module_ids)
+            ).count()
+        else:
+            completed_count = 0
+        progress_pct = int((completed_count / total) * 100) if total > 0 else 0
+        is_complete = total > 0 and completed_count == total
+
+        # Ensure a UserCourseProgress row exists so other grade logic works
+        ucp = progress_rows.get(course.course_id)
         if not ucp:
-            ucp = UserCourseProgress(user_id=current_user.User_id, course_id=course.course_id, reattempt_count=1)
+            ucp = UserCourseProgress(user_id=current_user.User_id, course_id=course.course_id, completed=is_complete)
             db.session.add(ucp)
+            progress_rows[course.course_id] = ucp
+            created_any = True
         else:
-            ucp.reattempt_count = (ucp.reattempt_count or 0) + 1
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': f'Failed to record course reattempt: {e}'}), 500
-    course_grade = current_user.get_overall_grade_for_course(code)
-    return jsonify({'success': True, 'message': 'Course progress reset', 'overall_percentage_before_reset': overall_percentage, 'course_grade': course_grade, 'course_reattempt_count': ucp.reattempt_count})
+            # Update completion flag if status changed
+            if ucp.completed != is_complete:
+                ucp.completed = is_complete
+        user_courses.append({
+            'id': course.course_id,
+            'name': course.name,
+            'progress': progress_pct,
+            'module_type': course.code
+        })
+
+    if created_any:
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.warning(f"Failed committing new UserCourseProgress rows: {e}")
+    else:
+        # Commit only if any existing progress rows updated
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    return render_template('user_courses_dashboard.html', user=current_user, user_courses=user_courses)
 
 # --- Application entrypoint ---
 if __name__ == '__main__':

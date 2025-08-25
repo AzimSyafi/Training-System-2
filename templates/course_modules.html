@@ -24,8 +24,13 @@
   {% set first_incomplete_found = false %}
   {% for module in modules %}
     {% set user_module = user_progress.get(module.module_id) %}
+    {% set anchor_id = '' %}
+    {% if module.unlocked and (not user_module or not user_module.is_completed) and not first_incomplete_found %}
+      {% set anchor_id = 'next' %}
+      {% set first_incomplete_found = true %}
+    {% endif %}
     {% set open_module = False %} {# Always closed by default #}
-    <div class="card shadow mb-6">
+    <div class="card shadow mb-6" id="{{ anchor_id }}">
       <div class="card-header bg-blue-800 text-white p-4 flex justify-between items-center {% if not module.unlocked %}opacity-60 cursor-not-allowed{% else %}cursor-pointer{% endif %}" {% if module.unlocked %}onclick="toggleModule('{{ module.module_id }}')"{% endif %}>
         <div class="flex items-center">
           <h3 class="text-xl font-bold mr-2">{{ module.module_name }}</h3>

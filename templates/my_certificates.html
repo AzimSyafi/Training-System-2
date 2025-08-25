@@ -40,7 +40,7 @@
                                     <strong>{{ module_type_map.get(certificate.module_type, certificate.module_type) }}</strong><br>
                                     <strong>Issue Date:</strong> {{ certificate.issue_date.strftime('%B %d, %Y') }}<br>
                                     <strong>Star Rating:</strong>
-                                    {% set percent = overall_percentage %}
+                                    {% set percent = certificate.score if certificate.score is not none else 0 %}
                                     {% if percent < 20 %}
                                         {% set stars = 1 %}
                                     {% elif percent < 40 %}
