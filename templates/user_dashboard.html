@@ -96,7 +96,7 @@
         {% endif %}
         <div class="stat-change">
           {%- if rating_unlocked and grade != 'N/A' %}
-            Grade: {{ grade }}
+            Course Grade: {{ grade }}
           {%- elif rating_unlocked and user.rating_label %}
             {{ user.rating_label }}
           {%- else %}

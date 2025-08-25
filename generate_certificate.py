@@ -46,17 +46,11 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None)
     else:
         stars = 5
 
-    # Grade calculation (standard scale). Assumption: percentage 0-100.
-    if percent >= 90:
-        grade = 'A'
-    elif percent >= 80:
-        grade = 'B'
-    elif percent >= 70:
-        grade = 'C'
-    elif percent >= 60:
-        grade = 'D'
-    else:
-        grade = 'F'
+    # Attempt-based Course Grade from user progress
+    try:
+        course_grade = user.get_overall_grade_for_course(course_type)
+    except Exception:
+        course_grade = 'N/A'
 
     # Try to fetch existing certificate for this user/module
     cert = Certificate.query.filter_by(user_id=user_id, module_id=module.module_id).order_by(Certificate.issue_date.desc()).first()
@@ -83,8 +77,8 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None)
     # Display overall percentage under the stars
     can.setFont("Times-Roman", 14)
     can.drawCentredString(425, 185, f"Overall Percentage: {percent}%")
-    # Display grade under the overall percentage
-    can.drawCentredString(425, 170, f"Grade: {grade}")
+    # Display Course Grade (attempt-based) under the overall percentage
+    can.drawCentredString(425, 170, f"Course Grade: {course_grade}")
     # Set font size for text and date to 12
     can.setFont("Times-Roman", 12)
     can.drawCentredString(425, 155, "received training and fulfilled the requirements on")

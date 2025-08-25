@@ -60,6 +60,11 @@
                                             <span style="color: #ccc; font-size: 1.2em;">&#9733;</span>
                                         {% endfor %}
                                     </span>
+                                    {# Show overall percentage and grade beneath #}
+                                    <br>
+                                    <strong>Overall Percentage:</strong> {{ percent }}%<br>
+                                    {% set course_grade = certificate.user.get_overall_grade_for_course(certificate.module_type) %}
+                                    <strong>Course Grade:</strong> {{ course_grade }}
                                 </p>
                                 {% set raw_cert_url = certificate.certificate_url if certificate.certificate_url else 'certificate_' ~ certificate.user_id ~ '_' ~ certificate.module_type ~ '.pdf' %}
                                 {% set clean_cert_url = raw_cert_url.replace('static/certificates/', '').replace('static\\certificates\\', '').replace('static\\certificates/', '').replace('static/certificates\\', '').replace('static/', '').replace('static\\', '').replace('certificates/', '').replace('certificates\\', '') %}
