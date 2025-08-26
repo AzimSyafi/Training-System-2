@@ -18,7 +18,21 @@ import logging
 from werkzeug.routing import BuildError  # added
 # Load .env for local development only
 try:
-    if not os.environ.get('RENDER'):
+    # Treat presence of any hosted env signal or an existing DB URL as production
+    hosted_signals = (
+        os.environ.get('RENDER'),
+        os.environ.get('RENDER_EXTERNAL_HOSTNAME'),
+        os.environ.get('RENDER_SERVICE_ID'),
+        os.environ.get('DYNO'),  # Heroku
+    )
+    existing_db = (
+        os.environ.get('DATABASE_URL')
+        or os.environ.get('DATABASE_INTERNAL_URL')
+        or os.environ.get('DATABASE_URL_INTERNAL')
+        or os.environ.get('POSTGRES_URL')
+        or os.environ.get('POSTGRESQL_URL')
+    )
+    if not any(hosted_signals) and not existing_db:
         from dotenv import load_dotenv
         load_dotenv()
 except Exception:
@@ -29,24 +43,52 @@ app = Flask(__name__, static_url_path='/static')
 # Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
+# Decide which PostgreSQL driver is installed and normalize DB URL accordingly
+def _normalize_pg_url_for_sqlalchemy(url: str) -> str:
+    if not isinstance(url, str) or not url:
+        return url
+    # normalize postgres:// -> postgresql://
+    if url.startswith('postgres://'):
+        url = url.replace('postgres://', 'postgresql://', 1)
+    # Detect installed driver
+    driver = None
+    try:
+        import psycopg  # type: ignore
+        driver = 'psycopg'
+    except Exception:
+        try:
+            import psycopg2  # type: ignore
+            driver = 'psycopg2'
+        except Exception:
+            driver = None
+    # If already has a dialect prefix, leave it; otherwise add best driver
+    if url.startswith('postgresql+'):  # already explicit
+        return url
+    if driver:
+        return url.replace('postgresql://', f'postgresql+{driver}://', 1)
+    # No driver detected: return generic and let SQLAlchemy error with clear message
+    return url
+
 # Database configuration - PostgreSQL only
 # Prefer hosted env vars first (Render, etc.), then fall back to local
-_db_urls = [
-    os.environ.get('DATABASE_URL'),
-    os.environ.get('DATABASE_URL_INTERNAL'),  # Render internal network URL
-    os.environ.get('POSTGRES_URL'),
-    os.environ.get('POSTGRESQL_URL'),
+_db_candidates = [
+    ('DATABASE_INTERNAL_URL', os.environ.get('DATABASE_INTERNAL_URL')),  # Render internal URL
+    ('DATABASE_URL_INTERNAL', os.environ.get('DATABASE_URL_INTERNAL')),  # common typo/alt
+    ('DATABASE_URL', os.environ.get('DATABASE_URL')),
+    ('POSTGRES_URL', os.environ.get('POSTGRES_URL')),
+    ('POSTGRESQL_URL', os.environ.get('POSTGRESQL_URL')),
 ]
-_db_url = next((u for u in _db_urls if u), None)
+_used_name = None
+_db_url = None
+for name, val in _db_candidates:
+    if val:
+        _used_name = name
+        _db_url = val
+        break
 if _db_url:
-    database_url = _db_url
-    # Normalize prefixes for SQLAlchemy + psycopg3
-    if database_url.startswith('postgres://'):
-        database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    if database_url.startswith('postgresql://'):
-        database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
+    database_url = _normalize_pg_url_for_sqlalchemy(_db_url)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-    print(f"[DB] Using env database URL from {'DATABASE_URL' if os.environ.get('DATABASE_URL') else 'fallback var'}")
+    print(f"[DB] Using env database URL from { _used_name }")
 else:
     # Local PostgreSQL defaults (adjust via env vars if needed)
     DB_USER = os.environ.get('DB_USER', 'postgres')
@@ -54,9 +96,15 @@ else:
     DB_HOST = os.environ.get('DB_HOST', 'localhost')
     DB_PORT = os.environ.get('DB_PORT', '5432')
     DB_NAME = os.environ.get('DB_NAME', 'Training_system')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
+    raw_url = f'postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
+    app.config['SQLALCHEMY_DATABASE_URI'] = _normalize_pg_url_for_sqlalchemy(raw_url)
+    print('[DB] Using local fallback PostgreSQL connection (adjust via env vars)')
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Proactively ping pooled connections to avoid stale sockets on cold starts
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True
+}
 
 # Configure upload folders for production
 if os.environ.get('RENDER'):
