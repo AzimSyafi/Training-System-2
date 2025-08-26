@@ -1235,6 +1235,16 @@ def manage_module_content(module_id):
         logging.exception('[ADMIN] Manage content failed')
         flash('Could not save content.')
     return redirect(url_for('admin_course_management'))
+
+@app.route('/health/db')
+def db_health():
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text('SELECT 1'))
+        return jsonify({'status': 'ok'}), 200
+    except Exception as e:
+        logging.exception('[HEALTH] DB health check failed')
+        return jsonify({'status': 'error', 'detail': str(e)}), 500
 # ------------------- End admin management actions -------------------
 
 if __name__ == '__main__':
