@@ -4,7 +4,7 @@ Quick PostgreSQL database viewer script
 Shows tables and row counts from your database
 """
 
-import psycopg2
+import psycopg
 import os
 from tabulate import tabulate
 
@@ -25,7 +25,7 @@ def connect_postgresql():
         db_url = db_url.replace('postgres://', 'postgresql://', 1)
 
     try:
-        return psycopg2.connect(db_url)
+        return psycopg.connect(db_url)
     except Exception as e:
         print(f"❌ Connection failed: {e}")
         return None

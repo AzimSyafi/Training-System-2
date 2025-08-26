@@ -3,7 +3,7 @@ PyCharm-friendly PostgreSQL connection script
 Run this in PyCharm's Python Console for interactive database access
 """
 
-import psycopg2
+import psycopg
 import os
 
 # Local PostgreSQL connection settings
@@ -18,7 +18,7 @@ DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NA
 def quick_connect():
     """Quick connection function for PyCharm console"""
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = psycopg.connect(DATABASE_URL)
         print("✅ Connected to local PostgreSQL!")
         return conn
     except Exception as e:

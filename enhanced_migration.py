@@ -4,10 +4,9 @@ Enhanced migration script with better error handling and data type conversion
 """
 
 import sqlite3
-import psycopg2
+import psycopg
 import os
 from datetime import datetime
-import json
 
 # Configuration
 SQLITE_DB_PATH = 'instance/security_training.db'
@@ -22,7 +21,7 @@ def connect_postgresql():
     db_url = POSTGRESQL_URL
     if db_url and db_url.startswith('postgres://'):
         db_url = db_url.replace('postgres://', 'postgresql://', 1)
-    return psycopg2.connect(db_url)
+    return psycopg.connect(db_url)
 
 def convert_data_types(rows, table_name):
     """Convert SQLite data types to PostgreSQL compatible types"""
@@ -135,6 +134,8 @@ def main():
         'registration'
     ]
 
+    sqlite_conn = None
+    pg_conn = None
     try:
         sqlite_conn = connect_sqlite()
         pg_conn = connect_postgresql()
@@ -168,8 +169,16 @@ def main():
     except Exception as e:
         print(f"❌ Migration failed: {e}")
     finally:
-        sqlite_conn.close()
-        pg_conn.close()
+        try:
+            if sqlite_conn:
+                sqlite_conn.close()
+        except Exception:
+            pass
+        try:
+            if pg_conn:
+                pg_conn.close()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     main()
