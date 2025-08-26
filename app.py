@@ -16,10 +16,11 @@ from flask import request, jsonify
 import json
 import logging
 from werkzeug.routing import BuildError  # added
-# Load .env for local development
+# Load .env for local development only
 try:
-    from dotenv import load_dotenv
-    load_dotenv()
+    if not os.environ.get('RENDER'):
+        from dotenv import load_dotenv
+        load_dotenv()
 except Exception:
     pass
 
@@ -29,18 +30,27 @@ app = Flask(__name__, static_url_path='/static')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
 # Database configuration - PostgreSQL only
-if os.environ.get('DATABASE_URL'):
-    database_url = os.environ.get('DATABASE_URL')
+# Prefer hosted env vars first (Render, etc.), then fall back to local
+_db_urls = [
+    os.environ.get('DATABASE_URL'),
+    os.environ.get('DATABASE_URL_INTERNAL'),  # Render internal network URL
+    os.environ.get('POSTGRES_URL'),
+    os.environ.get('POSTGRESQL_URL'),
+]
+_db_url = next((u for u in _db_urls if u), None)
+if _db_url:
+    database_url = _db_url
+    # Normalize prefixes for SQLAlchemy + psycopg3
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    # Use psycopg3 dialect explicitly
     if database_url.startswith('postgresql://'):
         database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    print(f"[DB] Using env database URL from {'DATABASE_URL' if os.environ.get('DATABASE_URL') else 'fallback var'}")
 else:
     # Local PostgreSQL defaults (adjust via env vars if needed)
     DB_USER = os.environ.get('DB_USER', 'postgres')
-    DB_PASSWORD = os.environ.get('DB_PASSWORD', '7890')
+    DB_PASSWORD = os.environ.get('DB_PASSWORD', '0789')  # align with .env example
     DB_HOST = os.environ.get('DB_HOST', 'localhost')
     DB_PORT = os.environ.get('DB_PORT', '5432')
     DB_NAME = os.environ.get('DB_NAME', 'Training_system')
