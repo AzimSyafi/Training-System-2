@@ -6,6 +6,27 @@
     <title>{% block title %}Security Training System{% endblock %}</title>
     {% set always_light = request.endpoint in ['index','login','signup','onboarding'] %}
     <script>
+        // Prevent BFCache from showing protected pages after logout (handles multiple back presses)
+        (function(){
+            function shouldReloadFromBFCache(evt){
+                try {
+                    if (evt && evt.persisted) return true; // bfcache restore
+                    var navEntry = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation')[0] : null;
+                    if (navEntry && navEntry.type === 'back_forward') return true;
+                    // Fallback for older browsers
+                    if (performance && performance.navigation && performance.navigation.type === 2) return true;
+                } catch(e) {}
+                return false;
+            }
+            window.addEventListener('pageshow', function(e){
+                if (shouldReloadFromBFCache(e)) {
+                    // Force a fresh request so server auth redirects apply
+                    window.location.reload();
+                }
+            });
+        })();
+    </script>
+    <script>
         // Early theme application (skip dark for always-light endpoints)
         (function() {
             var ALWAYS_LIGHT = {{ 'true' if always_light else 'false' }};

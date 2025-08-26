@@ -65,6 +65,22 @@ def safe_url_for(endpoint, **values):
 app.jinja_env.globals['safe_url_for'] = safe_url_for
 
 # --- Helpers ---
+def normalized_user_category(user: User) -> str:
+    """Return 'citizen' or 'foreigner' robustly.
+    Falls back using passport/ic when user_category missing/invalid."""
+    try:
+        raw = (getattr(user, 'user_category', None) or '').strip().lower()
+    except Exception:
+        raw = ''
+    if raw in ('citizen', 'foreigner'):
+        return raw
+    # Fallback by IDs
+    passport = getattr(user, 'passport_number', None)
+    ic = getattr(user, 'ic_number', None)
+    if passport and not ic:
+        return 'foreigner'
+    return 'citizen'
+
 def _series_sort(modules):
     """Sort modules by series_number naturally, handling prefixes like CSG001/TNG002 or mixed.
     Falls back to by module_id when series_number missing."""
@@ -112,6 +128,22 @@ db.init_app(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+# Prevent browser from caching authenticated pages so Back button doesn’t show them after logout
+@app.after_request
+def add_no_cache_headers(response):
+    try:
+        # Skip static and uploaded file endpoints to allow normal caching there
+        skip_endpoints = {'static', 'serve_upload', 'serve_uploaded_slide'}
+        ep = request.endpoint or ''
+        if ep not in skip_endpoints:
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+    except Exception:
+        # Don’t break the response pipeline if anything goes wrong
+        pass
+    return response
 
 # --- One-time schema safeguard: ensure trainer.number_series exists & populated ---
 with app.app_context():
@@ -308,10 +340,11 @@ def trainer_portal():
             module_ids = [m.module_id for m in modules]
             modules_by_course[course.code] = [{'id': m.module_id, 'name': m.module_name} for m in modules]
             trainees_q = User.query
+            # Normalize user_category at query time to avoid mismatches
             if course.allowed_category == 'citizen':
-                trainees_q = trainees_q.filter(User.user_category == 'citizen')
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'citizen')
             elif course.allowed_category == 'foreigner':
-                trainees_q = trainees_q.filter(User.user_category == 'foreigner')
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'foreigner')
             trainees = trainees_q.all()
             trainee_ids = [u.User_id for u in trainees]
             completed_count = 0; avg_score = 0.0; last_activity = None
@@ -353,9 +386,9 @@ def trainer_portal():
                 continue
             trainees_q = User.query
             if course_obj.allowed_category == 'citizen':
-                trainees_q = trainees_q.filter(User.user_category == 'citizen')
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'citizen')
             elif course_obj.allowed_category == 'foreigner':
-                trainees_q = trainees_q.filter(User.user_category == 'foreigner')
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'foreigner')
             trainees = trainees_q.all()
             for user in trainees:
                 user_completed_q = UserModule.query.filter(
@@ -451,8 +484,8 @@ def onboarding():
             return redirect(url_for('trainer_portal'))
         return redirect(url_for('login'))
 
-    # Determine dynamic steps based on user category
-    user_cat = (getattr(current_user, 'user_category', 'citizen') or 'citizen').lower()
+    # Determine dynamic steps based on user category (trim + lower)
+    user_cat = normalized_user_category(current_user)
     total_steps = 5 if user_cat == 'foreigner' else 4
 
     # Current step from query or form
@@ -582,17 +615,26 @@ def user_dashboard():
 
     try:
         # Determine allowed courses for this user
-        user_cat = (getattr(current_user, 'user_category', 'citizen') or 'citizen').lower()
-        # Prefer canonical codes mapping
+        user_cat = normalized_user_category(current_user)
         preferred_code = 'TNG' if user_cat == 'foreigner' else 'CSG'
         main_course = Course.query.filter(Course.code.ilike(preferred_code)).first()
-        # Fallback: any course allowed for this category or both
-        courses_q = Course.query
-        if main_course is None:
-            courses_q = courses_q.filter((Course.allowed_category == user_cat) | (Course.allowed_category == 'both'))
-            courses = courses_q.all()
-        else:
-            courses = [main_course]
+
+        # Build list of visible courses: always include 'both' courses in addition to main (if any)
+        courses = []
+        if main_course:
+            courses.append(main_course)
+        # Add all courses allowed for both categories (case-insensitive)
+        both_courses = Course.query.filter(db.func.lower(db.func.trim(Course.allowed_category)) == 'both').all()
+        for c in both_courses:
+            if not any(getattr(x, 'course_id', None) == getattr(c, 'course_id', None) for x in courses):
+                courses.append(c)
+        # If no main course exists, also include courses explicitly allowed for the user's category (case-insensitive)
+        if not main_course:
+            extra_allowed = Course.query.filter(db.func.lower(db.func.trim(Course.allowed_category)) == user_cat).all()
+            for c in extra_allowed:
+                if not any(getattr(x, 'course_id', None) == getattr(c, 'course_id', None) for x in courses):
+                    courses.append(c)
+
         # Compute per-course progress
         courses_progress = []
         total_user_modules = []
@@ -628,20 +670,22 @@ def user_dashboard():
                     UserModule.is_completed.is_(True)
                 ).count()
                 rating_unlocked = (completed_count == len(m_ids) and len(m_ids) > 0)
-        # user_modules for dashboard stats: show enrolled modules for main course if any; else overall for all allowed courses
+        # user_modules for dashboard stats: show enrolled modules for all visible courses
         user_modules = total_user_modules
     except Exception:
         logging.exception('[USER DASHBOARD] Failed to build dashboard context')
         courses_progress = []
         user_modules = []
         rating_unlocked = False
+        preferred_code = 'CSG'
 
     return render_template(
         'user_dashboard.html',
         user=current_user,
         user_modules=user_modules,
         rating_unlocked=rating_unlocked,
-        courses_progress=courses_progress
+        courses_progress=courses_progress,
+        grade_course_code=preferred_code
     )
 
 @app.route('/enroll', methods=['GET'])
@@ -650,12 +694,15 @@ def enroll_course():
     # Enroll user into modules for their primary course (TNG for foreigner, CSG for citizen)
     if not isinstance(current_user, User):
         return redirect(url_for('login'))
-    user_cat = (getattr(current_user, 'user_category', 'citizen') or 'citizen').lower()
+    user_cat = normalized_user_category(current_user)
     preferred_code = 'TNG' if user_cat == 'foreigner' else 'CSG'
     course = Course.query.filter(Course.code.ilike(preferred_code)).first()
     if course is None:
-        # Fallback: take first course allowed for the category
-        course = Course.query.filter((Course.allowed_category == user_cat) | (Course.allowed_category == 'both')).first()
+        # Fallback: take first course allowed for the category (case-insensitive)
+        course = Course.query.filter(
+            (db.func.lower(db.func.trim(Course.allowed_category)) == user_cat) |
+            (db.func.lower(db.func.trim(Course.allowed_category)) == 'both')
+        ).first()
     if not course:
         flash('No course available for your category yet.')
         return redirect(url_for('user_dashboard'))
@@ -750,9 +797,26 @@ def profile():
 def courses():
     if not isinstance(current_user, User):
         return redirect(url_for('login'))
-    user_cat = (getattr(current_user, 'user_category', 'citizen') or 'citizen').lower()
-    # Courses available to this user (including both)
-    courses = Course.query.filter((Course.allowed_category == user_cat) | (Course.allowed_category == 'both')).all()
+    user_cat = normalized_user_category(current_user)
+    preferred_code = 'TNG' if user_cat == 'foreigner' else 'CSG'
+    # Prefer the primary course for the user by code; also include any courses allowed for both
+    main_course = Course.query.filter(Course.code.ilike(preferred_code)).first()
+
+    courses = []
+    if main_course:
+        courses.append(main_course)
+    # Add courses with allowed_category='both' (case-insensitive)
+    both_courses = Course.query.filter(db.func.lower(db.func.trim(Course.allowed_category)) == 'both').all()
+    for c in both_courses:
+        if not any(getattr(x, 'course_id', None) == getattr(c, 'course_id', None) for x in courses):
+            courses.append(c)
+    # If no main course exists, include courses explicitly allowed for the user's category (case-insensitive)
+    if not main_course:
+        extra_allowed = Course.query.filter(db.func.lower(db.func.trim(Course.allowed_category)) == user_cat).all()
+        for c in extra_allowed:
+            if not any(getattr(x, 'course_id', None) == getattr(c, 'course_id', None) for x in courses):
+                courses.append(c)
+
     course_progress = []
     for c in courses:
         m_ids = [m.module_id for m in c.modules]
@@ -917,6 +981,228 @@ def recalculate_ratings():
     flash('Ratings recalculated.')
     return redirect(url_for('admin_dashboard'))
 # ------------------- End minimal admin routes -------------------
+
+# ------------------- Admin management actions -------------------
+@app.route('/admin/course/create', methods=['POST'])
+@login_required
+def create_course():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    name = (request.form.get('name') or '').strip()
+    code = (request.form.get('code') or '').strip().upper()
+    allowed = (request.form.get('allowed_category') or 'both').strip().lower()
+    desc = request.form.get('description')
+    if allowed not in ('both', 'citizen', 'foreigner'):
+        allowed = 'both'
+    if not name or not code:
+        flash('Name and code are required.')
+        return redirect(url_for('admin_course_management'))
+    try:
+        if Course.query.filter(Course.code.ilike(code)).first():
+            flash('Course code already exists.')
+        else:
+            c = Course(name=name, code=code, allowed_category=allowed, description=desc)
+            db.session.add(c)
+            db.session.commit()
+            flash('Course created.')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[ADMIN] Create course failed')
+        flash('Could not create course.')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/admin/course/<int:course_id>/update', methods=['POST'])
+@login_required
+def update_course(course_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    try:
+        c = Course.query.get(course_id)
+        if not c:
+            flash('Course not found.')
+            return redirect(url_for('admin_course_management'))
+        c.name = (request.form.get('name') or c.name).strip()
+        c.description = request.form.get('description')
+        allowed = (request.form.get('allowed_category') or c.allowed_category or 'both').strip().lower()
+        if allowed in ('both', 'citizen', 'foreigner'):
+            c.allowed_category = allowed
+        db.session.commit()
+        flash('Course updated.')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[ADMIN] Update course failed')
+        flash('Could not update course.')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/admin/course/<int:course_id>/delete', methods=['POST'])
+@login_required
+def delete_course(course_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    try:
+        c = Course.query.get(course_id)
+        if not c:
+            flash('Course not found.')
+            return redirect(url_for('admin_course_management'))
+        # Delete modules first (no cascade defined)
+        for m in list(c.modules):
+            db.session.delete(m)
+        db.session.delete(c)
+        db.session.commit()
+        flash('Course deleted.')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[ADMIN] Delete course failed')
+        flash('Could not delete course.')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/admin/course/<int:course_id>/modules/add', methods=['POST'])
+@login_required
+def add_course_module(course_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    try:
+        c = Course.query.get(course_id)
+        if not c:
+            flash('Course not found.')
+            return redirect(url_for('admin_course_management'))
+        name = (request.form.get('module_name') or '').strip()
+        series = (request.form.get('series_number') or '').strip()
+        content = request.form.get('content')
+        if not name:
+            flash('Module name is required.')
+            return redirect(url_for('admin_course_management'))
+        m = Module(
+            module_name=name,
+            module_type=c.code,  # tie type to course code for grouping
+            series_number=series or None,
+            content=content,
+            course_id=c.course_id
+        )
+        db.session.add(m)
+        db.session.commit()
+        flash('Module created.')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[ADMIN] Add module failed')
+        flash('Could not create module.')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/admin/module/<int:module_id>/update', methods=['POST'])
+@login_required
+def update_course_module(module_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    try:
+        m = Module.query.get(module_id)
+        if not m:
+            flash('Module not found.')
+            return redirect(url_for('admin_course_management'))
+        m.module_name = (request.form.get('module_name') or m.module_name).strip()
+        m.series_number = (request.form.get('series_number') or '').strip() or None
+        m.content = request.form.get('content')
+        db.session.commit()
+        flash('Module updated.')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[ADMIN] Update module failed')
+        flash('Could not update module.')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/admin/module/<int:module_id>/delete', methods=['POST'])
+@login_required
+def delete_course_module(module_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    try:
+        m = Module.query.get(module_id)
+        if not m:
+            flash('Module not found.')
+            return redirect(url_for('admin_course_management'))
+        db.session.delete(m)
+        db.session.commit()
+        flash('Module deleted.')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[ADMIN] Delete module failed')
+        flash('Could not delete module.')
+    return redirect(url_for('admin_course_management'))
+
+@app.route('/admin/module/<int:module_id>/content', methods=['POST'])
+@login_required
+def manage_module_content(module_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    try:
+        m = Module.query.get(module_id)
+        if not m:
+            flash('Module not found.')
+            return redirect(url_for('admin_course_management'))
+        ctype = (request.form.get('content_type') or '').strip().lower()
+        # Slides upload
+        if ctype == 'slide':
+            f = request.files.get('slide_file')
+            if not f or not f.filename:
+                flash('No slide file selected.')
+            else:
+                fname = secure_filename(f.filename)
+                save_dir = os.path.join(app.root_path, 'static', 'uploads')
+                os.makedirs(save_dir, exist_ok=True)
+                # Avoid collisions: prefix timestamp
+                ts_name = f"{int(datetime.now().timestamp())}_{fname}"
+                f.save(os.path.join(save_dir, ts_name))
+                m.slide_url = ts_name
+                db.session.commit()
+                flash('Slide uploaded.')
+        elif ctype == 'video':
+            # Save YouTube URL (raw; template extracts ID)
+            m.youtube_url = (request.form.get('youtube_url') or '').strip() or None
+            db.session.commit()
+            flash('Video URL saved.')
+        elif ctype == 'quiz':
+            # Build quiz JSON from dynamic fields
+            from collections import defaultdict
+            questions = []
+            # Identify question indices by scanning keys
+            idxs = set()
+            for k in request.form.keys():
+                if k.startswith('quiz_question_'):
+                    try:
+                        idxs.add(int(k.split('_')[-1]))
+                    except Exception:
+                        pass
+            for idx in sorted(list(idxs)):
+                qtext = (request.form.get(f'quiz_question_{idx}') or '').strip()
+                if not qtext:
+                    continue
+                answers = []
+                for a in range(1, 6):
+                    answers.append((request.form.get(f'answer_{idx}_{a}') or '').strip())
+                try:
+                    correct = int(request.form.get(f'correct_answer_{idx}') or '1')
+                except Exception:
+                    correct = 1
+                questions.append({'question': qtext, 'answers': answers, 'correct': correct})
+            m.quiz_json = json.dumps({'questions': questions}) if questions else None
+            # Optional quiz image
+            qimg = request.files.get('quiz_image')
+            if qimg and qimg.filename:
+                qname = secure_filename(qimg.filename)
+                save_dir = os.path.join(app.root_path, 'static', 'uploads')
+                os.makedirs(save_dir, exist_ok=True)
+                ts_name = f"{int(datetime.now().timestamp())}_{qname}"
+                qimg.save(os.path.join(save_dir, ts_name))
+                m.quiz_image = ts_name
+            db.session.commit()
+            flash('Quiz saved.')
+        else:
+            flash('Unknown content type.')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[ADMIN] Manage content failed')
+        flash('Could not save content.')
+    return redirect(url_for('admin_course_management'))
+# ------------------- End admin management actions -------------------
 
 if __name__ == '__main__':
     host = os.environ.get('HOST', '127.0.0.1')

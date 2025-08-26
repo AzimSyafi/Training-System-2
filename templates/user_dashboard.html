@@ -53,8 +53,8 @@
   {% set completed_modules = user_modules|selectattr('is_completed')|list|length %}
   {% set completion_pct = (completed_modules / total_modules * 100) if total_modules > 0 else 0 %}
   {% set certificates_count = user.certificates|length %}
-  {% set user_course_code = 'TNG' if user.user_category == 'foreigner' else 'CSG' %}
-  {% set grade = user.get_overall_grade_for_course(user_course_code) %}
+  {# Grade code comes from backend (TNG for foreigner, CSG for citizen) #}
+  {% set grade = user.get_overall_grade_for_course(grade_course_code) %}
 
   <div class="stats-container">
     <div class="stat-card">
@@ -110,8 +110,7 @@
   {% if not user_modules %}
     <div class="alert alert-info mb-4">
       <h5 class="mb-2"><i class="fas fa-info-circle"></i> Welcome!</h5>
-      <p class="mb-3">Enroll to start your training journey.</p>
-      <a href="{{ url_for('enroll_course') }}" class="btn btn-primary"><i class="fas fa-graduation-cap"></i> Enroll in Course</a>
+      <p class="mb-0">Your courses will appear here once available.</p>
     </div>
   {% endif %}
 
