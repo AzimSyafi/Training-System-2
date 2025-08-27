@@ -248,7 +248,7 @@ with app.app_context():
                     # If advisory lock not available (non-Postgres), proceed without it
                     got_lock = True
                 if not got_lock:
-                    print('[SCHEMA GUARD] Another worker is initializing; skipping this worker.')
+                    print(f'[SCHEMA GUARD] Skipped: another worker (PID {os.getpid()}) is already initializing.')
                 else:
                     try:
                         # Auto-create missing tables
