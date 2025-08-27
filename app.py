@@ -314,9 +314,20 @@ with app.app_context():
                                 db.session.commit()
                             else:
                                 print('[SCHEMA GUARD] Skipping course defaults: course table not found.')
+
+                            # Ensure default agency exists
+                            if inspector.has_table('agency'):
+                                db.session.execute(text(
+                                    "INSERT INTO agency (agency_id, agency_name) VALUES (1, 'Default Agency') "
+                                    "ON CONFLICT (agency_id) DO NOTHING"
+                                ))
+                                db.session.commit()
+                                print('[SCHEMA GUARD] Ensured default agency exists with ID 1')
+                            else:
+                                print('[SCHEMA GUARD] Skipping agency default: agency table not found.')
                         except Exception as e:
                             db.session.rollback()
-                            print(f"[SCHEMA GUARD] Could not ensure default courses: {e}")
+                            print(f"[SCHEMA GUARD] Could not ensure default entities: {e}")
                     finally:
                         try:
                             db.session.execute(text('SELECT pg_advisory_unlock(922337203685477571)'))
@@ -571,12 +582,35 @@ def signup():
         # Get form data
         user_category = request.form.get('user_category', 'citizen')
 
+        # Get agency_id from form or use default if not provided
+        try:
+            agency_id = int(request.form.get('agency_id', 1))
+        except (ValueError, TypeError):
+            agency_id = 1
+
+        # Validate agency existence
+        agency = Agency.query.get(agency_id)
+        if not agency:
+            # Create default agency if it doesn't exist
+            try:
+                agency = Agency(agency_id=agency_id, agency_name=f"Default Agency {agency_id}")
+                db.session.add(agency)
+                db.session.commit()
+                print(f"[SIGNUP] Created default agency with ID {agency_id}")
+            except IntegrityError:
+                db.session.rollback()
+                # Another process might have created it; try to fetch again
+                agency = Agency.query.get(agency_id)
+                if not agency:
+                    flash('Invalid agency selected. Please try again.')
+                    return render_template('signup.html', agencies=Agency.query.all())
+
         user_data = {
             'full_name': request.form['full_name'],
             'email': request.form['email'],
             'password': request.form['password'],
             'user_category': user_category,
-            'agency_id': 1  # Assign a default agency_id
+            'agency_id': agency_id
         }
 
         # Optionally add IC or Passport number (collect fully during onboarding)
@@ -595,12 +629,16 @@ def signup():
             return render_template('signup.html', agencies=Agency.query.all())
 
         # Register user
-        user = Registration.registerUser(user_data)
-        # Auto-login and redirect to onboarding wizard
-        login_user(user)
-        session['user_type'] = 'user'
-        session['user_id'] = user.get_id()
-        return redirect(url_for('onboarding', step=1))
+        try:
+            user = Registration.registerUser(user_data)
+            # Auto-login and redirect to onboarding wizard
+            login_user(user)
+            session['user_type'] = 'user'
+            session['user_id'] = user.get_id()
+            return redirect(url_for('onboarding', step=1))
+        except Exception as e:
+            flash(f'Error during registration: {str(e)}')
+            return render_template('signup.html', agencies=Agency.query.all())
 
     agencies = Agency.query.all()
     return render_template('signup.html', agencies=agencies)

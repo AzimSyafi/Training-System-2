@@ -487,11 +487,35 @@ class Registration:
     def registerUser(user_data):
         # Remove 'password' from user_data before creating User
         password = user_data.pop('password', None)
+
+        # Check if agency_id exists in the database
+        agency_id = user_data.get('agency_id')
+        if agency_id:
+            agency = Agency.query.get(agency_id)
+            if not agency:
+                # Create a default agency if it doesn't exist
+                agency = Agency(agency_id=agency_id, agency_name=f"Default Agency {agency_id}")
+                db.session.add(agency)
+                try:
+                    db.session.flush()  # Check if agency can be added without committing
+                except Exception as e:
+                    db.session.rollback()
+                    raise Exception(f"Could not create default agency: {str(e)}")
+
         user = User(**user_data)
         if password:
             user.set_password(password)
         db.session.add(user)
-        db.session.commit()
+
+        try:
+            db.session.commit()
+        except IntegrityError as e:
+            db.session.rollback()
+            if 'violates foreign key constraint' in str(e) and 'agency_id' in str(e):
+                # Specifically handle agency_id foreign key violations
+                raise Exception("Agency does not exist. Please select a valid agency.")
+            raise e
+
         return user
 
     @staticmethod
