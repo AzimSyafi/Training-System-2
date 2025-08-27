@@ -307,12 +307,10 @@ with app.app_context():
                                     {'name': 'NEPAL SECURITY GUARD TRAINING (TNG)', 'code': 'TNG', 'allowed': 'foreigner'},
                                     {'name': 'CERTIFIED SECURITY GUARD (CSG)', 'code': 'CSG', 'allowed': 'citizen'}
                                 ]
-                                for d in defaults:
-                                    db.session.execute(text(
-                                        "INSERT INTO course (name, code, allowed_category) "
-                                        "SELECT :name, :code, :allowed "
-                                        "WHERE NOT EXISTS (SELECT 1 FROM course WHERE code = :code)"
-                                    ), d)
+                                db.session.execute(text(
+                                    "INSERT INTO course (name, code, allowed_category) VALUES (:name, :code, :allowed) "
+                                    "ON CONFLICT (code) DO NOTHING"
+                                ), defaults)
                                 db.session.commit()
                             else:
                                 print('[SCHEMA GUARD] Skipping course defaults: course table not found.')
