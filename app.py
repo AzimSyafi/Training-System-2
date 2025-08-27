@@ -240,66 +240,91 @@ with app.app_context():
         else:
             try:
                 inspector = sa_inspect(db.engine)
-                # Safely handle trainer table
-                if inspector.has_table('trainer'):
-                    trainer_columns = {c['name'] for c in inspector.get_columns('trainer')}
+                # Acquire advisory lock so only one worker performs initialization
+                got_lock = False
+                try:
+                    got_lock = db.session.execute(text('SELECT pg_try_advisory_lock(922337203685477571)')).scalar()  # 64-bit key
+                except Exception:
+                    # If advisory lock not available (non-Postgres), proceed without it
+                    got_lock = True
+                if not got_lock:
+                    print('[SCHEMA GUARD] Another worker is initializing; skipping this worker.')
                 else:
-                    trainer_columns = set()
-                # Ensure user_module.reattempt_count column exists (only if table exists)
-                try:
-                    if inspector.has_table('user_module'):
-                        um_columns = {c['name'] for c in inspector.get_columns('user_module')}
-                        if 'reattempt_count' not in um_columns:
-                            db.session.execute(text('ALTER TABLE user_module ADD COLUMN IF NOT EXISTS reattempt_count INTEGER DEFAULT 0'))
+                    try:
+                        # Auto-create missing tables
+                        essential = ['course', 'user', 'module', 'trainer', 'user_module', 'user_course_progress', 'certificate', 'agency', 'work_history', 'admin', 'management']
+                        missing = [t for t in essential if not inspector.has_table(t)]
+                        if missing:
+                            db.create_all()
                             db.session.commit()
-                            print('[SCHEMA GUARD] Added reattempt_count to user_module')
-                except Exception as e:
-                    db.session.rollback()
-                    print(f'[SCHEMA GUARD] Could not ensure reattempt_count on user_module: {e}')
-                # Ensure user_course_progress.reattempt_count column exists (only if table exists)
-                try:
-                    if inspector.has_table('user_course_progress'):
-                        ucp_columns = {c['name'] for c in inspector.get_columns('user_course_progress')}
-                        if 'reattempt_count' not in ucp_columns:
-                            db.session.execute(text('ALTER TABLE user_course_progress ADD COLUMN IF NOT EXISTS reattempt_count INTEGER DEFAULT 0'))
+                            print(f"[SCHEMA GUARD] Created missing tables: {', '.join(missing)}")
+                        # Refresh inspector after possible create_all
+                        inspector = sa_inspect(db.engine)
+                        # Safely handle trainer table
+                        if inspector.has_table('trainer'):
+                            trainer_columns = {c['name'] for c in inspector.get_columns('trainer')}
+                        else:
+                            trainer_columns = set()
+                        # Ensure user_module.reattempt_count column exists (only if table exists)
+                        try:
+                            if inspector.has_table('user_module'):
+                                um_columns = {c['name'] for c in inspector.get_columns('user_module')}
+                                if 'reattempt_count' not in um_columns:
+                                    db.session.execute(text('ALTER TABLE user_module ADD COLUMN IF NOT EXISTS reattempt_count INTEGER DEFAULT 0'))
+                                    db.session.commit()
+                                    print('[SCHEMA GUARD] Added reattempt_count to user_module')
+                        except Exception as e:
+                            db.session.rollback()
+                            print(f'[SCHEMA GUARD] Could not ensure reattempt_count on user_module: {e}')
+                        # Ensure user_course_progress.reattempt_count column exists (only if table exists)
+                        try:
+                            if inspector.has_table('user_course_progress'):
+                                ucp_columns = {c['name'] for c in inspector.get_columns('user_course_progress')}
+                                if 'reattempt_count' not in ucp_columns:
+                                    db.session.execute(text('ALTER TABLE user_course_progress ADD COLUMN IF NOT EXISTS reattempt_count INTEGER DEFAULT 0'))
+                                    db.session.commit()
+                        except Exception as e:
+                            db.session.rollback()
+                            print(f'[SCHEMA GUARD] Could not add reattempt_count to user_course_progress: {e}')
+                        # Trainer number_series backfill (only if trainer table exists)
+                        if inspector.has_table('trainer'):
+                            if 'number_series' not in trainer_columns:
+                                db.session.execute(text("ALTER TABLE trainer ADD COLUMN IF NOT EXISTS number_series VARCHAR(10) UNIQUE"))
+                                db.session.commit()
+                            year = datetime.now(UTC).strftime('%Y')
+                            seq_name = f'trainer_number_series_{year}_seq'
+                            db.session.execute(text(f"CREATE SEQUENCE IF NOT EXISTS {seq_name}"))
+                            db.session.execute(text(
+                                f"UPDATE trainer SET number_series = 'TR{year}' || LPAD(nextval('{seq_name}')::text,4,'0') "
+                                "WHERE (number_series IS NULL OR number_series = '')"))
                             db.session.commit()
-                except Exception as e:
-                    db.session.rollback()
-                    print(f'[SCHEMA GUARD] Could not add reattempt_count to user_course_progress: {e}')
-                # Trainer number_series backfill (only if trainer table exists)
-                if inspector.has_table('trainer'):
-                    if 'number_series' not in trainer_columns:
-                        db.session.execute(text("ALTER TABLE trainer ADD COLUMN IF NOT EXISTS number_series VARCHAR(10) UNIQUE"))
-                        db.session.commit()
-                    year = datetime.now(UTC).strftime('%Y')
-                    seq_name = f'trainer_number_series_{year}_seq'
-                    db.session.execute(text(f"CREATE SEQUENCE IF NOT EXISTS {seq_name}"))
-                    db.session.execute(text(
-                        f"UPDATE trainer SET number_series = 'TR{year}' || LPAD(nextval('{seq_name}')::text,4,'0') "
-                        "WHERE (number_series IS NULL OR number_series = '')"))
-                    db.session.commit()
-                else:
-                    print('[SCHEMA GUARD] Skipping trainer backfill: trainer table not found.')
-                # Ensure default courses exist (only if course table exists)
-                try:
-                    if inspector.has_table('course'):
-                        existing_codes = {c.code.upper() for c in Course.query.all()}
-                        defaults = [
-                            {'code': 'TNG', 'name': 'NEPAL SECURITY GUARD TRAINING (TNG)', 'allowed_category': 'foreigner'},
-                            {'code': 'CSG', 'name': 'CERTIFIED SECURITY GUARD (CSG)', 'allowed_category': 'citizen'}
-                        ]
-                        created_any = False
-                        for d in defaults:
-                            if d['code'] not in existing_codes:
-                                db.session.add(Course(code=d['code'], name=d['name'], allowed_category=d['allowed_category']))
-                                created_any = True
-                        if created_any:
+                        else:
+                            print('[SCHEMA GUARD] Skipping trainer backfill: trainer table not found.')
+                        # Ensure default courses exist without relying on unique constraint
+                        try:
+                            if inspector.has_table('course'):
+                                defaults = [
+                                    {'name': 'NEPAL SECURITY GUARD TRAINING (TNG)', 'code': 'TNG', 'allowed': 'foreigner'},
+                                    {'name': 'CERTIFIED SECURITY GUARD (CSG)', 'code': 'CSG', 'allowed': 'citizen'}
+                                ]
+                                for d in defaults:
+                                    db.session.execute(text(
+                                        "INSERT INTO course (name, code, allowed_category) "
+                                        "SELECT :name, :code, :allowed "
+                                        "WHERE NOT EXISTS (SELECT 1 FROM course WHERE code = :code)"
+                                    ), d)
+                                db.session.commit()
+                            else:
+                                print('[SCHEMA GUARD] Skipping course defaults: course table not found.')
+                        except Exception as e:
+                            db.session.rollback()
+                            print(f"[SCHEMA GUARD] Could not ensure default courses: {e}")
+                    finally:
+                        try:
+                            db.session.execute(text('SELECT pg_advisory_unlock(922337203685477571)'))
                             db.session.commit()
-                    else:
-                        print('[SCHEMA GUARD] Skipping course defaults: course table not found.')
-                except Exception as e:
-                    db.session.rollback()
-                    print(f"[SCHEMA GUARD] Could not ensure default courses: {e}")
+                        except Exception:
+                            pass
             except Exception as e:
                 db.session.rollback()
                 print(f"[SCHEMA GUARD ERROR] {e}")
