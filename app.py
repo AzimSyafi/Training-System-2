@@ -258,6 +258,19 @@ with app.app_context():
                             db.create_all()
                             db.session.commit()
                             print(f"[SCHEMA GUARD] Created missing tables: {', '.join(missing)}")
+
+                        # Check agency table schema if it exists
+                        if inspector.has_table('agency'):
+                            agency_columns = {c['name']: c for c in inspector.get_columns('agency')}
+                            # If contact_number exists and is not nullable, add ALTER TABLE to make it nullable
+                            if 'contact_number' in agency_columns and agency_columns['contact_number'].get('nullable') is False:
+                                try:
+                                    db.session.execute(text('ALTER TABLE agency ALTER COLUMN contact_number DROP NOT NULL'))
+                                    db.session.commit()
+                                    print('[SCHEMA GUARD] Modified agency.contact_number to be nullable')
+                                except Exception as e:
+                                    db.session.rollback()
+                                    print(f'[SCHEMA GUARD] Could not alter agency.contact_number: {e}')
                         # Refresh inspector after possible create_all
                         inspector = sa_inspect(db.engine)
                         # Safely handle trainer table
@@ -317,12 +330,26 @@ with app.app_context():
 
                             # Ensure default agency exists
                             if inspector.has_table('agency'):
-                                db.session.execute(text(
-                                    "INSERT INTO agency (agency_id, agency_name) VALUES (1, 'Default Agency') "
-                                    "ON CONFLICT (agency_id) DO NOTHING"
-                                ))
-                                db.session.commit()
-                                print('[SCHEMA GUARD] Ensured default agency exists with ID 1')
+                                # Check required columns in agency table
+                                agency_columns = {c['name']: c for c in inspector.get_columns('agency')}
+                                # Build INSERT statement with required fields
+                                required_values = {'agency_id': 1, 'agency_name': 'Default Agency'}
+                                # Add non-nullable fields with default values
+                                for col_name, col_info in agency_columns.items():
+                                    if col_info.get('nullable') is False and col_name not in required_values:
+                                        if col_name == 'contact_number':
+                                            required_values[col_name] = '0000000000'
+                                # Construct dynamic insert SQL
+                                cols = ', '.join(required_values.keys())
+                                placeholders = ', '.join(f':{k}' for k in required_values.keys())
+                                insert_sql = f"INSERT INTO agency ({cols}) VALUES ({placeholders}) ON CONFLICT (agency_id) DO NOTHING"
+                                try:
+                                    db.session.execute(text(insert_sql), required_values)
+                                    db.session.commit()
+                                    print('[SCHEMA GUARD] Ensured default agency exists with ID 1 with required fields')
+                                except Exception as e:
+                                    db.session.rollback()
+                                    print(f'[SCHEMA GUARD] Could not create default agency: {e}')
                             else:
                                 print('[SCHEMA GUARD] Skipping agency default: agency table not found.')
                         except Exception as e:
@@ -593,7 +620,7 @@ def signup():
         if not agency:
             # Create default agency if it doesn't exist
             try:
-                agency = Agency(agency_id=agency_id, agency_name=f"Default Agency {agency_id}")
+                agency = Agency(agency_id=agency_id, agency_name=f"Default Agency {agency_id}", contact_number="0000000000")
                 db.session.add(agency)
                 db.session.commit()
                 print(f"[SIGNUP] Created default agency with ID {agency_id}")
