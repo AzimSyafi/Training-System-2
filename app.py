@@ -232,138 +232,217 @@ def add_no_cache_headers(response):
 
 # --- One-time schema safeguard: ensure trainer.number_series exists & populated ---
 DISABLE_SCHEMA_GUARD = os.environ.get('DISABLE_SCHEMA_GUARD', '0') in ('1', 'true', 'True')
-with app.app_context():
-    if not DISABLE_SCHEMA_GUARD:
-        # Wait briefly for DB to be reachable (useful in local/dev and cold starts)
-        if not _wait_for_db(db.engine, seconds=20):
-            print('[SCHEMA GUARD] Skipping schema guard: database not reachable yet.')
-        else:
+
+# Check PostgreSQL version to determine lock function availability
+def _get_pg_version(engine):
+    """Get PostgreSQL version to determine available functions"""
+    try:
+        with engine.connect() as conn:
+            version_str = conn.execute(text("SHOW server_version")).scalar()
+            # Extract major version number
+            return int(version_str.split('.')[0])
+    except Exception:
+        # Default to assuming newer version
+        return 10
+
+# Function to safely bootstrap schema with advisory lock
+def _bootstrap_schema_with_advisory_lock(initializer):
+    """Runs schema initialization safely with only one worker performing the work.
+    Other workers will wait until initialization is complete."""
+    if not _wait_for_db(db.engine, seconds=20):
+        print('[SCHEMA GUARD] Skipping schema guard: database not reachable yet.')
+        return
+
+    # Check if schema already exists and skip initialization if it does
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        # Check if a key table exists to determine if schema is already initialized
+        if 'trainer' in inspector.get_table_names():
+            print(f'[SCHEMA GUARD] Worker (PID {os.getpid()}) detected schema already exists, skipping initialization')
+            return
+    except Exception as e:
+        print(f'[SCHEMA GUARD] Error checking schema: {e}')
+
+    # Use a stable lock key derived from app name
+    lock_key = 922337203685477571  # 64-bit key
+
+    with db.engine.connect() as conn:
+        # Try to become the leader (non-blocking)
+        got_leader = conn.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": lock_key}).scalar()
+
+        if got_leader:
+            print(f'[SCHEMA GUARD] Worker (PID {os.getpid()}) acquired lock and will initialize schema')
             try:
-                inspector = sa_inspect(db.engine)
-                # Acquire advisory lock so only one worker performs initialization
-                got_lock = False
+                # Double check if schema already exists before initializing
+                from sqlalchemy import inspect
+                inspector = inspect(db.engine)
+                if 'trainer' in inspector.get_table_names():
+                    print(f'[SCHEMA GUARD] Schema already initialized, skipping')
+                    return
+
+                # Run the initialization
+                initializer()
+                print(f'[SCHEMA GUARD] Schema initialization completed by worker {os.getpid()}')
+            finally:
+                # Release the lock so waiting workers can continue
+                conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": lock_key})
+        else:
+            # Another worker is initializing; wait until it finishes
+            print(f'[SCHEMA GUARD] Worker (PID {os.getpid()}) waiting for schema initialization to complete')
+
+            # Check PostgreSQL version for lock_timeout support
+            pg_version = _get_pg_version(db.engine)
+
+            if pg_version >= 9.3:  # lock_timeout was added in PostgreSQL 9.3
                 try:
-                    got_lock = db.session.execute(text('SELECT pg_try_advisory_lock(922337203685477571)')).scalar()  # 64-bit key
-                except Exception:
-                    # If advisory lock not available (non-Postgres), proceed without it
-                    got_lock = True
-                if not got_lock:
-                    print(f'[SCHEMA GUARD] Skipped: another worker (PID {os.getpid()}) is already initializing.')
-                else:
+                    # Set a statement timeout to prevent indefinite waiting
+                    conn.execute(text("SET LOCAL lock_timeout = '30s'"))
+                    conn.execute(text("SELECT pg_advisory_lock(:k)"), {"k": lock_key})
+                    print(f'[SCHEMA GUARD] Worker (PID {os.getpid()}) proceeding after schema initialization')
+                except Exception as e:
+                    print(f'[SCHEMA GUARD] Lock acquisition timed out: {e}, proceeding anyway')
+                finally:
+                    # Try to unlock if we got the lock
                     try:
-                        # Auto-create missing tables
-                        essential = ['course', 'user', 'module', 'trainer', 'user_module', 'user_course_progress', 'certificate', 'agency', 'work_history', 'admin', 'management']
-                        missing = [t for t in essential if not inspector.has_table(t)]
-                        if missing:
-                            db.create_all()
-                            db.session.commit()
-                            print(f"[SCHEMA GUARD] Created missing tables: {', '.join(missing)}")
+                        conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": lock_key})
+                    except Exception:
+                        pass
+            else:
+                # Fallback for older PostgreSQL versions
+                import time
+                max_wait = 30  # seconds
+                start_time = time.time()
 
-                        # Check agency table schema if it exists
-                        if inspector.has_table('agency'):
-                            agency_columns = {c['name']: c for c in inspector.get_columns('agency')}
-                            # If contact_number exists and is not nullable, add ALTER TABLE to make it nullable
-                            if 'contact_number' in agency_columns and agency_columns['contact_number'].get('nullable') is False:
-                                try:
-                                    db.session.execute(text('ALTER TABLE agency ALTER COLUMN contact_number DROP NOT NULL'))
-                                    db.session.commit()
-                                    print('[SCHEMA GUARD] Modified agency.contact_number to be nullable')
-                                except Exception as e:
-                                    db.session.rollback()
-                                    print(f'[SCHEMA GUARD] Could not alter agency.contact_number: {e}')
-                        # Refresh inspector after possible create_all
-                        inspector = sa_inspect(db.engine)
-                        # Safely handle trainer table
-                        if inspector.has_table('trainer'):
-                            trainer_columns = {c['name'] for c in inspector.get_columns('trainer')}
-                        else:
-                            trainer_columns = set()
-                        # Ensure user_module.reattempt_count column exists (only if table exists)
+                while time.time() - start_time < max_wait:
+                    # Try non-blocking lock acquisition
+                    got_lock = conn.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": lock_key}).scalar()
+                    if got_lock:
                         try:
-                            if inspector.has_table('user_module'):
-                                um_columns = {c['name'] for c in inspector.get_columns('user_module')}
-                                if 'reattempt_count' not in um_columns:
-                                    db.session.execute(text('ALTER TABLE user_module ADD COLUMN IF NOT EXISTS reattempt_count INTEGER DEFAULT 0'))
-                                    db.session.commit()
-                                    print('[SCHEMA GUARD] Added reattempt_count to user_module')
-                        except Exception as e:
-                            db.session.rollback()
-                            print(f'[SCHEMA GUARD] Could not ensure reattempt_count on user_module: {e}')
-                        # Ensure user_course_progress.reattempt_count column exists (only if table exists)
-                        try:
-                            if inspector.has_table('user_course_progress'):
-                                ucp_columns = {c['name'] for c in inspector.get_columns('user_course_progress')}
-                                if 'reattempt_count' not in ucp_columns:
-                                    db.session.execute(text('ALTER TABLE user_course_progress ADD COLUMN IF NOT EXISTS reattempt_count INTEGER DEFAULT 0'))
-                                    db.session.commit()
-                        except Exception as e:
-                            db.session.rollback()
-                            print(f'[SCHEMA GUARD] Could not add reattempt_count to user_course_progress: {e}')
-                        # Trainer number_series backfill (only if trainer table exists)
-                        if inspector.has_table('trainer'):
-                            if 'number_series' not in trainer_columns:
-                                db.session.execute(text("ALTER TABLE trainer ADD COLUMN IF NOT EXISTS number_series VARCHAR(10) UNIQUE"))
-                                db.session.commit()
-                            year = datetime.now(UTC).strftime('%Y')
-                            seq_name = f'trainer_number_series_{year}_seq'
-                            db.session.execute(text(f"CREATE SEQUENCE IF NOT EXISTS {seq_name}"))
-                            db.session.execute(text(
-                                f"UPDATE trainer SET number_series = 'TR{year}' || LPAD(nextval('{seq_name}')::text,4,'0') "
-                                "WHERE (number_series IS NULL OR number_series = '')"))
-                            db.session.commit()
-                        else:
-                            print('[SCHEMA GUARD] Skipping trainer backfill: trainer table not found.')
-                        # Ensure default courses exist without relying on unique constraint
-                        try:
-                            if inspector.has_table('course'):
-                                defaults = [
-                                    {'name': 'NEPAL SECURITY GUARD TRAINING (TNG)', 'code': 'TNG', 'allowed': 'foreigner'},
-                                    {'name': 'CERTIFIED SECURITY GUARD (CSG)', 'code': 'CSG', 'allowed': 'citizen'}
-                                ]
-                                db.session.execute(text(
-                                    "INSERT INTO course (name, code, allowed_category) VALUES (:name, :code, :allowed) "
-                                    "ON CONFLICT (code) DO NOTHING"
-                                ), defaults)
-                                db.session.commit()
-                            else:
-                                print('[SCHEMA GUARD] Skipping course defaults: course table not found.')
-
-                            # Ensure default agency exists
-                            if inspector.has_table('agency'):
-                                # Check required columns in agency table
-                                agency_columns = {c['name']: c for c in inspector.get_columns('agency')}
-                                # Build INSERT statement with required fields
-                                required_values = {'agency_id': 1, 'agency_name': 'Default Agency'}
-                                # Add non-nullable fields with default values
-                                for col_name, col_info in agency_columns.items():
-                                    if col_info.get('nullable') is False and col_name not in required_values:
-                                        if col_name == 'contact_number':
-                                            required_values[col_name] = '0000000000'
-                                # Construct dynamic insert SQL
-                                cols = ', '.join(required_values.keys())
-                                placeholders = ', '.join(f':{k}' for k in required_values.keys())
-                                insert_sql = f"INSERT INTO agency ({cols}) VALUES ({placeholders}) ON CONFLICT (agency_id) DO NOTHING"
-                                try:
-                                    db.session.execute(text(insert_sql), required_values)
-                                    db.session.commit()
-                                    print('[SCHEMA GUARD] Ensured default agency exists with ID 1 with required fields')
-                                except Exception as e:
-                                    db.session.rollback()
-                                    print(f'[SCHEMA GUARD] Could not create default agency: {e}')
-                            else:
-                                print('[SCHEMA GUARD] Skipping agency default: agency table not found.')
-                        except Exception as e:
-                            db.session.rollback()
-                            print(f"[SCHEMA GUARD] Could not ensure default entities: {e}")
-                    finally:
-                        try:
-                            db.session.execute(text('SELECT pg_advisory_unlock(922337203685477571)'))
-                            db.session.commit()
+                            print(f'[SCHEMA GUARD] Worker (PID {os.getpid()}) acquired lock after waiting')
+                            conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": lock_key})
                         except Exception:
                             pass
+                        break
+                    time.sleep(1)
+
+                print(f'[SCHEMA GUARD] Worker (PID {os.getpid()}) proceeding after wait period')
+
+# Define the initialization function
+def _initialize_schema():
+    inspector = sa_inspect(db.engine)
+    try:
+        # Auto-create missing tables
+        essential = ['course', 'user', 'module', 'trainer', 'user_module', 'user_course_progress', 'certificate', 'agency', 'work_history', 'admin', 'management']
+        missing = [t for t in essential if not inspector.has_table(t)]
+                                if missing:
+                                    db.create_all()
+                                    db.session.commit()
+                                    print(f"[SCHEMA GUARD] Created missing tables: {', '.join(missing)}")
+
+                                # Check agency table schema if it exists
+                                if inspector.has_table('agency'):
+                                    agency_columns = {c['name']: c for c in inspector.get_columns('agency')}
+                                    # If contact_number exists and is not nullable, add ALTER TABLE to make it nullable
+                                    if 'contact_number' in agency_columns and agency_columns['contact_number'].get('nullable') is False:
+                                        try:
+                                            db.session.execute(text('ALTER TABLE agency ALTER COLUMN contact_number DROP NOT NULL'))
+                                            db.session.commit()
+                                            print('[SCHEMA GUARD] Modified agency.contact_number to be nullable')
+                                        except Exception as e:
+                                            db.session.rollback()
+                                            print(f'[SCHEMA GUARD] Could not alter agency.contact_number: {e}')
+                                    # Safely handle trainer table
+                                    if inspector.has_table('trainer'):
+                                        trainer_columns = {c['name'] for c in inspector.get_columns('trainer')}
+                                    else:
+                                        trainer_columns = set()
+                                    # Ensure user_module.reattempt_count column exists (only if table exists)
+                                    try:
+                                        if inspector.has_table('user_module'):
+                                            um_columns = {c['name'] for c in inspector.get_columns('user_module')}
+                                            if 'reattempt_count' not in um_columns:
+                                                db.session.execute(text('ALTER TABLE user_module ADD COLUMN IF NOT EXISTS reattempt_count INTEGER DEFAULT 0'))
+                                                db.session.commit()
+                                                print('[SCHEMA GUARD] Added reattempt_count to user_module')
+                                    except Exception as e:
+                                        db.session.rollback()
+                                        print(f'[SCHEMA GUARD] Could not ensure reattempt_count on user_module: {e}')
+                                    # Ensure user_course_progress.reattempt_count column exists (only if table exists)
+                                    try:
+                                        if inspector.has_table('user_course_progress'):
+                                            ucp_columns = {c['name'] for c in inspector.get_columns('user_course_progress')}
+                                            if 'reattempt_count' not in ucp_columns:
+                                                db.session.execute(text('ALTER TABLE user_course_progress ADD COLUMN IF NOT EXISTS reattempt_count INTEGER DEFAULT 0'))
+                                                db.session.commit()
+                                                print('[SCHEMA GUARD] Added reattempt_count to user_course_progress')
+                                    except Exception as e:
+                                        db.session.rollback()
+                                        print(f'[SCHEMA GUARD] Could not add reattempt_count to user_course_progress: {e}')
+                                    # Trainer number_series backfill (only if trainer table exists)
+                                    if inspector.has_table('trainer'):
+                                        if 'number_series' not in trainer_columns:
+                                            db.session.execute(text("ALTER TABLE trainer ADD COLUMN IF NOT EXISTS number_series VARCHAR(10) UNIQUE"))
+                                            db.session.commit()
+                                        year = datetime.now(UTC).strftime('%Y')
+                                        seq_name = f'trainer_number_series_{year}_seq'
+                                        db.session.execute(text(f"CREATE SEQUENCE IF NOT EXISTS {seq_name}"))
+                                        db.session.execute(text(
+                                            f"UPDATE trainer SET number_series = 'TR{year}' || LPAD(nextval('{seq_name}')::text,4,'0') "
+                                            "WHERE (number_series IS NULL OR number_series = '')"))
+                                        db.session.commit()
+                                    else:
+                                        print('[SCHEMA GUARD] Skipping trainer backfill: trainer table not found.')
+                            # Ensure default courses exist without relying on unique constraint
+                            try:
+                                if inspector.has_table('course'):
+                                    defaults = [
+                    {'name': 'NEPAL SECURITY GUARD TRAINING (TNG)', 'code': 'TNG', 'allowed': 'foreigner'},
+                    {'name': 'CERTIFIED SECURITY GUARD (CSG)', 'code': 'CSG', 'allowed': 'citizen'}
+                                    ]
+                                    db.session.execute(text(
+                    "INSERT INTO course (name, code, allowed_category) VALUES (:name, :code, :allowed) "
+                    "ON CONFLICT (code) DO NOTHING"
+                                    ), defaults)
+                                    db.session.commit()
+                                else:
+                                    print('[SCHEMA GUARD] Skipping course defaults: course table not found.')
+                            except Exception as e:
+                                db.session.rollback()
+                                print(f'[SCHEMA GUARD] Could not ensure default courses: {e}')
+
+                            # Ensure default agency exists
+                    if inspector.has_table('agency'):
+            # Check required columns in agency table
+            agency_columns = {c['name']: c for c in inspector.get_columns('agency')}
+            # Build INSERT statement with required fields
+            required_values = {'agency_id': 1, 'agency_name': 'Default Agency'}
+            # Add non-nullable fields with default values
+            for col_name, col_info in agency_columns.items():
+                if col_info.get('nullable') is False and col_name not in required_values:
+                    if col_name == 'contact_number':
+                        required_values[col_name] = '0000000000'
+            # Construct dynamic insert SQL
+            cols = ', '.join(required_values.keys())
+            placeholders = ', '.join(f':{k}' for k in required_values.keys())
+            insert_sql = f"INSERT INTO agency ({cols}) VALUES ({placeholders}) ON CONFLICT (agency_id) DO NOTHING"
+            try:
+                db.session.execute(text(insert_sql), required_values)
+                db.session.commit()
+                print('[SCHEMA GUARD] Ensured default agency exists with ID 1 with required fields')
             except Exception as e:
                 db.session.rollback()
-                print(f"[SCHEMA GUARD ERROR] {e}")
+                print(f'[SCHEMA GUARD] Could not create default agency: {e}')
+                    else:
+            print('[SCHEMA GUARD] Skipping agency default: agency table not found.')
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"[SCHEMA GUARD] Could not ensure default entities: {e}")
+
+            # Execute schema initialization with the advisory lock pattern
+            with app.app_context():
+                if not DISABLE_SCHEMA_GUARD:
+                    _bootstrap_schema_with_advisory_lock(_initialize_schema)
 # -------------------------------------------------------------------------------
 
 @login_manager.user_loader
