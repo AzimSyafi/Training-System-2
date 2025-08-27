@@ -128,6 +128,15 @@
               <label for="passport_number" class="form-label">Passport Number</label>
               <input type="text" class="form-control" id="passport_number" name="passport_number" placeholder="e.g. A12345678">
             </div>
+            <div class="mb-3">
+              <label for="agency_id" class="form-label">Select Agency</label>
+              <select class="form-select" id="agency_id" name="agency_id" required>
+                <option value="" disabled selected>Select your agency</option>
+                {% for agency in agencies %}
+                  <option value="{{ agency.agency_id }}">{{ agency.agency_name }}</option>
+                {% endfor %}
+              </select>
+            </div>
             <div class="d-grid">
               <button type="submit" class="btn btn-primary">Create Account</button>
             </div>
