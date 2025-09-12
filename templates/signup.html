@@ -122,11 +122,11 @@
             </div>
             <div class="mb-3" id="ic_field" style="display: none;">
               <label for="ic_number" class="form-label">IC Number</label>
-              <input type="text" class="form-control" id="ic_number" name="ic_number" placeholder="e.g. 123456-78-9012">
+              <input type="text" class="form-control" id="ic_number" name="ic_number" placeholder="">
             </div>
             <div class="mb-3" id="passport_field" style="display: none;">
               <label for="passport_number" class="form-label">Passport Number</label>
-              <input type="text" class="form-control" id="passport_number" name="passport_number" placeholder="e.g. A12345678">
+              <input type="text" class="form-control" id="passport_number" name="passport_number" placeholder="">
             </div>
             <div class="mb-3">
               <label for="agency_id" class="form-label">Select Agency</label>
@@ -134,6 +134,15 @@
                 <option value="" disabled selected>Select your agency</option>
                 {% for agency in agencies %}
                   <option value="{{ agency.agency_id }}">{{ agency.agency_name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="state" class="form-label">State</label>
+              <select name="state" id="state" class="form-control">
+                <option value="">Select State</option>
+                {% for state in malaysian_states %}
+                  <option value="{{ state }}">{{ state }}</option>
                 {% endfor %}
               </select>
             </div>

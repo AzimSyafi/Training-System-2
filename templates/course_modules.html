@@ -2,12 +2,12 @@
 
 {% block content %}
 <div class="container mx-auto p-4">
+  <!-- styles moved to static/css/module_cards.css -->
   <div class="mb-4 flex justify-between items-center">
     <a href="{{ url_for('courses') }}" class="btn btn-secondary">
       <i class="fas fa-arrow-left"></i> Back to Courses
     </a>
 
-    <!-- Reattempt Button - Only show if user has completed all modules AND overall score < 50% -->
     {% set course_type = modules[0].module_type if modules else '' %}
     {% if current_user.has_completed_all_modules_in_course(course_type) and overall_percentage is defined and overall_percentage < 50 %}
     <button id="reattemptBtn" class="btn btn-warning" onclick="reattemptCourse('{{ course_type.lower() }}')" title="Overall score {{ overall_percentage }}% (below 50%) - you can reattempt">
@@ -16,7 +16,6 @@
     {% endif %}
   </div>
   <h2 class="text-3xl font-bold mb-1 text-blue-900">{{ course_name }}</h2>
-  {# Show overall score ONLY after all modules are completed #}
   {% if overall_percentage is defined and current_user.has_completed_all_modules_in_course(course_type) %}
     <p class="text-sm text-gray-600 mb-6">Overall Score: <span class="font-semibold {% if overall_percentage < 50 %}text-red-600{% elif overall_percentage > 75 %}text-green-600{% else %}text-blue-600{% endif %}">{{ overall_percentage }}%</span></p>
   {% endif %}
@@ -29,9 +28,11 @@
       {% set anchor_id = 'next' %}
       {% set first_incomplete_found = true %}
     {% endif %}
-    {% set open_module = False %} {# Always closed by default #}
-    <div class="card shadow mb-6" id="{{ anchor_id }}">
-      <div class="card-header bg-blue-800 text-white p-4 flex justify-between items-center {% if not module.unlocked %}opacity-60 cursor-not-allowed{% else %}cursor-pointer{% endif %}" {% if module.unlocked %}onclick="toggleModule('{{ module.module_id }}')"{% endif %}>
+    {% set open_module = False %}
+    {% set body_style = 'display:block;' if open_module else 'display:none;' %}
+    {% if not module.unlocked %}{% set body_style = body_style + 'pointer-events:none;opacity:0.5;' %}{% endif %}
+    <div class="card module-card-rounded shadow mb-6" id="{{ anchor_id }}">
+      <div class="card-header bg-blue-800 text-white p-4 flex justify-between items-center {% if not module.unlocked %}opacity-60 cursor-not-allowed{% else %}cursor-pointer{% endif %} {% if not open_module %}collapsed{% endif %}" {% if module.unlocked %}onclick="toggleModule('{{ module.module_id }}')"{% endif %}>
         <div class="flex items-center">
           <h3 class="text-xl font-bold mr-2">{{ module.module_name }}</h3>
           <span class="font-semibold text-xs bg-blue-100 text-blue-800 rounded px-2 py-1 mb-2 inline-block">{{ module.series_number }}</span>
@@ -39,51 +40,46 @@
             <span class="ml-2 text-red-500" title="Locked"><i class="fas fa-lock"></i> Locked</span>
           {% endif %}
         </div>
-        <div>
-          {% set progress = user_progress.get(module.module_id) %}
-          {# Removed completion status display entirely #}
-        </div>
+        <div></div>
         <i class="fas fa-chevron-down text-xl transition-transform duration-300" id="chevron-{{ module.module_id }}"></i>
       </div>
-      <div class="card-body p-6" id="module-content-{{ module.module_id }}" style="display:{{ 'block' if open_module else 'none' }}; {% if not module.unlocked %}pointer-events:none;opacity:0.5;{% endif %}">
+      <div class="card-body p-6" id="module-content-{{ module.module_id }}" style="{{ body_style }}">
         {% if not module.unlocked %}
           <div class="text-center text-red-500 font-bold mb-4">This module is locked. Complete the previous module to unlock.</div>
         {% endif %}
         {% if module.unlocked %}
         <p class="text-gray-700 mb-6">{{ module.content }}</p>
-        <!-- Tab Navigation -->
-        <ul class="nav nav-tabs mb-4" id="myTab-{{ module.module_id }}" role="tablist">
+        <ul class="nav nav-tabs mb-4" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="slide-tab-{{ module.module_id }}" data-bs-toggle="tab" data-bs-target="#slide-{{ module.module_id }}" type="button" role="tab" aria-controls="slide" aria-selected="true">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#slide-{{ module.module_id }}" type="button" role="tab">
               <i class="fas fa-file-powerpoint mr-2"></i>Slide
             </button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="video-tab-{{ module.module_id }}" data-bs-toggle="tab" data-bs-target="#video-{{ module.module_id }}" type="button" role="tab" aria-controls="video" aria-selected="false">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#video-{{ module.module_id }}" type="button" role="tab">
               <i class="fas fa-video mr-2"></i>Video
             </button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="quiz-tab-{{ module.module_id }}" data-bs-toggle="tab" data-bs-target="#quiz-{{ module.module_id }}" type="button" role="tab" aria-controls="quiz" aria-selected="false">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#quizlink-{{ module.module_id }}" type="button" role="tab">
               <i class="fas fa-question-circle mr-2"></i>Quiz
             </button>
           </li>
         </ul>
-        <!-- Tab Content -->
-        <div class="tab-content" id="myTabContent-{{ module.module_id }}">
-          <!-- Slide Content -->
-          <div class="tab-pane fade show active" id="slide-{{ module.module_id }}" role="tabpanel" aria-labelledby="slide-tab-{{ module.module_id }}">
-            <div class="bg-gray-100 p-4 rounded-lg">
+        <div class="tab-content">
+          <div class="tab-pane fade show active" id="slide-{{ module.module_id }}" role="tabpanel">
+            <div class="bg-blue-50 module-inner-panel-blue p-4 rounded-lg">
               <h4 class="text-lg font-semibold mb-2">Module Slides</h4>
               {% if module.slide_url %}
                 {% set slide_url = '/static/uploads/' ~ module.slide_url %}
                 {% if module.slide_url.endswith('.pdf') %}
                   <div class="max-w-4xl mx-auto mb-2">
-                    <iframe class="w-full h-96 border rounded" src="{{ slide_url }}" allowfullscreen></iframe>
+                    <iframe class="w-full h-96 border rounded deferred-iframe" data-src="{{ slide_url }}" allowfullscreen></iframe>
                   </div>
                 {% elif module.slide_url.endswith('.pptx') %}
                   <div class="max-w-4xl mx-auto mb-2">
-                    <iframe class="w-full h-96 border rounded" src="https://view.officeapps.live.com/op/embed.aspx?src={{ request.url_root | trim('/') }}/static/uploads/{{ module.slide_url }}" allowfullscreen></iframe>
+                    {% set absolute_src = (request.url_root ~ 'static/uploads/' ~ module.slide_url) | trim('/') %}
+                    <iframe class="w-full h-96 border rounded deferred-iframe" data-src="https://view.officeapps.live.com/op/embed.aspx?src={{ absolute_src | url_encode }}" allowfullscreen></iframe>
                   </div>
                 {% else %}
                   <p class="text-gray-600 mb-4">Unsupported slide format. Please use PDF or PPTX.</p>
@@ -94,90 +90,33 @@
               {% endif %}
             </div>
           </div>
-
-          <!-- Video Content -->
-          <div class="tab-pane fade" id="video-{{ module.module_id }}" role="tabpanel" aria-labelledby="video-tab-{{ module.module_id }}">
-            <div class="bg-gray-100 p-4 rounded-lg">
+          <div class="tab-pane fade" id="video-{{ module.module_id }}" role="tabpanel">
+            <div class="bg-blue-50 module-inner-panel-blue p-4 rounded-lg">
               <h4 class="text-lg font-semibold mb-2">Instructional Video</h4>
               {% if module.youtube_url %}
+              {% set __yid = module.youtube_url|youtube_id %}
               <div class="max-w-4xl mx-auto">
-                <div class="aspect-w-16 aspect-h-9">
-                  <iframe class="w-full h-96" src="https://www.youtube.com/embed/{{ module.youtube_url|youtube_id }}" title="YouTube video player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                <div style="position:relative;padding-top:56.25%;">
+                  <div style="position:absolute;top:0;left:0;width:100%;height:100%;">
+                    <div class="youtube-placeholder" data-youtube-id="{{ __yid }}" aria-label="YouTube video placeholder" style="width:100%;height:100%;"></div>
+                  </div>
                 </div>
               </div>
               {% else %}
-              <p class="text-gray-600 mb-4">No video available for this module.</p>
-              {% endif %}
+                <p class="text-gray-600 mb-4">No video available for this module.</p>
+               {% endif %}
             </div>
           </div>
-
-          <!-- Quiz Content -->
-          <div class="tab-pane fade" id="quiz-{{ module.module_id }}" role="tabpanel" aria-labelledby="quiz-tab-{{ module.module_id }}">
-            <div class="bg-gray-100 p-4 rounded-lg">
-              <h4 class="text-lg font-semibold mb-2">Knowledge Check</h4>
-              {% if module.quiz_image and module.quiz_image|trim %}
-              <div class="mb-4 text-center" style="border:2px dashed #ccc; min-height:190px; display:flex; align-items:center; justify-content:center; background:#f8f9fa;">
-                <img src="{{ url_for('static', filename='uploads/' ~ module.quiz_image) }}" alt="Quiz Image" class="img-fluid rounded" style="max-height:180px;">
-              </div>
+          <div class="tab-pane fade" id="quizlink-{{ module.module_id }}" role="tabpanel">
+            <div class="bg-blue-50 module-inner-panel-blue p-4 rounded-lg">
+              <div class="text-lg font-semibold mb-3 flex items-center">Knowledge Check</div>
+              {% if user_module and user_module.is_completed %}
+                <div class="alert alert-success mb-3 p-2 text-sm">Quiz completed. You can review or reattempt in the Quiz Player.</div>
               {% endif %}
-              <div id="quiz-user-view-{{ module.module_id }}">
-                {% if user_module and user_module.is_completed %}
-                  <div class="alert alert-success mb-3">You have already completed this quiz. Review your answers below.</div>
-                  <button class="btn btn-warning mb-3" onclick="startReattempt({{ module.module_id }})">Reattempt Quiz</button>
-                  <div id="reattempt-container-{{ module.module_id }}" class="mb-4"></div>
-                  <div id="quiz-review-{{ module.module_id }}"></div>
-                  <script>
-                    document.addEventListener('DOMContentLoaded', function() {
-                      Promise.all([
-                        fetch(`/api/load_quiz/{{ module.module_id }}`).then(res => res.json()),
-                        fetch(`/api/user_quiz_answers/{{ module.module_id }}`).then(res => res.json())
-                      ]).then(([quiz, userAnswers]) => {
-                        if (!quiz || !Array.isArray(quiz) || quiz.length === 0) {
-                          document.getElementById('quiz-review-{{ module.module_id }}').innerHTML = '<div class="alert alert-info">No quiz available for this module.</div>';
-                          return;
-                        }
-                        let html = '';
-                        quiz.forEach((q, idx) => {
-                          html += `<div class='mb-3'><b>Q${idx+1}:</b> ${q.text}<ul style='list-style-type:none;padding-left:0;'>`;
-                          const userAnswered = userAnswers && typeof userAnswers[idx] !== 'undefined';
-                          q.answers.forEach((a, aIdx) => {
-                            let isUser = userAnswered && userAnswers[idx] === aIdx;
-                            let isCorrect = a.isCorrect;
-                            let style = '';
-                            if (isUser && isCorrect) style = 'background:#d4edda;font-weight:bold;';
-                            else if (isUser && !isCorrect) style = 'background:#f8d7da;font-weight:bold;';
-                            else if (!userAnswered && isCorrect) style = 'background:#d1ecf1;';
-                            html += `<li style='${style}padding:4px 8px;border-radius:4px;margin-bottom:2px;'>`;
-                            if (isUser) html += `<i class='fas fa-user-check'></i> `;
-                            html += `${a.text}`;
-                            if (isUser && isCorrect) html += ` <span style='color:green;font-weight:bold'>(Your correct answer)</span>`;
-                            if (isUser && !isCorrect) html += ` <span style='color:red;'>(Your answer)</span>`;
-                            if (!userAnswered && isCorrect) html += ` <span style='color:blue;font-weight:bold'>(Correct answer)</span>`;
-                            html += `</li>`;
-                          });
-                          html += '</ul></div>';
-                        });
-                        document.getElementById('quiz-review-{{ module.module_id }}').innerHTML = html;
-                      });
-                    });
-                  </script>
-                {% else %}
-                  <div id="quiz-form-{{ module.module_id }}"></div>
-                  <script>
-                    document.addEventListener('DOMContentLoaded', function() {
-                      fetch(`/api/load_quiz/{{ module.module_id }}`)
-                        .then(res => res.json())
-                        .then(quiz => {
-                          if (!quiz || !quiz.length) {
-                            document.getElementById('quiz-form-{{ module.module_id }}').innerHTML = '<p class="text-gray-600 mb-4">No quiz available for this module.</p>';
-                            return;
-                          }
-                          renderQuizForm({{ module.module_id }}, quiz, false);
-                        });
-                    });
-                  </script>
-                {% endif %}
-              </div>
+              <p class="text-gray-600 mb-3">Open the dedicated Quiz Player for an immersive experience.</p>
+              <a href="{{ url_for('module_quiz', module_id=module.module_id) }}" class="btn btn-primary btn-lg">
+                <i class="fas fa-play me-1"></i> Open Quiz Player
+              </a>
             </div>
           </div>
         </div>
@@ -191,112 +130,54 @@
 
 {% block scripts %}
 <script>
-// Maintain state of quizzes loaded per module
-const quizCache = {};
-
 function toggleModule(moduleId) {
-  var content = document.getElementById('module-content-' + moduleId);
-  var chevron = document.getElementById('chevron-' + moduleId);
-  if (!content || !chevron) return;
-  if (content.style.display === 'block') {
-    content.style.display = 'none';
-    chevron.classList.remove('fa-chevron-up');
-    chevron.classList.add('fa-chevron-down');
-  } else {
-    content.style.display = 'block';
-    chevron.classList.remove('fa-chevron-down');
-    chevron.classList.add('fa-chevron-up');
-  }
+  const content = document.getElementById('module-content-' + moduleId);
+  const chevron = document.getElementById('chevron-' + moduleId);
+  const header = chevron ? chevron.closest('.card-header') : null;
+  if (!content || !chevron || !header) return;
+  const open = content.style.display === 'block';
+  content.style.display = open ? 'none' : 'block';
+  chevron.classList.toggle('fa-chevron-up', !open);
+  chevron.classList.toggle('fa-chevron-down', open);
+  header.classList.toggle('collapsed', open === true); // add collapsed when hiding body
 }
-
-function renderQuizForm(moduleId, quiz, isReattempt){
-  quizCache[moduleId] = quiz;
-  let html = '';
-  quiz.forEach((q, qIdx) => {
-    html += `<div class='mb-6 p-4 bg-white border rounded'><div class='font-semibold mb-2'>Q${qIdx+1}: ${q.text}</div>`;
-    q.answers.forEach((a, aIdx) => {
-      html += `<div class='flex items-center mb-1'><input type='radio' name='quiz-q${qIdx}-m${moduleId}' id='quiz-q${qIdx}-a${aIdx}-m${moduleId}' value='${aIdx}' class='mr-2 quiz-radio' data-qidx='${qIdx}' data-moduleid='${moduleId}'> <label for='quiz-q${qIdx}-a${aIdx}-m${moduleId}'>${a.text}</label></div>`;
-    });
-    html += `</div>`;
-  });
-  html += `<button class='btn btn-${isReattempt ? 'warning' : 'primary'}' id='submit-quiz-btn-${moduleId}' onclick='submitUserQuiz(${moduleId}, ${quiz.length}, ${isReattempt})' disabled>${isReattempt ? 'Submit Reattempt' : 'Submit Quiz'}</button>`;
-  const containerId = isReattempt ? `reattempt-container-${moduleId}` : `quiz-form-${moduleId}`;
-  const container = document.getElementById(containerId);
-  if(container){ container.innerHTML = html; }
-  const radios = document.querySelectorAll(`#${containerId} .quiz-radio`);
-  const submitBtn = document.getElementById(`submit-quiz-btn-${moduleId}`);
-  radios.forEach(radio => {
-    radio.addEventListener('change', function(){
-      let allAnswered = true;
-      for (let i = 0; i < quiz.length; i++) {
-        const name = `quiz-q${i}-m${moduleId}`;
-        const checked = document.querySelector(`#${containerId} input[name='${name}']:checked`);
-        if(!checked){ allAnswered = false; break; }
-      }
-      if(submitBtn){ submitBtn.disabled = !allAnswered; }
-    });
-  });
-}
-
-function submitUserQuiz(moduleId, questionCount, isReattempt=false) {
-  const answers = [];
-  for (let i = 0; i < questionCount; i++) {
-    const name = `quiz-q${i}-m${moduleId}`;
-    const checked = document.querySelector(`input[name='${name}']:checked`);
-    answers.push(checked ? parseInt(checked.value) : null);
-  }
-  fetch(`/api/submit_quiz/${moduleId}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ answers, is_reattempt: isReattempt })
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        alert(`Quiz submitted! Score: ${data.score}%, Grade: ${data.grade_letter} (Attempts: ${data.reattempt_count})`);
-        location.reload();
-      } else {
-        alert('Quiz submission failed: ' + (data.message || 'Unknown error'));
-      }
-    })
-    .catch(err => {
-      alert('Error submitting quiz: ' + err);
-    });
-}
-
-function startReattempt(moduleId){
-  if(!quizCache[moduleId]){
-    fetch(`/api/load_quiz/${moduleId}`)
-      .then(r=>r.json())
-      .then(q=>{ if(q && q.length){ renderQuizForm(moduleId, q, true); } else { alert('No quiz available.'); } });
-  } else {
-    renderQuizForm(moduleId, quizCache[moduleId], true);
-  }
-}
-
-// Reattempt course function
 function reattemptCourse(courseType) {
   if (confirm('Are you sure you want to reattempt this course? All your progress will be reset.')) {
-    fetch(`/api/reattempt_course/${courseType}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({}),
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          alert('Course reattempted successfully!');
-          location.reload();
-        } else {
-          alert('Reattempt failed: ' + (data.message || 'Unknown error'));
-        }
-      })
-      .catch(err => {
-        alert('Error reattempting course: ' + err);
-      });
+    fetch(`/api/reattempt_course/${courseType}`, {method:'POST', headers:{'Content-Type':'application/json'}})
+      .then(r=>r.json()).then(data=>{
+        if(data.success){ alert('Course reset.'); location.reload(); }
+        else { alert('Failed: ' + (data.message||'Unknown')); }
+      }).catch(e=>alert('Error: '+e));
   }
 }
+
+// Activate deferred iframes and YouTube placeholders to avoid Jinja-in-src lint warnings
+function activateDeferredIframes(root=document){
+  const iframes = (root || document).querySelectorAll('iframe.deferred-iframe');
+  for(const iframe of iframes){
+    if(!iframe.getAttribute('src')){
+      const src = iframe.getAttribute('data-src');
+      if(src) iframe.setAttribute('src', src);
+    }
+  }
+  const placeholders = (root || document).querySelectorAll('.youtube-placeholder');
+  for(const ph of placeholders){
+    if(ph.dataset.processed) continue;
+    const id = ph.getAttribute('data-youtube-id');
+    if(!id) continue;
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('src', 'https://www.youtube.com/embed/' + id);
+    iframe.setAttribute('title', 'YouTube video player');
+    iframe.setAttribute('allowfullscreen', '');
+    iframe.style.width = '100%'; iframe.style.height = '100%';
+    ph.innerHTML = '';
+    ph.appendChild(iframe);
+    ph.dataset.processed = '1';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  activateDeferredIframes();
+});
 </script>
 {% endblock %}

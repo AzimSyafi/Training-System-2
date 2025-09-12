@@ -101,14 +101,14 @@ body.dark-mode .stat-change, body.dark-mode .stat-title { color:#94a3b8; }
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
-                    <h5><i class="fas fa-chart-pie"></i> Module Completion Statistics</h5>
+                    <h5><i class="fas fa-chart-pie"></i> Course Completion Statistics</h5>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-striped">
                             <thead>
                                 <tr>
-                                    <th>Module Name</th>
+                                    <th>Course Name</th>
                                     <th>Total Attempts</th>
                                     <th>Completed</th>
                                     <th>Completion Rate</th>
@@ -118,7 +118,7 @@ body.dark-mode .stat-change, body.dark-mode .stat-title { color:#94a3b8; }
                             <tbody>
                                 {% for stat in dashboard.completion_stats %}
                                 <tr>
-                                    <td>{{ stat.module_name }}</td>
+                                    <td>{{ stat.course_name }}</td>
                                     <td>{{ stat.total_attempts }}</td>
                                     <td>{{ stat.completed }}</td>
                                     <td>

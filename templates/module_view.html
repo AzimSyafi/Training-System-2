@@ -78,16 +78,6 @@
                             <li class="list-group-item">
                                 <strong>Series:</strong> {{ module.series_number }}
                             </li>
-                            <li class="list-group-item">
-                                <strong>Rating:</strong>
-                                {% for i in range(1, 6) %}
-                                    {% if i <= module.star_rating %}
-                                        <i class="fas fa-star text-warning"></i>
-                                    {% else %}
-                                        <i class="far fa-star text-muted"></i>
-                                    {% endif %}
-                                {% endfor %}
-                            </li>
                         </ul>
                     </div>
                 </div>
@@ -136,14 +126,52 @@
                             <div id="videoPreview" class="mt-2" style="display:none;"></div>
                           </div>
                           <div class="form-group mb-3" id="quizUpload" style="display:none;">
-                            <label class="form-label">Quiz Question</label>
-                            <input type="text" name="quiz_question" class="form-control" placeholder="Enter quiz question" id="quizQuestionInput">
-                            <label class="form-label mt-2">Answer 1</label>
-                            <input type="text" name="quiz_answer1" class="form-control" placeholder="Enter answer 1" id="quizAnswer1Input">
-                            <label class="form-label mt-2">Answer 2</label>
-                            <input type="text" name="quiz_answer2" class="form-control" placeholder="Enter answer 2" id="quizAnswer2Input">
-                            <label class="form-label mt-2">Answer 3</label>
-                            <input type="text" name="quiz_answer3" class="form-control" placeholder="Enter answer 3" id="quizAnswer3Input">
+                            <label class="form-label">Quiz</label>
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                              <button type="button" class="btn btn-sm btn-outline-secondary" id="qcount-decr">&minus;</button>
+                              <input id="qcount-input" type="number" min="1" max="5" value="1" class="form-control form-control-sm" style="width:80px" />
+                              <button type="button" class="btn btn-sm btn-outline-secondary" id="qcount-incr">+</button>
+                              <small class="text-muted ms-2">Questions</small>
+                            </div>
+
+                            <div class="accordion" id="modalQuizAccordion">
+                              <!-- Five question slots; they'll be shown/hidden based on the count control -->
+                              {% for qn in range(1,6) %}
+                              <div class="accordion-item mb-2 quiz-panel" data-qnum="{{ qn }}" style="display: none;">
+                                <h2 class="accordion-header" id="modalHeading{{ qn }}">
+                                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#modalCollapse{{ qn }}">
+                                    Question {{ qn }}
+                                  </button>
+                                </h2>
+                                <div id="modalCollapse{{ qn }}" class="accordion-collapse collapse" data-bs-parent="#modalQuizAccordion">
+                                  <div class="accordion-body">
+                                    <div class="mb-2">
+                                      <label class="form-label">Question Text</label>
+                                      <input type="text" class="form-control" name="quiz_question_{{ qn }}" />
+                                    </div>
+                                    <div class="row g-2">
+                                      {% for an in range(1,6) %}
+                                      <div class="col-md-6">
+                                        <label class="form-label small mb-0">Answer {{ an }}</label>
+                                        <input type="text" class="form-control form-control-sm" name="answer_{{ qn }}_{{ an }}" />
+                                      </div>
+                                      {% endfor %}
+                                    </div>
+                                    <div class="mt-2">
+                                      <label class="form-label">Correct Answer (1-5)</label>
+                                      <select name="correct_answer_{{ qn }}" class="form-select form-select-sm">
+                                        <option value="">--</option>
+                                        {% for an in range(1,6) %}
+                                          <option value="{{ an }}">{{ an }}</option>
+                                        {% endfor %}
+                                      </select>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              {% endfor %}
+                            </div>
+                            <div class="alert alert-info mt-2 py-2">Leave unused questions blank; they'll be ignored.</div>
                           </div>
                           <div class="form-group mt-4">
                             <button type="submit" class="btn btn-primary w-100">
@@ -202,8 +230,8 @@
                     // Default tab
                     showTab('slide');
                     // Live YouTube preview
-                    if (youtubeUrl) {
-                      youtubeUrl.addEventListener('input', function() {
+                     if (youtubeUrl) {
+                       youtubeUrl.addEventListener('input', function() {
                         const url = youtubeUrl.value.trim();
                         let videoId = null;
                         if (url === '') {
@@ -251,25 +279,43 @@
                           youtubeUrl.classList.remove('is-invalid');
                         }
                       } else if (contentTypeInput.value === 'quiz') {
-                        const q = document.getElementById('quizQuestionInput');
-                        const a1 = document.getElementById('quizAnswer1Input');
-                        const a2 = document.getElementById('quizAnswer2Input');
-                        const a3 = document.getElementById('quizAnswer3Input');
-                        [q, a1, a2, a3].forEach(function(input) {
-                          if (!input.value.trim()) {
-                            input.classList.add('is-invalid');
-                            valid = false;
-                          } else {
-                            input.classList.remove('is-invalid');
+                        // Validate visible quiz panels
+                        const panels = document.querySelectorAll('#modalQuizAccordion .quiz-panel');
+                        let visibleCount = 0;
+                        panels.forEach(p => { if (p.style.display !== 'none') visibleCount++; });
+                        for (let i = 1; i <= visibleCount; i++) {
+                          const q = document.querySelector(`input[name=quiz_question_${i}]`);
+                          if (!q || !q.value.trim()) { q && q.classList.add('is-invalid'); valid = false; }
+                          for (let a = 1; a <= 2; a++) { // require at least two answers
+                            const ans = document.querySelector(`input[name=answer_${i}_${a}]`);
+                            if (!ans || !ans.value.trim()) { ans && ans.classList.add('is-invalid'); valid = false; }
                           }
-                        });
+                        }
                       }
                       if (!valid) {
                         e.preventDefault();
                       }
                     });
-                  });
-                </script>
+                    // Quiz panel count control logic
+                    const qDecr = document.getElementById('qcount-decr');
+                    const qIncr = document.getElementById('qcount-incr');
+                    const qInput = document.getElementById('qcount-input');
+                    const quizPanels = Array.from(document.querySelectorAll('#modalQuizAccordion .quiz-panel'));
+                    function showQuizCount(n) {
+                      n = Math.max(1, Math.min(5, parseInt(n,10)||1));
+                      quizPanels.forEach((p, idx) => {
+                        p.style.display = (idx < n) ? '' : 'none';
+                      });
+                      if (qInput) qInput.value = n;
+                    }
+                    qDecr && qDecr.addEventListener('click', ()=> showQuizCount(Math.max(1, parseInt(qInput.value||'1',10)-1)));
+                    qIncr && qIncr.addEventListener('click', ()=> showQuizCount(Math.min(5, parseInt(qInput.value||'1',10)+1)));
+                    qInput && qInput.addEventListener('input', (e)=>{ clearTimeout(window._mv_qt); window._mv_qt = setTimeout(()=> showQuizCount(e.target.value), 300); });
+                    qInput && qInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); showQuizCount(qInput.value); } });
+                    // Initialize panels to 1 visible
+                    showQuizCount(1);
+                   });
+                 </script>
 
                 <!-- User Quiz Tab/Section -->
                 <div id="user-quiz-section" class="card mt-4">

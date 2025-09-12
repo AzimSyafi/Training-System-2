@@ -6,6 +6,10 @@ console.log('quiz_builder.js loaded (vanilla JS)');
 function createQuizBuilder(root) {
   root.innerHTML = '';
   let quizData = [];
+  // Attach to the nearest enclosing form so we can include quiz JSON on submission
+  const parentForm = root.closest('form') || document.getElementById('contentForm') || null;
+  const localModuleId = root.dataset.moduleId || document.getElementById('moduleSelect')?.value || '';
+  const hiddenId = 'quiz-data-input' + (localModuleId ? ('-' + localModuleId) : '');
 
   // Helper to load quiz data for a module
   async function loadQuizData(moduleId) {
@@ -28,8 +32,45 @@ function createQuizBuilder(root) {
     render();
   }
 
+  let qcountInputTimer = null;
+
+  // Helper to grow or shrink quizData to match desired count (moved out so delegated handlers can call it)
+  function adjustQuestionCount(targetCount){
+    targetCount = Math.max(1, Math.min(50, parseInt(targetCount,10) || 1));
+    const current = quizData.length;
+    if (targetCount === current) return;
+    if (targetCount > current){
+      for (let i=0;i<targetCount-current;i++){
+        quizData.push({ text: '', answers: [ { text: '', isCorrect: true }, { text: '', isCorrect: false } ] });
+      }
+    } else {
+      // shrink: remove from end
+      quizData.splice(targetCount);
+    }
+    // Re-render and autosave
+    render();
+    autoSave();
+  }
+
   function render() {
     root.innerHTML = '';
+    // Question count control (minus / number / plus)
+    const countControl = document.createElement('div');
+    countControl.className = 'flex items-center gap-2 mb-4';
+    countControl.innerHTML = `
+      <label class="font-semibold">Number of questions:</label>
+      <div class="input-group d-flex align-items-center">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="qcount-decr">&minus;</button>
+        <input id="qcount-input" type="number" min="1" max="50" value="${quizData.length}" class="form-control form-control-sm mx-2" style="width:80px" />
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="qcount-incr">+</button>
+      </div>
+    `;
+    root.appendChild(countControl);
+
+    // Wire up count controls - keep only DOM creation; behavior handled by delegated listeners below
+    const qcountInput = countControl.querySelector('#qcount-input');
+    qcountInput.value = quizData.length;
+
     quizData.forEach((q, qIdx) => {
       const card = document.createElement('div');
       card.className = 'bg-white border-2 border-gray-200 rounded-lg shadow p-4 mb-6 relative';
@@ -126,16 +167,136 @@ function createQuizBuilder(root) {
     });
     root.appendChild(clearBtn);
 
-    // Removed Save/Cancel buttons
-    // Hidden input for form submission (if needed for legacy)
-    if (!document.getElementById('quiz-data-input')) {
-      const hidden = document.createElement('input');
-      hidden.type = 'hidden';
-      hidden.id = 'quiz-data-input';
-      hidden.name = 'quiz_data';
-      document.getElementById('contentForm').appendChild(hidden);
+    // Ensure a hidden field exists in the nearest form so server receives quiz JSON on submit
+    try{
+      if (parentForm) {
+        if (!document.getElementById(hiddenId)) {
+          const hidden = document.createElement('input');
+          hidden.type = 'hidden';
+          hidden.id = hiddenId;
+          hidden.name = 'quiz_data';
+          parentForm.appendChild(hidden);
+        }
+        // Update hidden value now
+        const hiddenNow = document.getElementById(hiddenId);
+        if(hiddenNow) hiddenNow.value = JSON.stringify(quizData || []);
+        // Attach submit handler once to keep hidden input up-to-date when user submits
+        if (!parentForm.dataset._quizSubmitBound) {
+          parentForm.addEventListener('submit', function(){
+            const h = document.getElementById(hiddenId);
+            if(h) h.value = JSON.stringify(quizData || []);
+            try{
+              // Remove any previously generated inputs we added
+              parentForm.querySelectorAll('input[data-quiz-generated]').forEach(el=>el.remove());
+              // Create per-question/answer/correct hidden inputs expected by server
+              (quizData || []).forEach((q, qi) => {
+                const idx = qi + 1;
+                // question text
+                const qInput = document.createElement('input');
+                qInput.type = 'hidden'; qInput.name = `quiz_question_${idx}`; qInput.value = q.text || '';
+                qInput.setAttribute('data-quiz-generated','1'); parentForm.appendChild(qInput);
+                // answers (up to 4) - pad with blanks
+                (q.answers || []).forEach((a, ai) => {
+                  const aInput = document.createElement('input');
+                  aInput.type = 'hidden'; aInput.name = `answer_${idx}_${ai+1}`; aInput.value = a.text || '';
+                  aInput.setAttribute('data-quiz-generated','1'); parentForm.appendChild(aInput);
+                });
+                for(let ai = (q.answers || []).length; ai < 4; ai++){
+                  const aInput = document.createElement('input');
+                  aInput.type = 'hidden'; aInput.name = `answer_${idx}_${ai+1}`; aInput.value = '';
+                  aInput.setAttribute('data-quiz-generated','1'); parentForm.appendChild(aInput);
+                }
+                // correct answer index (1-based relative to our answers ordering)
+                let correctIdx = 1;
+                const correctPos = (q.answers || []).findIndex(a=>a.isCorrect);
+                if(correctPos >= 0) correctIdx = correctPos + 1;
+                const cInput = document.createElement('input');
+                cInput.type = 'hidden'; cInput.name = `correct_answer_${idx}`; cInput.value = String(correctIdx);
+                cInput.setAttribute('data-quiz-generated','1'); parentForm.appendChild(cInput);
+              });
+            }catch(err){ console.error('quiz_builder: failed to generate form fields on submit', err); }
+          });
+           parentForm.dataset._quizSubmitBound = '1';
+         }
+       }
+     }catch(e){ /* non-fatal */ }
+  }
+
+  // Delegated event handlers (attach once) to survive render() re-creation of controls
+  function findAssociatedQcountInput(start){
+    if(!start) return null;
+    // look for nearest ancestor that contains a qcount-input
+    let node = start;
+    while(node && node !== root && node !== document.body){
+      const found = node.querySelector && (node.querySelector('.qcount-input') || node.querySelector('#qcount-input'));
+      if(found) return found;
+      node = node.parentElement;
+    }
+    // fallback: look inside root
+    return root.querySelector('.qcount-input') || root.querySelector('#qcount-input');
+  }
+
+  function delegatedHandlers(e){
+    console.debug('[quiz_builder] delegatedHandlers event:', e.type, e.target && e.target.className);
+    // Click: plus/minus - support id or class selectors
+    const decr = e.target.closest('#qcount-decr, .qcount-decr');
+    if (decr) {
+      console.debug('[quiz_builder] qcount-decr clicked');
+      const input = findAssociatedQcountInput(decr) || root.querySelector('#qcount-input');
+      if (input) {
+        const v = Math.max(1, parseInt(input.value || '0', 10) - 1);
+        console.debug('[quiz_builder] decrement to', v);
+        input.value = v; adjustQuestionCount(v);
+      }
+    }
+    const incr = e.target.closest('#qcount-incr, .qcount-incr');
+    if (incr) {
+      console.debug('[quiz_builder] qcount-incr clicked');
+      const input = findAssociatedQcountInput(incr) || root.querySelector('#qcount-input');
+      if (input) {
+        const v = Math.min(50, parseInt(input.value || '0', 10) + 1);
+        console.debug('[quiz_builder] increment to', v);
+        input.value = v; adjustQuestionCount(v);
+      }
     }
   }
+
+  function inputDelegatedHandler(e){
+    console.debug('[quiz_builder] inputDelegatedHandler target:', e.target && e.target.className, 'value:', e.target && e.target.value);
+    const input = e.target.closest('#qcount-input, .qcount-input');
+    if (!input) return;
+    // debounce changes
+    clearTimeout(qcountInputTimer);
+    const raw = input.value;
+    qcountInputTimer = setTimeout(()=>{
+      let v = parseInt(raw || '0', 10);
+      if (isNaN(v) || v < 1) v = 1;
+      if (v > 50) v = 50;
+      console.debug('[quiz_builder] debounced input value ->', v);
+      input.value = v; adjustQuestionCount(v);
+    }, 600);
+  }
+
+  // Keydown delegated for Enter
+  function keyDelegatedHandler(e){
+    if (e.target) console.debug('[quiz_builder] keyDelegatedHandler key:', e.key, 'target:', e.target.className);
+    const input = e.target.closest('#qcount-input, .qcount-input');
+    if (!input) return;
+    if (e.key === 'Enter'){
+      e.preventDefault();
+      clearTimeout(qcountInputTimer);
+      let v = parseInt(input.value || '0', 10);
+      if (isNaN(v) || v < 1) v = 1;
+      if (v > 50) v = 50;
+      console.debug('[quiz_builder] Enter pressed, setting count ->', v);
+      input.value = v; adjustQuestionCount(v);
+    }
+  }
+
+  // Attach delegated listeners to root so multiple builders won't duplicate handlers globally
+  root.addEventListener('click', delegatedHandlers);
+  root.addEventListener('input', inputDelegatedHandler);
+  root.addEventListener('keydown', keyDelegatedHandler);
 
   // Auto-save logic
   function autoSave() {
@@ -147,9 +308,8 @@ function createQuizBuilder(root) {
       body: JSON.stringify({ module_id: moduleId, quiz: quizData })
     })
     .then(res => res.json())
-    .then(data => {
+    .then(() => {
       // Optionally show a saved indicator
-      // console.log('Quiz saved', data);
     });
   }
 

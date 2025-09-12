@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+
+{% block title %}Quiz - {{ module.module_name if module else 'Module' }}{% endblock %}
+
+{% block styles %}
+<style>
+  .quiz-topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  .quiz-title { font-weight: 700; font-size: 1.05rem; }
+  .pill { background:#eef2ff; color:#1e3a8a; border-radius:999px; padding:6px 10px; display:flex; align-items:center; gap:6px; }
+  .pill.small { font-size:.85rem; padding:4px 8px; }
+  body.dark-mode .pill { background:#1f2a44; color:#dbeafe; }
+  .quiz-body { display:flex; align-items:center; justify-content:center; padding: 16px; }
+  .quiz-card { background: var(--card-bg); color:var(--text-color); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; box-shadow:0 4px 10px rgba(0,0,0,.06); }
+  .progress-wrap { display:flex; align-items:center; gap:12px; }
+  .progress-sm { height: 10px; background: #e5e7eb; border-radius: 6px; overflow:hidden; }
+  .progress-sm .bar { height: 100%; background: linear-gradient(90deg, #2563eb, #1d4ed8); width:0%; transition: width .3s ease; }
+  body.dark-mode .progress-sm { background:#334155; }
+  .answers-grid { display:grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }
+  @media (max-width: 640px){ .answers-grid { grid-template-columns: 1fr; } }
+  .answer-tile { border-radius: 10px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); padding: 12px; display:flex; align-items:center; gap:10px; transition: transform .12s ease, box-shadow .12s ease; }
+  .answer-tile:hover { transform: translateY(-1px); box-shadow: 0 8px 16px rgba(0,0,0,.08); }
+  .answer-tile .shape { width: 28px; height: 28px; border-radius: 6px; display:inline-flex; align-items:center; justify-content:center; color:#0b1020; font-weight:800; background:#93c5fd; }
+  .answer-tile.active { outline: 2px solid #2563eb; background: rgba(37,99,235,.06); }
+  .shape.c0 { background:#f87171; } /* red */
+  .shape.c1 { background:#34d399; } /* green */
+  .shape.c2 { background:#fbbf24; } /* amber */
+  .shape.c3 { background:#38bdf8; } /* sky */
+  .shape.c4 { background:#a78bfa; } /* violet */
+  .shape.c5 { background:#f97316; } /* orange */
+  .actions { display:flex; align-items:center; justify-content:space-between; margin-top: 14px; }
+  .countdown { min-width: 42px; text-align:center; }
+  #confetti-canvas { position: fixed; inset: 0; pointer-events: none; }
+  /* Hide the timer display */
+  .countdown { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="quiz-root"
+     data-module-id="{{ module.module_id if module else 0 }}"
+     data-module-name="{{ module.module_name|e if module else '' }}"
+     data-course-code="{{ course.code if course else '' }}"
+     data-is-completed="{{ '1' if (user_module and user_module.is_completed) else '0' }}">
+  <div class="quiz-topbar">
+    <div class="breadcrumbs">
+      <a href="{% if course %}{{ url_for('course_modules', course_code=course.code) }}{% else %}{{ url_for('user_dashboard') }}{% endif %}"><i class="fas fa-arrow-left me-2"></i>Back</a>
+    </div>
+    <div class="quiz-title">Quiz: {{ module.module_name if module else '' }}</div>
+    <div class="d-flex align-items-center gap-2">
+      <div class="pill"><i class="fas fa-list-ol"></i> <span id="progress-text">0 / 0</span></div>
+      <div class="countdown pill" id="countdown">--</div>
+      <div class="pill small" id="quiz-status-label"></div>
+    </div>
+  </div>
+
+  <div class="quiz-body">
+    <div class="quiz-card w-100">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="small opacity-75">Question <b id="q-position">1</b> of <b id="q-total">0</b></div>
+        <div class="progress-wrap" style="min-width:220px;">
+          <div class="progress-sm flex-grow-1" style="width:100%;"><div class="bar" id="progress-bar"></div></div>
+        </div>
+      </div>
+
+      <div id="no-quiz" class="alert alert-info d-none">No quiz available for this module yet.</div>
+
+      <div id="quiz-container">
+        <div id="question-wrapper" class="mb-3">
+          <!-- Question and answers rendered here -->
+        </div>
+        <div class="actions">
+          <div class="d-flex gap-2">
+            <button id="btn-prev" class="btn btn-outline-secondary" disabled><i class="fas fa-chevron-left me-1"></i>Previous</button>
+            <button id="btn-next" class="btn btn-primary">Next<i class="fas fa-chevron-right ms-1"></i></button>
+          </div>
+          <div class="d-flex gap-2">
+            <button id="btn-save-exit" class="btn btn-outline-warning" title="Save current answers and return later">Save & Exit</button>
+            <button id="btn-submit" class="btn btn-success d-none"><i class="fas fa-check me-1"></i>Submit</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="result-container" class="mt-3 d-none"></div>
+      <div id="review-container" class="mt-3 d-none"></div>
+
+      <div id="reattempt-box" class="mt-3 d-none text-end">
+        <button id="btn-reattempt" class="btn btn-warning"><i class="fas fa-redo me-1"></i>Reattempt Quiz</button>
+      </div>
+    </div>
+  </div>
+</div>
+<canvas id="confetti-canvas"></canvas>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  const root = document.getElementById('quiz-root');
+  const moduleId = parseInt(root?.dataset.moduleId || '0', 10);
+  const isCompleted = (root?.dataset.isCompleted === '1');
+  const questionWrapper = document.getElementById('question-wrapper');
+  const progressBar = document.getElementById('progress-bar');
+  const progressText = document.getElementById('progress-text');
+  const qPosition = document.getElementById('q-position');
+  const qTotal = document.getElementById('q-total');
+  const btnPrev = document.getElementById('btn-prev');
+  const btnNext = document.getElementById('btn-next');
+  const btnSubmit = document.getElementById('btn-submit');
+  const btnReattemptBox = document.getElementById('reattempt-box');
+  const btnReattempt = document.getElementById('btn-reattempt');
+  const resultContainer = document.getElementById('result-container');
+  const reviewContainer = document.getElementById('review-container');
+  const noQuiz = document.getElementById('no-quiz');
+  const statusLabel = document.getElementById('quiz-status-label');
+  const countdownEl = document.getElementById('countdown');
+  const btnSaveExit = document.getElementById('btn-save-exit');
+  // Added: reference to the progress bar wrapper for show/hide
+  const progressWrap = document.querySelector('.progress-wrap');
+
+  const CONFETTI_MS = 1800;
+  const QUESTION_TIME = 30; // seconds per question
+  let timerHandle = null;
+  let timeLeft = QUESTION_TIME;
+
+  let quiz = [];
+  let currentIndex = 0;
+  let answers = [];
+  let isReattempt = false;
+
+  // Autosave state
+  let saveTimer = null;
+  const SAVE_DEBOUNCE_MS = 1200;
+  const PERIODIC_SAVE_MS = 15000;
+  let saveInFlight = false;
+
+  function setStatusSaving(){ statusLabel.textContent = 'Saving...'; }
+  function setStatusSaved(){ statusLabel.textContent = 'Saved'; }
+
+  async function autoSaveAnswers(){
+    try{
+      if (!moduleId) return;
+      if (saveInFlight) return;
+      if (!Array.isArray(answers) || answers.length === 0) return;
+      saveInFlight = true; setStatusSaving();
+      const res = await fetch(`/api/save_quiz_answers/${moduleId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({answers}) });
+      const data = await res.json().catch(()=>({}));
+      if (res.ok && data && data.success){ setStatusSaved(); } else { statusLabel.textContent = 'Save failed'; }
+    }catch{ statusLabel.textContent = 'Save error'; }
+    finally{ saveInFlight = false; }
+  }
+  function scheduleAutoSave(){ clearTimeout(saveTimer); saveTimer = setTimeout(()=>autoSaveAnswers(), SAVE_DEBOUNCE_MS); }
+  let periodicSave = setInterval(()=>autoSaveAnswers(), PERIODIC_SAVE_MS);
+
+  function updateProgress(){
+    const total = quiz.length || 0;
+    const pos = (currentIndex+1);
+    qPosition.textContent = pos; qTotal.textContent = total;
+    progressText.textContent = pos + ' / ' + total;
+    const pct = (total? (pos/total)*100 : 0);
+    progressBar.style.width = pct + '%';
+  }
+
+  function choiceShape(index){
+    const labels = ['A','B','C','D','E','F','G'];
+    const cls = 'c'+(index%6);
+    return `<span class="shape ${cls}">${labels[index]||''}</span>`;
+  }
+
+  function renderQuestion(){
+    const q = quiz[currentIndex];
+    if(!q) return;
+    const chosen = answers[currentIndex];
+    let html = '';
+    html += `<div class='question-text mb-3'>${q.text}</div>`;
+    html += `<div class='answers-grid'>`;
+    (q.answers||[]).forEach((a, idx)=>{
+      const active = (chosen === idx) ? ' active' : '';
+      html += `<button type='button' class='answer-tile${active}' data-ans='${idx}' aria-label='Answer ${idx+1}'>`+
+              `${choiceShape(idx)}<div class='flex-1 text-start'>${a.text}</div>`+
+              `</button>`;
+    });
+    html += `</div>`;
+    questionWrapper.innerHTML = html;
+    questionWrapper.querySelectorAll('[data-ans]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const val = parseInt(btn.dataset.ans,10);
+        answers[currentIndex] = val;
+        renderQuestion(); // reflect selected
+        evaluateControls();
+        scheduleAutoSave();
+      });
+    });
+  }
+
+  function evaluateControls(){
+    btnPrev.disabled = currentIndex === 0;
+    const allAnswered = answers.every(a=>a !== null);
+    if(currentIndex === quiz.length - 1){
+      btnNext.classList.add('d-none');
+      btnSubmit.classList.remove('d-none');
+      btnSubmit.disabled = !allAnswered;
+    } else {
+      btnNext.classList.remove('d-none');
+      btnSubmit.classList.add('d-none');
+    }
+  }
+
+  function updateUI(){ updateProgress(); renderQuestion(); evaluateControls(); restartTimer(); }
+  function nextQuestion(){ if(currentIndex < quiz.length - 1){ currentIndex++; updateUI(); } }
+  function prevQuestion(){ if(currentIndex > 0){ currentIndex--; updateUI(); } }
+
+  // Timer handling (removed)
+  function restartTimer(){
+    clearInterval(timerHandle);
+    countdownEl.textContent = '--';
+  }
+
+  function confetti(){
+    const canvas = document.getElementById('confetti-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width = window.innerWidth;
+    const H = canvas.height = window.innerHeight;
+    const pieces = Array.from({length: 140}).map(()=>({ x: Math.random()*W, y: -20 - Math.random()*H, r: 4+Math.random()*4, c: `hsl(${Math.floor(Math.random()*360)},90%,60%)`, vy: 2+Math.random()*3, vx: -2+Math.random()*4, a: Math.random()*Math.PI }));
+    let rafId;
+    function draw(){ ctx.clearRect(0,0,W,H); pieces.forEach(p=>{ p.x += p.vx; p.y += p.vy; p.a += 0.1; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.sin(p.a)); ctx.fillStyle = p.c; ctx.fillRect(-p.r/2, -p.r/2, p.r, p.r); ctx.restore(); }); rafId = requestAnimationFrame(draw); }
+    draw(); setTimeout(()=>{ cancelAnimationFrame(rafId); ctx.clearRect(0,0,W,H); }, CONFETTI_MS);
+    window.addEventListener('resize', ()=>{ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }, { once:true });
+  }
+
+  async function submitQuiz(){
+    const payload = {answers: answers, is_reattempt: isReattempt};
+    btnSubmit.disabled = true; btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting...';
+    try{
+      const r = await fetch(`/api/submit_quiz/${moduleId}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      const data = await r.json();
+      if(!data.success){
+        alert(data.message || 'Submission failed'); btnSubmit.disabled = false; btnSubmit.innerHTML = '<i class="fas fa-check me-1"></i>Submit'; return;
+      }
+      clearInterval(timerHandle); clearInterval(periodicSave);
+      statusLabel.textContent = `Score: ${data.score}% | Grade: ${data.grade_letter} | Attempts: ${data.reattempt_count}`;
+      resultContainer.classList.remove('d-none');
+      resultContainer.innerHTML = `<div class='card'><div class='card-body d-flex align-items-center justify-content-between'>`+
+        `<div><strong>Submitted!</strong> Score: ${data.score}% <span class='badge bg-info text-dark ms-2'>Grade ${data.grade_letter}</span></div>`+
+        `<div class='opacity-75 small'>Attempts: ${data.reattempt_count}</div>`+
+      `</div></div>`;
+      renderReview();
+      btnReattemptBox.classList.remove('d-none');
+      document.getElementById('quiz-container').classList.add('d-none');
+      confetti();
+    }catch(err){
+      alert('Error submitting quiz: '+err);
+      btnSubmit.disabled = false; btnSubmit.innerHTML = '<i class="fas fa-check me-1"></i>Submit';
+    }
+  }
+
+  function renderReview(){
+    if(!Array.isArray(quiz) || quiz.length===0) return;
+    // Hide progress bar during review
+    if (progressWrap) progressWrap.classList.add('d-none');
+    reviewContainer.innerHTML = '';
+    let html = `<div class='card'><div class='card-header bg-light fw-semibold'>Review Answers</div><div class='card-body'>`;
+    quiz.forEach((q, idx)=>{
+      const userAns = answers[idx];
+      html += `<div class='mb-3'><div class='fw-semibold mb-1'>Q${idx+1}: ${q.text}</div><ul class='list-unstyled mb-0'>`;
+      (q.answers||[]).forEach((a,aIdx)=>{
+        const correct = !!a.isCorrect; const isUser = userAns === aIdx;
+        let cls = 'px-2 py-1 rounded mb-1';
+        if(correct && isUser) cls += ' bg-success text-white';
+        else if(correct) cls += ' bg-info text-dark';
+        else if(isUser && !correct) cls += ' bg-danger text-white';
+        else cls += ' bg-light';
+        html += `<li class='${cls}'><span>${a.text}</span>`;
+        if(correct) html += ` <span class='badge bg-success ms-1'>Correct</span>`;
+        if(isUser && !correct) html += ` <span class='badge bg-danger ms-1'>Your Answer</span>`;
+        if(isUser && correct) html += ` <span class='badge bg-warning text-dark ms-1'>You</span>`;
+        html += `</li>`;
+      });
+      html += `</ul></div>`;
+    });
+    html += `</div></div>`;
+    reviewContainer.innerHTML = html;
+    reviewContainer.classList.remove('d-none');
+    document.getElementById('quiz-container').classList.add('d-none');
+  }
+
+  function startReattempt(){
+    isReattempt = true; currentIndex = 0; answers = new Array(quiz.length).fill(null);
+    resultContainer.classList.add('d-none'); reviewContainer.classList.add('d-none');
+    document.getElementById('quiz-container').classList.remove('d-none');
+    btnReattemptBox.classList.add('d-none'); statusLabel.textContent = 'Reattempt in progress'; updateUI();
+    // Show progress bar again when reattempting
+    if (progressWrap) progressWrap.classList.remove('d-none');
+  }
+
+  // Keyboard shortcuts
+  window.addEventListener('keydown', (e)=>{
+    const k = e.key;
+    if(k === 'ArrowRight'){ e.preventDefault(); if(!btnNext.classList.contains('d-none')) nextQuestion(); }
+    if(k === 'ArrowLeft'){ e.preventDefault(); prevQuestion(); }
+    const num = parseInt(k,10);
+    if(!isNaN(num)){
+      const idx = num - 1;
+      const q = quiz[currentIndex];
+      if (q && q.answers && idx >=0 && idx < q.answers.length){ answers[currentIndex] = idx; renderQuestion(); evaluateControls(); scheduleAutoSave(); }
+    }
+  });
+
+  // Events
+  btnPrev.addEventListener('click', ()=>{ prevQuestion(); scheduleAutoSave(); });
+  btnNext.addEventListener('click', ()=>{ nextQuestion(); scheduleAutoSave(); });
+  btnSubmit.addEventListener('click', submitQuiz);
+  btnSaveExit.addEventListener('click', async ()=>{ await autoSaveAnswers(); window.history.back(); });
+  btnReattempt?.addEventListener('click', ()=>{ if(confirm('Start a reattempt? Your previous score is kept but this will count as another attempt.')) startReattempt(); });
+
+  // Save on navigation
+  btnPrev.addEventListener('click', scheduleAutoSave);
+  btnNext.addEventListener('click', scheduleAutoSave);
+
+  // Save before unload (best-effort)
+  window.addEventListener('beforeunload', function(){
+    try{
+      if (navigator.sendBeacon){
+        const payload = JSON.stringify({answers: answers});
+        navigator.sendBeacon(`/api/save_quiz_answers/${moduleId}`, new Blob([payload], {type:'application/json'}));
+      }
+    }catch(ex){}
+  });
+
+  async function fetchQuiz(){
+    try{
+      const data = await fetch(`/api/load_quiz/${moduleId}`).then(r=>r.json());
+      if(!Array.isArray(data) || data.length === 0){
+        noQuiz.classList.remove('d-none'); document.getElementById('quiz-container').classList.add('d-none'); countdownEl.textContent='--'; return;
+      }
+      quiz = data; answers = new Array(quiz.length).fill(null);
+      try{ // Load saved answers
+        const saved = await fetch(`/api/user_quiz_answers/${moduleId}`).then(r=>r.json()).catch(()=>[]);
+        if (Array.isArray(saved) && saved.length){ for(let i=0;i<Math.min(saved.length, answers.length);i++){ const v = saved[i]; answers[i] = (typeof v==='number')? v : answers[i]; } setStatusSaved(); }
+      }catch{}
+      updateUI();
+      if(isCompleted){
+        // Show review mode
+        const a = await fetch(`/api/user_quiz_answers/${moduleId}`).then(r=>r.json()).catch(()=>[]);
+        if(Array.isArray(a)){ answers = a; renderReview(); document.getElementById('quiz-container').classList.add('d-none'); countdownEl.textContent='--'; }
+      } else {
+        statusLabel.textContent = 'In progress';
+        // Ensure progress bar visible during active quiz
+        if (progressWrap) progressWrap.classList.remove('d-none');
+      }
+    }catch{
+      noQuiz.classList.remove('d-none'); noQuiz.textContent = 'Could not load quiz at this time.'; document.getElementById('quiz-container').classList.add('d-none'); countdownEl.textContent='--';
+    }
+  }
+
+  // Init
+  if(isCompleted){
+    statusLabel.textContent = 'Completed - loading review...';
+    if (progressWrap) progressWrap.classList.add('d-none');
+  }
+  fetchQuiz();
+})();
+</script>
+{% endblock %}

@@ -39,7 +39,7 @@
             <div class="text-gray-500 text-sm">Full Name</div>
             <div class="font-semibold text-lg" id="full_name_display">{{ user.full_name }}</div>
             <div class="text-gray-500 text-sm mt-2">User ID</div>
-            <div class="font-semibold text-lg">{{ user.user_id }}</div>
+            <div class="font-semibold text-lg">{{ user.displayed_id }}</div>
             <div class="text-gray-500 text-sm mt-2">Email</div>
             <div class="font-semibold text-lg" id="email_display">{{ user.email }}</div>
             <div class="text-gray-500 text-sm mt-2">Address</div>
@@ -71,8 +71,6 @@
         <div class="font-semibold text-lg" id="working_experience_display">{{ user.working_experience }}</div>
         <div class="text-gray-500 text-sm">Recruitment Date</div>
         <div class="font-semibold text-lg" id="recruitment_date_display">{{ user.recruitment_date }}</div>
-        <div class="text-gray-500 text-sm">Rating Star</div>
-        <div class="font-semibold text-lg" id="rating_star_display">{{ user.rating_star }}</div>
         <div class="text-gray-500 text-sm">Visa Number</div>
         <div class="font-semibold text-lg" id="visa_number_display">{{ user.visa_number }}</div>
         <div class="text-gray-500 text-sm">Visa Expiry Date</div>
@@ -106,10 +104,12 @@
         <h2 class="text-xl font-bold text-blue-900">Emergency Contact</h2>
       </div>
       <div id="emergency-fields">
-        <div class="text-gray-500 text-sm">Emergency Contact</div>
-        <div class="font-semibold text-lg" id="emergency_contact_display">{{ user.emergency_contact }}</div>
+        <div class="text-gray-500 text-sm">Emergency Contact Phone</div>
+        <div class="font-semibold text-lg" id="emergency_contact_phone_display">{{ user.emergency_contact_phone }}</div>
+        <div class="text-gray-500 text-sm">Emergency Contact Name</div>
+        <div class="font-semibold text-lg" id="emergency_contact_display">{{ user.emergency_contact_name }}</div>
         <div class="text-gray-500 text-sm">Emergency Relationship</div>
-        <div class="font-semibold text-lg" id="emergency_relationship_display">{{ user.emergency_relationship }}</div>
+        <div class="font-semibold text-lg" id="emergency_relationship_display">{{ user.emergency_contact_relationship }}</div>
       </div>
       <div id="emergency-edit-actions" class="hidden flex gap-2 mt-4 justify-end">
         <button type="button" class="save-btn bg-blue-700 text-white px-4 py-2 rounded shadow hover:bg-blue-800 font-bold" data-section="emergency">Save</button>
@@ -147,7 +147,12 @@
         </div>
         <div class="mb-2">
           <label class="block text-gray-500 text-sm">State</label>
-          <input type="text" name="state" value="{{ user.state }}" class="w-full border rounded px-2 py-1" />
+          <select name="state" class="w-full border rounded px-2 py-1">
+            <option value="">Select State</option>
+            {% for state in malaysian_states %}
+              <option value="{{ state }}" {% if user.state == state %}selected{% endif %}>{{ state }}</option>
+            {% endfor %}
+          </select>
         </div>
         <div class="mb-2">
           <label class="block text-gray-500 text-sm">Working Experience</label>
@@ -156,10 +161,6 @@
         <div class="mb-2">
           <label class="block text-gray-500 text-sm">Recruitment Date</label>
           <input type="date" name="recruitment_date" value="{{ user.recruitment_date }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Rating Star</label>
-          <input type="number" name="rating_star" value="{{ user.rating_star }}" class="w-full border rounded px-2 py-1" min="0" max="5" />
         </div>
         <div class="mb-2">
           <label class="block text-gray-500 text-sm">Visa Number</label>
@@ -183,11 +184,15 @@
         </div>
         <div class="mb-2">
           <label class="block text-gray-500 text-sm">Emergency Contact</label>
-          <input type="text" name="emergency_contact" value="{{ user.emergency_contact }}" class="w-full border rounded px-2 py-1" />
+          <input type="text" name="emergency_contact_name" value="{{ user.emergency_contact_name }}" class="w-full border rounded px-2 py-1" />
         </div>
         <div class="mb-2">
           <label class="block text-gray-500 text-sm">Emergency Relationship</label>
-          <input type="text" name="emergency_relationship" value="{{ user.emergency_relationship }}" class="w-full border rounded px-2 py-1" />
+          <input type="text" name="emergency_contact_relationship" value="{{ user.emergency_contact_relationship }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Emergency Contact Phone</label>
+          <input type="text" name="emergency_contact_phone" value="{{ user.emergency_contact_phone }}" class="w-full border rounded px-2 py-1" />
         </div>
         <div id="modal-profile-errors" class="text-red-600 text-sm mb-2"></div>
         <div class="flex justify-end gap-2 mt-4">
@@ -210,7 +215,7 @@ function printProfileSection() {
   const printContents = document.getElementById('profile-export-section').outerHTML;
   const win = window.open('', '', 'height=700,width=900');
   win.document.write('<html><head><title>Print Profile</title>');
-  win.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">');
+  win.document.write('<link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">');
   win.document.write('</head><body>');
   win.document.write(printContents);
   win.document.write('</body></html>');

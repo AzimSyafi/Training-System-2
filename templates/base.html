@@ -54,7 +54,11 @@
             } catch(e) {/* ignore */}
         })();
     </script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    {% if USE_TAILWIND_CDN %}
+      <script src="https://cdn.tailwindcss.com"></script>
+    {% else %}
+      <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
+    {% endif %}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
@@ -84,6 +88,9 @@
             --nav-item-padding-y: 0.9rem; /* increased from 0.65rem */
             --nav-item-min-height: 48px;   /* ensure enough vertical space */
             --sidebar-font-size: 1.05rem; /* slightly enlarged sidebar text */
+            /* segmented sidebar colors */
+            --sidebar-icon-color: #ffffff; /* strong icon */
+            --sidebar-text-color: var(--sidebar-link); /* lighter label */
         }
         body.dark-mode,
         html.darkmode body {
@@ -107,6 +114,9 @@
             --nav-tabs-link-hover-bg: #1e293b;
             --nav-tabs-link-active-bg: #1e293b;
             --nav-tabs-link-active-color: #f1f5f9;
+            /* segmented sidebar colors (dark) */
+            --sidebar-icon-color: #ffffff;
+            --sidebar-text-color: var(--sidebar-link);
         }
         body { background-color: var(--bg-body); color: var(--text-color); }
         body.theme-transition { transition: background-color .3s, color .3s; }
@@ -129,12 +139,12 @@
             position: relative;
             line-height: 1.2;
             overflow: hidden;
-            color: #fff;
+            color: var(--sidebar-icon-color); /* base/icon color */
             font-size: var(--sidebar-font-size);
         }
-        .sidebar .nav-link i { min-width: 20px; text-align: center; color: #fff; }
-        .sidebar .nav-link .link-text { display: inline-block; white-space: nowrap; max-width: 140px; overflow: hidden; opacity: 1; transition: max-width .28s ease, opacity .2s ease; color: #fff; }
-        .sidebar .nav-link.active, .sidebar .nav-link:hover { background: var(--sidebar-link-hover-bg); color: #fff; border-left: 3px solid var(--sidebar-link-active-border); }
+        .sidebar .nav-link i { min-width: 20px; text-align: center; color: var(--sidebar-icon-color); }
+        .sidebar .nav-link .link-text { display: inline-block; white-space: nowrap; max-width: 140px; overflow: hidden; opacity: 1; transition: max-width .28s ease, opacity .2s ease; color: var(--sidebar-text-color); }
+        .sidebar .nav-link.active, .sidebar .nav-link:hover { background: var(--sidebar-link-hover-bg); border-left: 3px solid var(--sidebar-link-active-border); }
         .sidebar.collapsed .nav-link { /* keep same vertical padding when collapsed */
             justify-content: center;
             gap: 0;
@@ -155,7 +165,7 @@
         .profile-avatar { width: 46px; height: 46px; border-radius: 50%; background: #3b82f6; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 1.05rem; overflow: hidden; flex-shrink: 0; }
         .profile-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .profile-text { display: flex; flex-direction: column; overflow: hidden; }
-        .profile-text .user-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .profile-text .user-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sidebar-text-color); }
         .sidebar.collapsed .profile-block { padding: .75rem 0 .9rem; justify-content: center; }
         .sidebar.collapsed .profile-trigger { justify-content: center; width: auto; }
         .sidebar.collapsed .profile-text { max-width: 0; opacity: 0; }
@@ -202,8 +212,8 @@
         body.dark-mode .text-body, html.darkmode body .text-body { color: var(--text-color)!important; }
         body.dark-mode .text-body-secondary, html.darkmode body .text-body-secondary { color:#94a3b8!important; }
         body.dark-mode .table>:not(caption)>*>* , html.darkmode body .table>:not(caption)>*>* { background-color: var(--card-bg)!important; box-shadow: inset 0 0 0 9999px transparent; }
-        body.dark-mode .table-striped>tbody>tr:nth-of-type(odd)>* , html.darkmode body .table-striped>tbody>tr:nth-of-type(odd)>* { background-color:#223047!important; }
-        body.dark-mode .table-striped>tbody>tr:nth-of-type(even)>* , html.darkmode body .table-striped>tbody>tr:nth-of-type(even)>* { background-color: var(--card-bg)!important; }
+        body.dark-mode .table-striped > tbody > tr:nth-of-type(odd) > * , html.darkmode body .table-striped > tbody > tr:nth-of-type(odd) > * { background-color:#223047!important; }
+        body.dark-mode .table-striped > tbody > tr:nth-of-type(even) > * , html.darkmode body .table-striped > tbody > tr:nth-of-type(even) > * { background-color: var(--card-bg)!important; }
         body.dark-mode .table-hover>tbody>tr:hover>* , html.darkmode body .table-hover>tbody>tr:hover>* { background-color:#2d405c!important; }
         body.dark-mode, html.darkmode body {
             --bs-body-bg: var(--bg-body);
@@ -234,10 +244,16 @@
         html.prefers-sidebar-collapsed body:not(.no-sidebar) .sidebar .profile-block { padding:.75rem 0 .9rem; justify-content:center; }
         html.prefers-sidebar-collapsed body:not(.no-sidebar) .sidebar .profile-trigger { justify-content:center; width:auto; }
         html.prefers-sidebar-collapsed body:not(.no-sidebar) .sidebar .profile-text { max-width:0; opacity:0; }
+
+        /* Module card styles moved to static CSS for reuse */
+        /* module_cards.css provides .module-card-rounded and .module-inner-panel-blue */
+        /* load module card stylesheet */
+
     </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/module_cards.css') }}">
     {% block styles %}{% endblock %}
 </head>
-<body class="{% if request.endpoint in ['index','login','signup','onboarding'] %}no-sidebar{% endif %}">
+<body class="{% if request.endpoint in ['index','login','signup','onboarding','module_quiz'] %}no-sidebar{% endif %}">
     {% if request.endpoint not in ['index','login','signup','onboarding'] %}
     <div class="sidebar" id="sidebar" aria-label="Main Sidebar">
         <button id="sidebar-toggle" aria-expanded="true" aria-controls="sidebar" type="button">
@@ -415,4 +431,3 @@
     {% block scripts %}{% endblock %}
 </body>
 </html>
-

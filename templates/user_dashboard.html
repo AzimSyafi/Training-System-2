@@ -10,67 +10,66 @@
   .stat-icon.enrolled { background:rgba(59,130,246,0.15); color:#3b82f6; }
   .stat-icon.completed { background:rgba(16,185,129,0.15); color:#10b981; }
   .stat-icon.certificates { background:rgba(245,158,11,0.15); color:#f59e0b; }
-  .stat-icon.rating { background:rgba(239,68,68,0.15); color:#ef4444; }
   .stat-info { flex:1; }
   .stat-title { font-size:14px; color:var(--text-secondary); margin-bottom:4px; }
   .stat-value { font-size:24px; font-weight:600; }
   .stat-change { font-size:12px; color:var(--text-secondary); display:flex; align-items:center; gap:4px; }
-  .rating-stars i { color:#fbbf24; }
-  .profile-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px; }
-  .info-card { background:var(--card-bg); border-radius:10px; padding:16px 18px; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
-  .info-title { font-size:14px; font-weight:600; color:var(--primary-text,#0f172a); display:flex; align-items:center; gap:6px; margin-bottom:6px; }
-  .info-body { font-size:14px; color:var(--text-secondary); }
-  /* Module styles retained in case reused elsewhere but section removed */
-  .modules-section-title { font-size:20px; font-weight:600; margin:30px 0 15px; display:flex; align-items:center; gap:10px; }
-  .module-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:20px; }
-  .module-card { background:var(--card-bg); border-radius:12px; padding:22px 22px 18px; box-shadow:0 2px 10px rgba(0,0,0,0.05); position:relative; border-left:4px solid var(--primary,#3b82f6); transition:.3s ease; cursor:pointer; }
-  .module-card:hover { transform:translateY(-6px); box-shadow:0 6px 18px rgba(0,0,0,0.12); }
-  body.dark-mode .module-card { box-shadow:0 2px 10px rgba(0,0,0,0.4); }
-  body.dark-mode .module-card:hover { box-shadow:0 6px 22px rgba(0,0,0,0.55); }
-  .course-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px; margin-top:10px; }
-  .course-card { background:var(--card-bg); border-radius:14px; padding:20px 22px 18px; box-shadow:0 2px 10px rgba(0,0,0,0.05); position:relative; overflow:hidden; border:1px solid rgba(0,0,0,0.06); transition:.3s ease; }
-  .course-card:hover { transform:translateY(-5px); box-shadow:0 6px 18px rgba(0,0,0,0.12); }
-  .course-badge { display:inline-block; font-size:11px; font-weight:600; letter-spacing:.5px; padding:4px 10px; border-radius:30px; background:#eff6ff; color:#1d4ed8; margin-bottom:10px; }
-  body.dark-mode .course-badge { background:rgba(59,130,246,0.15); color:#93c5fd; }
-  .course-title { font-size:16px; font-weight:600; margin:0 0 8px; line-height:1.25; }
-  .course-progress-wrap { margin:12px 0 8px; }
-  .course-progress-bar { height:8px; background:#e5e7eb; border-radius:6px; overflow:hidden; position:relative; }
-  .course-progress-bar > span { display:block; height:100%; background:linear-gradient(90deg,#2563eb,#1d4ed8); width:0; transition:width .6s ease; }
-  body.dark-mode .course-progress-bar { background:#374151; }
-  .course-stats { font-size:12px; display:flex; justify-content:space-between; color:var(--text-secondary); margin-top:2px; }
-  .course-actions { display:none; }
-  .btn-sm { font-size:12px; padding:6px 12px; border-radius:6px; font-weight:500; }
-  .empty-courses { background:var(--card-bg); border:1px dashed #cbd5e1; padding:24px; text-align:center; border-radius:12px; }
-  body.dark-mode .empty-courses { border-color:#475569; }
-</style>
+   .profile-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px; }
+   .info-card { background:var(--card-bg); border-radius:10px; padding:16px 18px; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+   .info-title { font-size:14px; font-weight:600; color:var(--primary-text,#0f172a); display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+   .info-body { font-size:14px; color:var(--text-secondary); }
+   /* Module styles retained in case reused elsewhere but section removed */
+   .modules-section-title { font-size:20px; font-weight:600; margin:30px 0 15px; display:flex; align-items:center; gap:10px; }
+   .module-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:20px; }
+   .module-card { background:var(--card-bg); border-radius:12px; padding:22px 22px 18px; box-shadow:0 2px 10px rgba(0,0,0,0.05); position:relative; border-left:4px solid var(--primary,#3b82f6); transition:.3s ease; cursor:pointer; }
+   .module-card:hover { transform:translateY(-6px); box-shadow:0 6px 18px rgba(0,0,0,0.12); }
+   body.dark-mode .module-card { box-shadow:0 2px 10px rgba(0,0,0,0.4); }
+   body.dark-mode .module-card:hover { box-shadow:0 6px 22px rgba(0,0,0,0.55); }
+   .course-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px; margin-top:10px; }
+   .course-card { background:var(--card-bg); border-radius:14px; padding:20px 22px 18px; box-shadow:0 2px 10px rgba(0,0,0,0.05); position:relative; overflow:hidden; border:1px solid rgba(0,0,0,0.06); transition:.3s ease; }
+   .course-card:hover { transform:translateY(-5px); box-shadow:0 6px 18px rgba(0,0,0,0.12); }
+   .course-badge { display:inline-block; font-size:11px; font-weight:600; letter-spacing:.5px; padding:4px 10px; border-radius:30px; background:#eff6ff; color:#1d4ed8; margin-bottom:10px; }
+   body.dark-mode .course-badge { background:rgba(59,130,246,0.15); color:#93c5fd; }
+   .course-title { font-size:16px; font-weight:600; margin:0 0 8px; line-height:1.25; }
+   .course-progress-wrap { margin:12px 0 8px; }
+   .course-progress-bar { height:8px; background:#e5e7eb; border-radius:6px; overflow:hidden; position:relative; }
+   .course-progress-bar > span { display:block; height:100%; background:linear-gradient(90deg,#2563eb,#1d4ed8); width:0; transition:width .6s ease; }
+   body.dark-mode .course-progress-bar { background:#374151; }
+   .course-stats { font-size:12px; display:flex; justify-content:space-between; color:var(--text-secondary); margin-top:2px; }
+   .course-actions { display:none; }
+   .btn-sm { font-size:12px; padding:6px 12px; border-radius:6px; font-weight:500; }
+   .empty-courses { background:var(--card-bg); border:1px dashed #cbd5e1; padding:24px; text-align:center; border-radius:12px; }
+   body.dark-mode .empty-courses { border-color:#475569; }
+ </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
   <h2 class="mb-4" style="font-size:26px; font-weight:600; display:flex; align-items:center; gap:10px;"><i class="fas fa-user-shield"></i> Trainee Dashboard</h2>
 
-  {% set total_modules = user_modules|length %}
-  {% set completed_modules = user_modules|selectattr('is_completed')|list|length %}
-  {% set completion_pct = (completed_modules / total_modules * 100) if total_modules > 0 else 0 %}
+  {# Course-level stats #}
+  {% set total_courses = (courses_progress|length) if courses_progress else 0 %}
+  {% set enrolled_courses = course_enrolled_count or 0 %}
+  {% set completed_courses = course_completed_count or 0 %}
+  {% set completion_pct_courses = ((completed_courses / total_courses) * 100) if total_courses > 0 else 0 %}
   {% set certificates_count = user.certificates|length %}
-  {# Grade code comes from backend (TNG for foreigner, CSG for citizen) #}
   {% set grade = user.get_overall_grade_for_course(grade_course_code) %}
 
   <div class="stats-container">
     <div class="stat-card">
       <div class="stat-icon enrolled"><i class="fas fa-book"></i></div>
       <div class="stat-info">
-        <div class="stat-title">Modules Enrolled</div>
-        <div class="stat-value">{{ total_modules }}</div>
-        <div class="stat-change"><i class="fas fa-layer-group"></i> Total available</div>
+        <div class="stat-title">Courses Enrolled</div>
+        <div class="stat-value">{{ enrolled_courses }}</div>
+        <div class="stat-change"><i class="fas fa-layer-group"></i> of {{ total_courses }} available</div>
       </div>
     </div>
     <div class="stat-card">
       <div class="stat-icon completed"><i class="fas fa-check-circle"></i></div>
       <div class="stat-info">
-        <div class="stat-title">Modules Completed</div>
-        <div class="stat-value">{{ completed_modules }}</div>
-        <div class="stat-change">{{ completion_pct|round(1) }}% complete</div>
+        <div class="stat-title">Courses Completed</div>
+        <div class="stat-value">{{ completed_courses }}</div>
+        <div class="stat-change">{{ completion_pct_courses|round(1) }}% complete</div>
       </div>
     </div>
     <div class="stat-card">
@@ -81,33 +80,9 @@
         <div class="stat-change">Earned</div>
       </div>
     </div>
-    <div class="stat-card">
-      <div class="stat-icon rating"><i class="fas fa-star"></i></div>
-      <div class="stat-info">
-        <div class="stat-title">Rating</div>
-        {% if rating_unlocked %}
-        <div class="stat-value rating-stars">
-          {% for i in range(1,6) %}
-            {% if i <= user.rating_star %}<i class="fas fa-star"></i>{% else %}<i class="far fa-star" style="color:#d1d5db;"></i>{% endif %}
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="stat-value rating-stars" style="font-size:18px; color:#9ca3af;">Locked</div>
-        {% endif %}
-        <div class="stat-change">
-          {%- if rating_unlocked and grade != 'N/A' %}
-            Course Grade: {{ grade }}
-          {%- elif rating_unlocked and user.rating_label %}
-            {{ user.rating_label }}
-          {%- else %}
-            Complete all modules to unlock
-          {%- endif %}
-        </div>
-      </div>
-    </div>
   </div>
 
-  {% if not user_modules %}
+  {% if not courses_progress %}
     <div class="alert alert-info mb-4">
       <h5 class="mb-2"><i class="fas fa-info-circle"></i> Welcome!</h5>
       <p class="mb-0">Your courses will appear here once available.</p>
@@ -132,7 +107,7 @@
         </div>
         <div class="col-sm-6 mb-3">
           <div class="text-muted small">Phone</div>
-          <div class="fw-semibold">{{ user.emergency_contact or 'N/A' }}</div>
+          <div class="fw-semibold">{{ user.emergency_contact_phone or 'N/A' }}</div>
         </div>
       </div>
     </div>
@@ -154,9 +129,9 @@
     <div class="info-card">
       <div class="info-title"><i class="fas fa-user-friends"></i>Emergency Contact</div>
       <div class="info-body">
-        {{ user.emergency_relationship or '—' }}<br>
-        <span class="small">{{ user.emergency_relationship_type or '' }}</span><br>
-        <span>{{ user.emergency_contact or '' }}</span>
+        <div class="fw-semibold">{{ user.emergency_contact_name or '—' }}</div>
+        <div class="small text-muted">{{ user.emergency_contact_relationship or '' }}</div>
+        <div class="mt-1">{{ user.emergency_contact_phone or '' }}</div>
       </div>
     </div>
   </div>
@@ -175,7 +150,6 @@
           <div class="course-progress-bar"><span style="width: {{ c.progress }}%"></span></div>
           <div class="course-stats"><span>{{ c.completed_modules }}/{{ c.total_modules }} modules</span><span>{{ c.progress }}%</span></div>
         </div>
-        {# Removed all action buttons and status text #}
       </div>
       {% endfor %}
     </div>

@@ -96,11 +96,11 @@
                 </div>
                 <div class="col-12" id="ic_field" style="display:none;">
                   <label class="form-label">IC Number</label>
-                  <input class="form-control" type="text" name="ic_number" id="ic_number" value="{{ user.ic_number or '' }}" placeholder="e.g. 123456-78-9012">
+                  <input class="form-control" type="text" name="ic_number" id="ic_number" value="{{ user.ic_number or '' }}" placeholder="123456-78-9012">
                 </div>
                 <div class="col-12" id="passport_field" style="display:none;">
                   <label class="form-label">Passport Number</label>
-                  <input class="form-control" type="text" name="passport_number" id="passport_number" value="{{ user.passport_number or '' }}" placeholder="e.g. A12345678">
+                  <input class="form-control" type="text" name="passport_number" id="passport_number" value="{{ user.passport_number or '' }}" placeholder="A12345678">
                 </div>
               </div>
             {% elif s == 2 %}
@@ -108,7 +108,7 @@
               <div class="row g-3">
                 <div class="col-md-6">
                   <label class="form-label">Phone Number</label>
-                  <input class="form-control" type="text" name="phone" value="{{ user.emergency_contact or '' }}" placeholder="e.g. 0123456789">
+                  <input class="form-control" type="text" name="emergency_contact_phone" value="{{ user.emergency_contact_phone or '' }}" placeholder="0123456789">
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Postcode</label>
@@ -120,7 +120,12 @@
                 </div>
                 <div class="col-12">
                   <label class="form-label">State</label>
-                  <input class="form-control" type="text" name="state" value="{{ user.state or '' }}">
+                  <select class="form-control" name="state">
+                    <option value="">Select State</option>
+                    {% for state in malaysian_states %}
+                      <option value="{{ state }}" {% if user.state == state %}selected{% endif %}>{{ state }}</option>
+                    {% endfor %}
+                  </select>
                 </div>
               </div>
             {% elif s == 3 %}
@@ -207,7 +212,15 @@
                 <div class="row g-3">
                   <div class="col-12">
                     <label class="form-label">Emergency Relationship</label>
-                    <input class="form-control" type="text" name="emergency_relationship" value="{{ user.emergency_relationship or '' }}" placeholder="e.g. Spouse, Parent">
+                    <input class="form-control" type="text" name="emergency_contact_relationship" value="{{ user.emergency_contact_relationship or '' }}" placeholder="Spouse, Parent">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Emergency Contact Name</label>
+                    <input class="form-control" type="text" name="emergency_contact_name" value="{{ user.emergency_contact_name or '' }}" placeholder="John Doe">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Emergency Contact Phone Number</label>
+                    <input class="form-control" type="text" name="emergency_contact_phone" value="{{ user.emergency_contact_phone or '' }}" placeholder="0123456789">
                   </div>
                 </div>
               </div>

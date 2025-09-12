@@ -12,7 +12,8 @@
       {% endfor %}
     {% endif %}
   {% endwith %}
-  {% if user_modules and user_modules|length > 0 %}
+  {% set rows = course_progress_rows or [] %}
+  {% if rows and rows|length > 0 %}
   <div class="card shadow-sm">
     <div class="card-body p-0">
       <div class="table-responsive">
@@ -20,45 +21,36 @@
           <thead class="table-light">
             <tr>
               <th>User</th>
-              <th>Module</th>
+              <th>Course</th>
               <th>Agency</th>
+              <th>Completed</th>
+              <th>Progress</th>
+              <th>Avg Score</th>
               <th>Status</th>
-              <th>Score</th>
-              <th>Completion Date</th>
-              <th>Certificate</th>
             </tr>
           </thead>
           <tbody>
-            {% for um, user, module, agency in user_modules %}
+            {% for r in rows %}
             <tr>
-              <td>{{ user.full_name }}</td>
-              <td>{{ module.module_name }}</td>
-              <td>{{ agency.agency_name }}</td>
+              <td>{{ r.user_name }}</td>
+              <td>{{ r.course_name }} <span class="badge bg-secondary">{{ r.course_code }}</span></td>
+              <td>{{ r.agency_name }}</td>
+              <td>{{ r.completed_modules }}/{{ r.total_modules }}</td>
               <td>
-                {% if um.is_completed %}
+                <div class="progress" style="height: 20px;">
+                  <div class="progress-bar {% if r.progress_pct >= 100 %}bg-success{% elif r.progress_pct >= 50 %}bg-primary{% else %}bg-warning text-dark{% endif %}" role="progressbar" style="width: {{ r.progress_pct }}%;" aria-valuenow="{{ r.progress_pct }}" aria-valuemin="0" aria-valuemax="100">{{ r.progress_pct }}%</div>
+                </div>
+              </td>
+              <td>
+                {% if r.avg_score is not none %}
+                  <span class="fw-semibold {% if r.avg_score <= 50 %}text-danger{% elif r.avg_score > 75 %}text-success{% else %}text-primary{% endif %}">{{ r.avg_score }}</span>%
+                {% else %}-{% endif %}
+              </td>
+              <td>
+                {% if r.status == 'Completed' %}
                   <span class="badge bg-success">Completed</span>
                 {% else %}
                   <span class="badge bg-warning text-dark">In Progress</span>
-                {% endif %}
-              </td>
-              <td>
-                {% if um.is_completed %}
-                  <span class="fw-semibold {% if um.score <= 50 %}text-danger{% elif um.score > 75 %}text-success{% else %}text-primary{% endif %}">{{ um.score|round(0, 'floor') }}%</span>
-                {% else %}-{% endif %}
-              </td>
-              <td>{% if um.completion_date %}{{ um.completion_date.strftime('%Y-%m-%d %H:%M') }}{% else %}-{% endif %}</td>
-              <td>
-                {% set key = (user.User_id, module.module_id) %}
-                {% if key in existing_certs %}
-                  <span class="badge bg-info"><i class="fas fa-check"></i> Issued</span>
-                {% elif um.is_completed and um.score > 50 %}
-                  <form method="POST" action="{{ safe_url_for('issue_certificate') }}" class="d-inline">
-                    <input type="hidden" name="user_id" value="{{ user.User_id }}">
-                    <input type="hidden" name="module_id" value="{{ module.module_id }}">
-                    <button type="submit" class="btn btn-sm btn-outline-success"><i class="fas fa-certificate"></i> Issue</button>
-                  </form>
-                {% else %}
-                  <span class="text-muted small">Not Eligible</span>
                 {% endif %}
               </td>
             </tr>
@@ -69,7 +61,7 @@
     </div>
   </div>
   {% else %}
-    <div class="alert alert-info">No progress records yet.</div>
+    <div class="alert alert-info">No course progress records yet.</div>
   {% endif %}
 </div>
 {% endblock %}

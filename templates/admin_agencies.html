@@ -33,8 +33,11 @@
                         <span class="text-muted">No users</span>
                     {% endfor %}
                 </td>
-                <td>
+                <td class="d-flex gap-2">
                     <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editAgencyModal{{ agency.agency_id }}">Edit</button>
+                    <form method="post" action="{{ url_for('admin_create_agency_account', agency_id=agency.agency_id) }}" onsubmit="return confirm('Create login for this agency?');">
+                        <button class="btn btn-sm btn-success" type="submit">Create Login</button>
+                    </form>
                 </td>
             </tr>
             <!-- Edit Modal for each agency -->

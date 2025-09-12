@@ -1,6 +1,5 @@
 from models import db, Module
 from app import app
-import os
 
 TNG_MODULES = [
     'INTRODUCTION TO SECURITY INDUSTRY',
@@ -37,11 +36,6 @@ CSG_MODULES = [
     'PENGENALAN DADAH DAN PENYALAHGUNAAN DADAH',
     'PENGENALAN & PERANAN ANGGOTA BERSENJATA & CIT'
 ]
-
-# Use absolute path for SQLite DB
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, 'instance', 'security_training.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
 
 def reset_modules():
     with app.app_context():

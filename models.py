@@ -3,6 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, UTC  # added UTC
 from flask_login import UserMixin
 from sqlalchemy import event, text
+from sqlalchemy.exc import IntegrityError  # added
 
 db = SQLAlchemy()
 
@@ -87,6 +88,8 @@ class Agency(db.Model):
 
     # Relationship
     users = db.relationship('User', backref='agency', lazy=True)
+    # New: optional one-to-one agency login account
+    account = db.relationship('AgencyAccount', backref='agency', uselist=False, lazy=True)
 
     def getInfo(self):
         return {
@@ -98,6 +101,45 @@ class Agency(db.Model):
             'PIC': self.PIC,
             'email': self.email
         }
+
+class AgencyAccount(UserMixin, db.Model):
+    __tablename__ = 'agency_account'
+
+    account_id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.Integer, db.ForeignKey('agency.agency_id'), nullable=False, unique=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(50), nullable=False, default='agency')
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))  # timezone-aware
+
+    def get_id(self):
+        return str(self.account_id)
+
+    def set_password(self, password: str):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password: str) -> bool:
+        return check_password_hash(self.password_hash, password)
+
+    # Provide template-friendly properties used by base.html
+    @property
+    def username(self):
+        try:
+            # Prefer agency name if available
+            if getattr(self, 'agency', None) and getattr(self.agency, 'agency_name', None):
+                return self.agency.agency_name
+        except Exception:
+            pass
+        return self.email
+
+    @property
+    def profile_pic(self):
+        # Agency accounts don’t have avatars by default
+        return None
+
+    @property
+    def displayed_id(self):
+        return str(self.account_id)
 
 class User(UserMixin, db.Model):
     __tablename__ = 'user'
@@ -111,16 +153,15 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     user_category = db.Column(db.String(20), nullable=False, default='citizen')  # 'citizen' or 'foreigner'
     visa_expiry_date = db.Column(db.Date)
-    emergency_contact = db.Column(db.String(20))
-    emergency_relationship = db.Column(db.String(100))
+    emergency_contact_phone = db.Column(db.String(20))
+    emergency_contact_name = db.Column(db.String(100))  # Emergency contact's name
+    emergency_contact_relationship = db.Column(db.String(100))
     working_experience = db.Column(db.String(255))
     recruitment_date = db.Column(db.Date)
     current_workplace = db.Column(db.String(255))
     state = db.Column(db.String(50))
     postcode = db.Column(db.String(10))
     remarks = db.Column(db.Text)
-    rating_star = db.Column(db.Integer, default=0)
-    rating_label = db.Column(db.String(50), default='')
     agency_id = db.Column(db.Integer, db.ForeignKey('agency.agency_id'), nullable=False)
     address = db.Column(db.Text)
     visa_number = db.Column(db.String(50))
@@ -268,7 +309,6 @@ class Module(db.Model):
     module_type = db.Column(db.String(100), nullable=False)
     series_number = db.Column(db.String(50))
     scoring_float = db.Column(db.Float, default=0.0)
-    star_rating = db.Column(db.Integer, default=0)
     content = db.Column(db.Text)
     youtube_url = db.Column(db.String(255))  # New field for YouTube video URL
     quiz_json = db.Column(db.Text)  # New field for storing quiz as JSON
@@ -288,16 +328,11 @@ class Module(db.Model):
             'module_type': self.module_type,
             'series_number': self.series_number,
             'scoring_float': self.scoring_float,
-            'star_rating': self.star_rating,
             'content': self.content
         }
 
     def editScoring(self, new_score):
         self.scoring_float = new_score
-        db.session.commit()
-
-    def setStarRating(self, rating):
-        self.star_rating = rating
         db.session.commit()
 
     def to_dict(self):
@@ -307,7 +342,6 @@ class Module(db.Model):
             'module_type': self.module_type,
             'series_number': self.series_number,
             'scoring_float': self.scoring_float,
-            'star_rating': self.star_rating,
             'content': self.content,
             'youtube_url': self.youtube_url,
             'quiz_json': self.quiz_json,
@@ -324,7 +358,6 @@ class Certificate(db.Model):
     module_type = db.Column(db.String(100))
     module_id = db.Column(db.Integer, db.ForeignKey('module.module_id'), nullable=False)
     issue_date = db.Column(db.Date, nullable=False)
-    star_rating = db.Column(db.Integer, default=0)
     score = db.Column(db.Float, default=0.0)
     certificate_url = db.Column(db.String(255))
 
@@ -478,9 +511,34 @@ class Management(db.Model):
             'total_modules': Module.query.count(),
             'total_certificates': Certificate.query.count(),
             'active_trainers': Trainer.query.filter_by(active_status=True).count(),
-            'completion_stats': self.getCompletionStatistics(),
+            'completion_stats': self.getCourseCompletionStatistics(),
             'performance_metrics': self.getPerformanceMetrics()
         }
+
+    def getCourseCompletionStatistics(self):
+        # Get completion statistics at the course level
+        from sqlalchemy.sql import func, case
+        stats = (
+            db.session.query(
+                Course.name.label('course_name'),
+                func.count(UserModule.id).label('total_attempts'),
+                func.count(case((UserModule.is_completed == True, 1))).label('completed'),
+                func.avg(UserModule.score).label('avg_score')
+            )
+            .join(Module, Module.course_id == Course.course_id)
+            .join(UserModule, UserModule.module_id == Module.module_id)
+            .group_by(Course.course_id)
+            .all()
+        )
+        # Return as list of dicts for template compatibility
+        return [
+            {
+                'course_name': s.course_name,
+                'total_attempts': s.total_attempts,
+                'completed': s.completed,
+                'avg_score': s.avg_score
+            } for s in stats
+        ]
 
 class Registration:
     @staticmethod

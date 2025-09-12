@@ -43,9 +43,15 @@
     <!-- Quiz Builder -->
     <div id="block-quiz" class="mt-3" style="display:none;">
       <p class="fw-bold">Quiz (Up to 5 Questions)</p>
+      <div class="d-flex align-items-center gap-2 mb-2 qcount-controls">
+        <button type="button" class="btn btn-sm btn-outline-secondary qcount-decr">&minus;</button>
+        <input type="number" min="1" max="5" value="1" class="form-control form-control-sm qcount-input" style="width:80px" />
+        <button type="button" class="btn btn-sm btn-outline-secondary qcount-incr">+</button>
+        <small class="text-muted ms-2">Questions</small>
+      </div>
       <div class="accordion" id="quizAccordion">
         {% for qn in range(1,6) %}
-        <div class="accordion-item mb-2">
+        <div class="accordion-item mb-2 quiz-panel" data-qnum="{{ qn }}" style="display: none;">
           <h2 class="accordion-header" id="heading{{ qn }}">
             <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ qn }}">
               Question {{ qn }}
@@ -94,6 +100,32 @@ function toggleContentBlocks(){
     document.getElementById('block-'+t).style.display = (val===t)?'block':'none';
   });
 }
+// Quiz count control for upload_content page
+document.addEventListener('DOMContentLoaded', function(){
+  const qDecr = document.querySelector('.qcount-decr');
+  const qIncr = document.querySelector('.qcount-incr');
+  const qInput = document.querySelector('.qcount-input');
+  const panels = Array.from(document.querySelectorAll('#quizAccordion .quiz-panel'));
+  function showCount(n){
+    n = Math.max(1, Math.min(5, parseInt(n,10)||1));
+    panels.forEach((p, idx)=> { p.style.display = (idx < n) ? '' : 'none'; });
+    if (qInput) qInput.value = n;
+  }
+  qDecr && qDecr.addEventListener('click', ()=> showCount(Math.max(1, parseInt(qInput.value||'1',10)-1)));
+  qIncr && qIncr.addEventListener('click', ()=> showCount(Math.min(5, parseInt(qInput.value||'1',10)+1)));
+  // Debounced input so typing updates panels
+  if (qInput){
+    let _t = null;
+    qInput.addEventListener('input', (e)=>{
+      clearTimeout(_t);
+      const raw = e.target.value;
+      _t = setTimeout(()=> showCount(raw), 350);
+    });
+    // Also handle Enter immediately
+    qInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ e.preventDefault(); showCount(qInput.value); } });
+  }
+   // initialize hidden until quiz block visible; still set default
+   showCount(1);
+ });
 </script>
 {% endblock %}
-

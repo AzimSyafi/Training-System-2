@@ -1,0 +1,13 @@
+.module-card-rounded { border-radius:14px; overflow:hidden; }
+.module-card-rounded > .card-header { border-top-left-radius:14px; border-top-right-radius:14px; }
+.module-card-rounded > .card-header.collapsed { border-bottom-left-radius:14px; border-bottom-right-radius:14px; }
+/* Use sidebar color for card accent/header */
+.module-card-rounded { background: var(--sidebar-bg); color: var(--sidebar-icon-color); }
+.module-card-rounded > .card-header { background: var(--sidebar-bg) !important; color: var(--sidebar-icon-color) !important; }
+/* Light mode: keep inner body white for readability */
+.module-card-rounded .card-body { background-color: #ffffff; color: var(--text-color); }
+/* Dark mode: use soft tinted blue for inner body to match sidebar identity */
+body.dark-mode .module-card-rounded .card-body, html.darkmode body .module-card-rounded .card-body { background-color: rgba(30,64,175,0.06); color: var(--text-color); }
+/* Soft tinted panels inside each tab for contrast */
+.module-inner-panel-blue { background-color: rgba(30,64,175,0.04); }
+

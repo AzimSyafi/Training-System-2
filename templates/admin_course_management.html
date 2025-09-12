@@ -1,233 +1,263 @@
 {% extends 'base.html' %}
-{% block title %}Course{% endblock %}
+{% block title %}Course Management{% endblock %}
 {% block content %}
-<div class="container-fluid">
-  <h2 class="mb-4">Course</h2>
-  <div class="row g-4">
-    <div class="col-lg-4">
-      <div class="card shadow-sm h-100">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <span class="fw-semibold">Courses</span>
-          <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createCourseModal"><i class="fas fa-plus"></i> New</button>
-        </div>
-        <div class="list-group list-group-flush" id="courseList">
-          {% for course in courses %}
-          <a href="#" class="list-group-item list-group-item-action course-item" data-course-id="{{ course.course_id }}">
-            <div class="d-flex w-100 justify-content-between">
-              <h6 class="mb-1">{{ course.name }}</h6>
-              <small class="text-muted">{{ course.code }}</small>
-            </div>
-            <small class="text-muted">Modules: {{ course.modules|length }}</small>
-          </a>
-          {% else %}
-          <div class="p-3 text-muted">No courses yet.</div>
-          {% endfor %}
-        </div>
-      </div>
+<div class="container-fluid" id="courseManagementRoot">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h3 fw-semibold mb-0">Course Management</h1>
+      <p class="text-muted mb-0 small">Create, organize and enrich your training content.</p>
     </div>
-    <div class="col-lg-8">
-      <div id="courseDetailPlaceholder" class="text-muted p-5 border rounded text-center">Select a course to manage its modules and content.</div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary d-none" id="backToCourses"><i class="fas fa-arrow-left me-1"></i> All Courses</button>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCourseModal"><i class="fas fa-plus me-1"></i> New Course</button>
+    </div>
+  </div>
+
+  <!-- Overview: Courses Grid -->
+  <div id="coursesOverview">
+    {% if courses %}
+    <div class="row g-4" id="courseCardsRow">
+      {% set accent_classes = ['accent-blue','accent-green','accent-purple'] %}
       {% for course in courses %}
-      <div class="course-detail d-none" id="course-detail-{{ course.course_id }}" data-module-count="{{ course.modules|length }}">
-        <div class="card mb-4 shadow-sm">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <span class="fw-semibold">Course Details</span>
-            <form action="{{ safe_url_for('delete_course', course_id=course.course_id) }}" method="post" onsubmit="return confirm('Delete this course?');">
-              <button class="btn btn-sm btn-outline-danger" type="submit"><i class="fas fa-trash"></i></button>
-            </form>
-          </div>
-          <div class="card-body">
-            <form class="row g-3" action="{{ safe_url_for('update_course', course_id=course.course_id) }}" method="post">
-              <div class="col-md-6">
-                <label class="form-label">Name</label>
-                <input class="form-control" name="name" value="{{ course.name }}" required>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label">Code</label>
-                <input class="form-control" value="{{ course.code }}" disabled>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label">Allowed Category</label>
-                <select class="form-select" name="allowed_category">
-                  <option value="both" {% if course.allowed_category=='both' %}selected{% endif %}>Both</option>
-                  <option value="citizen" {% if course.allowed_category=='citizen' %}selected{% endif %}>Citizen</option>
-                  <option value="foreigner" {% if course.allowed_category=='foreigner' %}selected{% endif %}>Foreigner</option>
-                </select>
-              </div>
-              <div class="col-12">
-                <label class="form-label">Description</label>
-                <textarea class="form-control" name="description" rows="2">{{ course.description }}</textarea>
-              </div>
-              <div class="col-12 d-flex justify-content-end">
-                <button class="btn btn-sm btn-success" type="submit"><i class="fas fa-save"></i> Save</button>
-              </div>
-            </form>
-          </div>
-        </div>
-        <div class="card mb-4 shadow-sm">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <span class="fw-semibold">Modules</span>
-            <button type="button" class="btn btn-sm btn-primary add-module-btn" data-course-id="{{ course.course_id }}"><i class="fas fa-plus"></i> Add</button>
-          </div>
-          <div class="add-module-section {% if course.modules|length != 0 %}d-none{% endif %}" id="addModuleForm-{{ course.course_id }}">
-            <div class="card-body border-bottom">
-              <form class="row g-3" action="{{ safe_url_for('add_course_module', course_id=course.course_id) }}" method="post">
-                <div class="col-md-5">
-                  <label class="form-label">Module Name</label>
-                  <input class="form-control" name="module_name" required>
+        {% set module_list = course_modules.get(course.course_id, []) %}
+        {% set total_mods = module_list|length %}
+        {% set accent = accent_classes[loop.index0 % accent_classes|length] %}
+        <div class="col-xxl-3 col-xl-4 col-lg-4 col-md-6" data-course-id="{{ course.course_id }}">
+          <!-- widened: was col-xl-3; added col-xxl-3 to keep 4-up only on very large screens -->
+          <div class="lms-card card-hover-lift course-card {{ accent }} h-100" tabindex="0" aria-label="Course {{ course.course_id }}">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-start justify-content-between mb-2">
+                <div>
+                  <h5 class="card-title mb-0 fw-semibold" title="{{ course.name }}">{{ course.name }}</h5>
+                  <span class="badge bg-light text-dark border small mt-1">{{ course.code }}</span>
                 </div>
-                <div class="col-md-3">
-                  <label class="form-label">Series #</label>
-                  <input class="form-control" name="series_number" placeholder="{{ course.code }}001">
-                </div>
-                <div class="col-md-12">
-                  <label class="form-label">Content / Notes</label>
-                  <textarea class="form-control" name="content" rows="2"></textarea>
-                </div>
-                <div class="col-12 d-flex justify-content-end">
-                  <button class="btn btn-sm btn-success" type="submit">Create Module</button>
-                </div>
-              </form>
+                <button class="btn btn-sm btn-outline-danger ms-2 p-1 delete-course-btn" title="Delete course" data-course-id="{{ course.course_id }}"><i class="fas fa-trash"></i></button>
+              </div>
+              <div class="d-flex justify-content-between align-items-center small mt-auto pt-2">
+                <span class="text-muted"><i class="fas fa-layer-group me-1"></i>{{ total_mods }} module{{ 's' if total_mods!=1 }}</span>
+                <button class="btn btn-sm btn-primary manage-course-btn" data-course-id="{{ course.course_id }}"><i class="fas fa-gear me-1"></i>Manage</button>
+              </div>
             </div>
           </div>
-          <div class="table-responsive">
-            <table class="table table-sm table-hover mb-0 align-middle">
-              <thead class="table-light">
-                <tr>
-                  <th style="width:22%">Name</th>
-                  <th style="width:10%">Series</th>
-                  <th style="width:10%">Slide</th>
-                  <th style="width:10%">Video</th>
-                  <th style="width:10%">Quiz</th>
-                  <th style="width:28%">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% set module_list = course_modules[course.course_id] %}
-                {% if module_list %}
-                  {% for m in module_list %}
-                  <tr>
-                    <td>{{ m.module_name }}</td>
-                    <td>{{ m.series_number }}</td>
-                    <td>{% if m.slide_url %}<a href="{{ url_for('serve_uploaded_slide', filename=m.slide_url) }}" target="_blank" class="text-decoration-none"><i class="fas fa-file-pdf text-danger"></i></a>{% else %}<span class="text-muted">-</span>{% endif %}</td>
-                    <td>{% if m.youtube_url %}<a href="{{ m.youtube_url }}" target="_blank"><i class="fab fa-youtube text-danger"></i></a>{% else %}<span class="text-muted">-</span>{% endif %}</td>
-                    <td>{% if m.quiz_json %}<i class="fas fa-check text-success"></i>{% else %}<span class="text-muted">-</span>{% endif %}</td>
-                    <td>
-                      <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-secondary module-toggle" data-panel="edit" data-module-id="{{ m.module_id }}"><i class="fas fa-pen"></i></button>
-                        <button type="button" class="btn btn-outline-info module-toggle" data-panel="content" data-module-id="{{ m.module_id }}"><i class="fas fa-photo-film"></i></button>
-                        <form action="{{ safe_url_for('delete_course_module', module_id=m.module_id) }}" method="post" onsubmit="return confirm('Delete module?');">
-                          <button class="btn btn-outline-danger" type="submit"><i class="fas fa-trash"></i></button>
+          <form class="d-none" id="delete-course-form-{{ course.course_id }}" method="post" action="{{ safe_url_for('delete_course', course_id=course.course_id) }}"></form>
+        </div>
+      {% endfor %}
+    </div>
+    {% else %}
+      <div class="text-center py-5 border rounded bg-white shadow-sm">
+        <p class="lead mb-2">No courses yet</p>
+        <p class="text-muted small mb-3">Create your first course to get started.</p>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCourseModal"><i class="fas fa-plus me-1"></i>Create Course</button>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Manager Panels (one per course) -->
+  <div id="courseManager" class="d-none">
+    {% for course in courses %}
+    {% set module_list = course_modules.get(course.course_id, []) %}
+    <div class="course-manage-wrapper d-none" id="course-manage-{{ course.course_id }}" data-course-id="{{ course.course_id }}">
+      <div class="fade-in">
+        <div class="row g-4 align-items-stretch">
+          <div class="col-12 col-xl-4">
+            <div class="card h-100 shadow-sm border-start-thick">
+              <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0 fw-semibold"><i class="fas fa-circle-info text-primary me-1"></i>Course Details</h6>
+                <div class="d-flex gap-2">
+                  <form method="post" action="{{ safe_url_for('delete_course', course_id=course.course_id) }}" onsubmit="return confirm('Delete this course?');">
+                    <button class="btn btn-sm btn-outline-danger" type="submit" title="Delete"><i class="fas fa-trash"></i></button>
+                  </form>
+                </div>
+              </div>
+              <div class="card-body">
+                <form class="row g-3" method="post" action="{{ safe_url_for('update_course', course_id=course.course_id) }}" id="course-edit-form-{{ course.course_id }}">
+                  <div class="col-12">
+                    <label class="form-label small">Name</label>
+                    <input name="name" class="form-control" value="{{ course.name }}" required>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small">Code</label>
+                    <input class="form-control" value="{{ course.code }}" disabled>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small">Allowed Category</label>
+                    <select class="form-select" name="allowed_category">
+                      <option value="both" {% if course.allowed_category=='both' %}selected{% endif %}>Both</option>
+                      <option value="citizen" {% if course.allowed_category=='citizen' %}selected{% endif %}>Citizen</option>
+                      <option value="foreigner" {% if course.allowed_category=='foreigner' %}selected{% endif %}>Foreigner</option>
+                    </select>
+                  </div>
+                  <div class="col-12 text-end">
+                    <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-save me-1"></i>Save</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-xl-8">
+            <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+              <h6 class="mb-0 fw-semibold"><i class="fas fa-layer-group text-primary me-1"></i>Modules</h6>
+              <button class="btn btn-sm btn-primary toggle-add-module" data-target="#addModuleWrap-{{ course.course_id }}"><i class="fas fa-plus me-1"></i>Add Module</button>
+            </div>
+            <div class="add-module-wrapper collapse" id="addModuleWrap-{{ course.course_id }}">
+              <div class="card shadow-sm mb-3 border-start-accent">
+                <div class="card-body p-3">
+                  <form class="row g-3" method="post" action="{{ safe_url_for('add_course_module', course_id=course.course_id) }}">
+                    <div class="col-md-6">
+                      <label class="form-label small">Module Name</label>
+                      <input class="form-control" name="module_name" required>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small">Series #</label>
+                      <input class="form-control" name="series_number" placeholder="{{ course.code }}001">
+                    </div>
+                    <div class="col-12 text-end">
+                      <button class="btn btn-success btn-sm" type="submit">Create Module</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+            {% if module_list %}
+            <div class="row g-3" id="moduleCards-{{ course.course_id }}">
+              {% for m in module_list %}
+              <div class="col-md-6" data-module-id="{{ m.module_id }}">
+                <div class="module-card card shadow-sm h-100 card-hover-lift" aria-label="Module {{ m.module_name }}">
+                  <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                      <div>
+                        <h6 class="mb-0 fw-semibold" title="{{ m.module_name }}">{{ m.module_name }}</h6>
+                        <span class="badge bg-secondary-subtle text-secondary-emphasis fw-normal border small">Series {{ m.series_number or '-' }}</span>
+                      </div>
+                      <div class="btn-group btn-group-sm ms-2">
+                        <form method="post" action="{{ safe_url_for('delete_course_module', module_id=m.module_id) }}" onsubmit="return confirm('Delete module?');">
+                          <button class="btn btn-outline-danger" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
                       </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td colspan="6" class="p-0">
-                      <div class="module-panel panel-edit d-none" id="editModuleForm-{{ m.module_id }}" data-course-id="{{ course.course_id }}">
-                        <div class="bg-light p-3 border-top">
-                          <form class="row g-2" action="{{ safe_url_for('update_course_module', module_id=m.module_id) }}" method="post">
-                            <div class="col-md-4">
+                    </div>
+                    <div class="mb-2 small">
+                      <span class="me-2 badge bg-light text-dark border status-badge {% if m.slide_url %}status-on{% endif %}"><i class="fas fa-file-powerpoint text-danger me-1"></i>Slides</span>
+                      <span class="me-2 badge bg-light text-dark border status-badge {% if m.youtube_url %}status-on{% endif %}"><i class="fab fa-youtube text-danger me-1"></i>Video</span>
+                      <span class="badge bg-light text-dark border status-badge {% if m.quiz_json %}status-on{% endif %}"><i class="fas fa-circle-question text-warning me-1"></i>Quiz</span>
+                    </div>
+                    <div class="mt-auto pt-1 text-end">
+                      <button class="btn btn-sm btn-link p-0 text-decoration-none show-module-modal" data-module-id="{{ m.module_id }}" aria-expanded="false">Details <i class="fas fa-chevron-right ms-1"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- Module Detail Template (Modal Content) -->
+              <template id="module-detail-template-{{ m.module_id }}">
+                <div class="module-modal-inner" data-module-id="{{ m.module_id }}">
+                  <div class="d-flex flex-wrap justify-content-between align-items-start mb-3 gap-2">
+                    <div>
+                      <h5 class="mb-0 fw-semibold">{{ m.module_name }}</h5>
+                      <span class="badge bg-secondary-subtle text-secondary-emphasis border small">Series {{ m.series_number or '-' }}</span>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                      <form method="post" action="{{ safe_url_for('delete_course_module', module_id=m.module_id) }}" onsubmit="return confirm('Delete module?');">
+                        <button class="btn btn-outline-danger" title="Delete"><i class="fas fa-trash"></i></button>
+                      </form>
+                    </div>
+                  </div>
+                  <div class="row g-4">
+                    <div class="col-12 col-lg-5">
+                      <div class="card shadow-sm mb-3">
+                        <div class="card-header py-2 bg-white"><span class="small fw-semibold text-uppercase">Edit Module</span></div>
+                        <div class="card-body p-3">
+                          <form class="row g-2 edit-module-form" method="post" action="{{ safe_url_for('update_course_module', module_id=m.module_id) }}" id="edit-form-{{ m.module_id }}">
+                            <div class="col-12">
                               <label class="form-label small mb-0">Name</label>
                               <input class="form-control form-control-sm" name="module_name" value="{{ m.module_name }}" required>
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-6">
                               <label class="form-label small mb-0">Series #</label>
                               <input class="form-control form-control-sm" name="series_number" value="{{ m.series_number }}">
                             </div>
-                            <div class="col-md-6">
-                              <label class="form-label small mb-0">Content</label>
-                              <input class="form-control form-control-sm" name="content" value="{{ m.content }}">
-                            </div>
-                            <div class="col-12 d-flex justify-content-end mt-2">
-                              <button class="btn btn-sm btn-success" type="submit">Save</button>
+                            <div class="col-12 text-end">
+                              <button class="btn btn-success btn-sm" type="submit"><i class="fas fa-save me-1"></i>Save</button>
                             </div>
                           </form>
-                          <div class="text-end mt-1"><button type="button" class="btn btn-link btn-sm text-decoration-none module-panel-close" data-target="editModuleForm-{{ m.module_id }}">Close</button></div>
                         </div>
                       </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td colspan="6" class="p-0">
-                      <div class="module-panel panel-content d-none" id="contentForm-{{ m.module_id }}" data-course-id="{{ course.course_id }}">
-                        <div class="bg-white p-3 border-top">
-                          <ul class="nav nav-pills mb-2" id="pills-{{ m.module_id }}" role="tablist">
-                            <li class="nav-item" role="presentation">
-                              <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#slide-pane-{{ m.module_id }}" type="button">Slide</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                              <button class="nav-link" data-bs-toggle="pill" data-bs-target="#video-pane-{{ m.module_id }}" type="button">Video</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                              <button class="nav-link" data-bs-toggle="pill" data-bs-target="#quiz-pane-{{ m.module_id }}" type="button">Quiz</button>
-                            </li>
+                    </div>
+                    <div class="col-12 col-lg-7">
+                      <div class="card shadow-sm h-100">
+                        <div class="card-header py-2 bg-white"><span class="small fw-semibold text-uppercase">Content</span></div>
+                        <div class="card-body p-3">
+                          <ul class="nav nav-pills nav-sm mb-3" role="tablist">
+                            <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#slide-pane-{{ m.module_id }}" type="button" role="tab">Slides</button></li>
+                            <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#video-pane-{{ m.module_id }}" type="button" role="tab">Video</button></li>
+                            <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#quiz-pane-{{ m.module_id }}" type="button" role="tab">Quiz</button></li>
                           </ul>
                           <div class="tab-content">
-                            <div class="tab-pane fade show active" id="slide-pane-{{ m.module_id }}">
-                              <form class="row g-2" action="{{ safe_url_for('manage_module_content', module_id=m.module_id) }}" method="post" enctype="multipart/form-data">
+                            <div class="tab-pane fade show active" id="slide-pane-{{ m.module_id }}" role="tabpanel">
+                              <form class="row g-2 align-items-start" method="post" enctype="multipart/form-data" action="{{ safe_url_for('manage_module_content', module_id=m.module_id) }}">
                                 <input type="hidden" name="content_type" value="slide">
-                                <div class="col-md-6">
+                                <div class="col-12">
                                   <input type="file" name="slide_file" class="form-control form-control-sm" accept=".pdf,.ppt,.pptx">
                                 </div>
-                                <div class="col-md-6 d-flex align-items-center gap-2">
-                                  {% if m.slide_url %}<span class="small text-success">Current: {{ m.slide_url }}</span>{% endif %}
-                                  <button class="btn btn-sm btn-primary" type="submit">Upload</button>
-                                </div>
-                              </form>
-                              <div class="text-end mt-1"><button type="button" class="btn btn-link btn-sm text-decoration-none module-panel-close" data-target="contentForm-{{ m.module_id }}">Close</button></div>
-                            </div>
-                            <div class="tab-pane fade" id="video-pane-{{ m.module_id }}">
-                              <form class="row g-2" action="{{ safe_url_for('manage_module_content', module_id=m.module_id) }}" method="post">
-                                <input type="hidden" name="content_type" value="video">
-                                <div class="col-md-8">
-                                  <input class="form-control form-control-sm" name="youtube_url" placeholder="YouTube URL" value="{{ m.youtube_url }}">
-                                </div>
-                                <div class="col-md-4">
-                                  <button class="btn btn-sm btn-primary w-100" type="submit">Save</button>
-                                </div>
-                              </form>
-                            </div>
-                            <div class="tab-pane fade" id="quiz-pane-{{ m.module_id }}">
-                              <form class="row g-2 quiz-form" id="quiz-form-{{ m.module_id }}" action="{{ safe_url_for('manage_module_content', module_id=m.module_id) }}" method="post" enctype="multipart/form-data" data-module-id="{{ m.module_id }}">
-                                <input type="hidden" name="content_type" value="quiz">
                                 <div class="col-12">
-                                  <div id="quiz-questions-{{ m.module_id }}" class="quiz-questions" data-module-id="{{ m.module_id }}"></div>
-                                  <div class="d-flex justify-content-between align-items-center mt-2">
-                                    <button type="button" class="btn btn-sm btn-outline-primary add-question-btn" data-module-id="{{ m.module_id }}">Add Question</button>
-                                    <small class="text-muted">Up to 5 questions. Remove with the trash icon.</small>
-                                  </div>
-                                  <div class="mt-3">
-                                    <label class="small text-muted mb-1">(Optional) Quiz Image (single image for entire quiz)</label>
-                                    <input type="file" name="quiz_image" class="form-control form-control-sm" style="max-width:300px;">
-                                  </div>
+                                  <label class="form-label small mb-1">Or paste slide text</label>
+                                  <textarea class="form-control form-control-sm" name="slide_text" rows="6" placeholder="Paste slide text here...">{{ m.content or '' }}</textarea>
+                                  <small class="text-muted">Provide either a file, text, or both. Text is saved even without a file.</small>
                                 </div>
-                                <div class="col-12 d-flex justify-content-end mt-3">
-                                  <button class="btn btn-sm btn-primary" type="submit">Save Quiz</button>
+                                <div class="col-12 d-flex align-items-center gap-2 flex-wrap small">
+                                  {% if m.slide_url %}<a href="{{ url_for('serve_uploaded_slide', filename=m.slide_url) }}" target="_blank" class="text-success text-truncate" style="max-width:200px"><i class="fas fa-file-pdf me-1"></i>{{ m.slide_url }}</a>{% else %}<span class="text-muted">No slide</span>{% endif %}
+                                  <button class="btn btn-primary btn-sm" type="submit">Save</button>
                                 </div>
                               </form>
-                              {% if m.quiz_json %}
-                              <div class="mt-2 small text-success">Quiz already configured. Saving will overwrite.</div>
-                              {% endif %}
+                            </div>
+                            <div class="tab-pane fade" id="video-pane-{{ m.module_id }}" role="tabpanel">
+                              <form class="row g-2" method="post" action="{{ safe_url_for('manage_module_content', module_id=m.module_id) }}">
+                                <input type="hidden" name="content_type" value="video">
+                                <div class="col-12">
+                                  <div class="input-group input-group-sm">
+                                    <span class="input-group-text"><i class="fab fa-youtube text-danger"></i></span>
+                                    <input class="form-control" name="youtube_url" placeholder="YouTube URL" value="{{ m.youtube_url }}">
+                                  </div>
+                                </div>
+                                <div class="col-12 text-end">
+                                  <button class="btn btn-primary btn-sm" type="submit">Save</button>
+                                </div>
+                              </form>
+                            </div>
+                            <div class="tab-pane fade" id="quiz-pane-{{ m.module_id }}" role="tabpanel">
+                              <form class="quiz-builder-form" method="post" id="quiz-form-{{ m.module_id }}" action="{{ safe_url_for('manage_module_content', module_id=m.module_id) }}" enctype="multipart/form-data" data-module-id="{{ m.module_id }}">
+                                <input type="hidden" name="content_type" value="quiz">
+                                <div class="accordion quiz-questions" data-module-id="{{ m.module_id }}"></div>
+                                <div class="d-flex justify-content-between align-items-center mt-3">
+                                  <button type="button" class="btn btn-outline-primary btn-sm add-question" data-module-id="{{ m.module_id }}"><i class="fas fa-plus me-1"></i>Question</button>
+                                  <small class="text-muted">Max 40 questions.</small>
+                                </div>
+                                {# Removed warning about replacement; we now support editing #}
+                                {% if m.quiz_json %}<script type="application/json" class="existing-quiz-data">{{ m.quiz_json|safe }}</script>{% endif %}
+                                <button class="btn btn-success btn-lg floating-save d-none" type="submit" data-floating-for="quiz-form-{{ m.module_id }}"><i class="fas fa-save me-2"></i>Save Quiz</button>
+                              </form>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </td>
-                  </tr>
-                  {% endfor %}
-                {% else %}
-                <tr>
-                  <td colspan="6" class="text-center text-muted py-3">No modules yet. Click the Add button above to create the first module.</td>
-                </tr>
-                {% endif %}
-              </tbody>
-            </table>
-          </div> <!-- /.table-responsive -->
-        </div> <!-- /.card (modules) -->
-      </div> <!-- /.course-detail -->
-      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+              </template>
+              {% endfor %}
+            </div>
+            {% else %}
+              <div class="card shadow-sm bg-white border-dashed-soft">
+                <div class="card-body text-center py-5">
+                  <p class="mb-1 fw-semibold">No modules yet</p>
+                  <p class="text-muted small mb-3">Create the first module for this course.</p>
+                  <button class="btn btn-primary btn-sm toggle-add-module" data-target="#addModuleWrap-{{ course.course_id }}"><i class="fas fa-plus me-1"></i>Add Module</button>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
     </div>
+    {% endfor %}
   </div>
 </div>
 
@@ -235,254 +265,492 @@
 <div class="modal fade" id="createCourseModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
-      <form method="post" action="{{ safe_url_for('create_course') }}">
+      <form method="post" action="{{ safe_url_for('create_course') }}" id="create-course-form">
         <div class="modal-header">
-          <h5 class="modal-title">New Course</h5>
+          <h5 class="modal-title"><i class="fas fa-layer-group me-2 text-primary"></i>New Course</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Name</label>
+              <label class="form-label small">Name</label>
               <input class="form-control" name="name" required>
             </div>
             <div class="col-md-3">
-              <label class="form-label">Code</label>
+              <label class="form-label small">Code</label>
               <input class="form-control" name="code" maxlength="10" placeholder="CSG" required>
             </div>
             <div class="col-md-3">
-              <label class="form-label">Allowed Category</label>
+              <label class="form-label small">Allowed Category</label>
               <select class="form-select" name="allowed_category">
                 <option value="both">Both</option>
                 <option value="citizen">Citizen</option>
                 <option value="foreigner">Foreigner</option>
               </select>
             </div>
-            <div class="col-12">
-              <label class="form-label">Description</label>
-              <textarea class="form-control" name="description" rows="2"></textarea>
-            </div>
+            <!-- Description textarea removed -->
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button class="btn btn-primary" type="submit">Create</button>
+          <button class="btn btn-primary" type="submit"><i class="fas fa-save me-1"></i>Create</button>
         </div>
       </form>
     </div>
   </div>
 </div>
 {% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+  /* Layout & Cards */
+  .course-card { position:relative; border:0; background: var(--card-bg); box-shadow:0 4px 14px rgba(0,0,0,.05); border-radius: 1rem; /* overflow removed to avoid clipping hover-scaled elements */ }
+  .course-card:before { content:""; position:absolute; inset:0; background:linear-gradient(135deg,rgba(255,255,255,.08),transparent); pointer-events:none; opacity:0; transition:opacity .35s; border-radius:inherit; }
+  /* Slightly increase internal padding for breathing room */
+  .course-card .card-body { padding:1.1rem 1.05rem 1rem; }
+  .accent-blue { border-top:5px solid #3b82f6; }
+  .accent-green { border-top:5px solid #10b981; }
+  .accent-purple { border-top:5px solid #8b5cf6; }
+  .card-hover-lift { transition: transform .25s ease, box-shadow .25s ease; }
+  .card-hover-lift:hover { transform: translateY(-4px); box-shadow:0 10px 28px -4px rgba(0,0,0,.18); }
+  .line-clamp-3 { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .border-start-thick { border-left:5px solid #3b82f6; }
+  .border-start-accent { border-left:4px solid #6366f1; }
+  .border-dashed-soft { border:2px dashed #cbd5e1; }
+  .status-badge { opacity:.45; transition:opacity .2s, transform .2s; }
+  .status-badge.status-on { opacity:1; background:#e0f2fe !important; }
+  .status-badge:hover { transform:scale(1.05); }
+  .module-card { border:0; border-radius: .85rem; }
+  .module-card .module-detail { background: var(--card-bg); }
+  .module-detail .nav-pills .nav-link { padding:.35rem .75rem; font-size:.75rem; }
+  .module-detail .nav-pills .nav-link.active { background:#2563eb; }
+  .nav-sm .nav-link { font-size:.7rem; }
+  .floating-save { position:fixed; bottom:1.25rem; right:1.25rem; z-index:1100; box-shadow:0 10px 24px -4px rgba(0,0,0,.35); animation:fadeInScale .35s ease; }
+  @keyframes fadeInScale { from { opacity:0; transform:translateY(8px) scale(.95);} to { opacity:1; transform:translateY(0) scale(1);} }
+  .fade-in { animation:fadeIn .4s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px);} to { opacity:1; transform:translateY(0);} }
+  .quiz-question-block legend { font-size: 0.8rem; }
+  .quiz-question { border:1px solid var(--border-color,#e2e8f0); border-radius:.65rem; background: var(--card-bg); box-shadow:0 2px 4px rgba(0,0,0,.05); }
+  .quiz-question + .quiz-question { margin-top:.75rem; }
+  .quiz-question-header { display:flex; align-items:center; justify-content:space-between; padding:.55rem .85rem; cursor:pointer; user-select:none; }
+  .quiz-question-header:hover { background:rgba(0,0,0,.04); }
+  html.darkmode .quiz-question-header:hover { background:rgba(255,255,255,.06); }
+  .quiz-question-body { display:none; padding:.85rem .9rem .9rem; border-top:1px solid var(--border-color,#e2e8f0); }
+  .quiz-question.open .quiz-question-body { display:block; }
+  .quiz-builder-form { position:relative; }
+  .quiz-builder-form:focus-within .floating-save { opacity:1; }
+  .quiz-question .question-index-badge { width:28px; height:28px; border-radius:50%; background:#2563eb; color:#fff; display:flex; align-items:center; justify-content:center; font-size:.75rem; font-weight:600; }
+  .answer-row .input-group-text { font-size:.65rem; min-width:28px; justify-content:center; }
+  #backToCourses { transition:background-color .2s; }
+  #backToCourses:hover { background:#1e3a8a; color:#fff; }
+  .collapse:not(.show) { }
+  .toggle-module-sections[aria-expanded='true'] .more-text { display:none; }
+  .toggle-module-sections[aria-expanded='false'] .less-text { display:none; }
+  .toggle-module-sections .less-text { display:none; }
+  .toggle-module-sections[aria-expanded='true'] .less-text { display:inline; }
+  .toggle-module-sections[aria-expanded='true'] i { transform:rotate(180deg); }
+  .toggle-module-sections i { transition: transform .3s ease; }
+  /* Remove conflicting nowrap override & enforce 2-line clamp consistently */
+  .course-card h5.card-title, .module-card h6 {
+    white-space:normal !important;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    line-height:1.2;
+    word-break:break-word;
+  }
+  /* Ensure parent flex item can shrink */
+  .module-card .d-flex.align-items-start > div:first-child,
+  .course-card .d-flex.align-items-start > div:first-child { min-width:0; }
+  /* Remove old duplicate single-line rule (was causing overflow) */
+  /* Removed: .course-card h5.card-title, .module-card h6 { white-space:nowrap; text-overflow:ellipsis; overflow:hidden; } */
+  /* Manual detail visibility (replaces Bootstrap collapse) */
+  .module-detail { display:none; }
+  .module-detail.open { display:block; animation:fadeInDetail .25s ease; }
+  @keyframes fadeInDetail { from {opacity:0; transform:translateY(4px);} to {opacity:1; transform:translateY(0);} }
+  /* Remove legacy collapse related overrides */
+  .module-detail.show { display:block; } /* kept for backward compatibility if still present */
+  /* Optional: style for hide state indicator */
+  .toggle-module-sections.open i { transform:rotate(180deg); }
+  /* Highlight open module card for clarity */
+  .module-card.detail-open { outline:2px solid #2563eb; outline-offset:2px; }
+  /* Modal specific tweaks */
+  #moduleDetailModal .nav-pills .nav-link { padding:.4rem .75rem; font-size:.75rem; }
+  #moduleDetailModal .modal-body { max-height:70vh; overflow-y:auto; }
+</style>
+{% endblock %}
+
 {% block scripts %}
 {{ super() }}
 <script>
-// Course selection + accordion panel logic
-(function initCourseSelection(){
-  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', initCourseSelection); return; }
-  const items = document.querySelectorAll('.course-item');
-  const placeholder = document.getElementById('courseDetailPlaceholder');
-  function showCourse(it){
-    const cid = it.getAttribute('data-course-id');
-    document.querySelectorAll('.course-detail').forEach(cd => cd.classList.add('d-none'));
-    const target = document.getElementById('course-detail-' + cid);
-    if(target){
-      target.classList.remove('d-none');
-      if(placeholder) placeholder.classList.add('d-none');
-      items.forEach(i=>i.classList.remove('active'));
-      it.classList.add('active');
-      try { localStorage.setItem('lastCourseId', cid); } catch(e){}
-      // Auto-open Add Module section if no modules yet
-      if(target.getAttribute('data-module-count') === '0'){
-        const addSection = target.querySelector('.add-module-section');
-        if(addSection){ addSection.classList.remove('d-none'); }
-      } else {
-        // Restore persisted open section for this course
-        try { if(localStorage.getItem('openAddForCourse') === cid){ const addSection = target.querySelector('.add-module-section'); if(addSection) addSection.classList.remove('d-none'); } } catch(e){}
-      }
-    }
+(function(){
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',arguments.callee);return;}
+  const overview = document.getElementById('coursesOverview');
+  const manager = document.getElementById('courseManager');
+  const backBtn = document.getElementById('backToCourses');
+  function showOverview(){ overview.classList.remove('d-none'); manager.classList.add('d-none'); backBtn.classList.add('d-none'); document.body.classList.remove('showing-manager'); }
+  function showCourse(courseId){
+    overview.classList.add('d-none'); manager.classList.remove('d-none'); backBtn.classList.remove('d-none');
+    document.querySelectorAll('.course-manage-wrapper').forEach(w=>w.classList.add('d-none'));
+    const wrap = document.getElementById('course-manage-'+courseId);
+    if(wrap){ wrap.classList.remove('d-none'); try{ localStorage.setItem('adminCourseMgmt.selectedCourse', courseId);}catch(e){} }
+    document.body.classList.add('showing-manager');
   }
-  items.forEach(it => { it.addEventListener('click', e => { e.preventDefault(); showCourse(it); }); });
-  const last = (function(){ try { return localStorage.getItem('lastCourseId'); } catch(e){ return null; } })();
-  let initial = last ? [...items].find(i=>i.getAttribute('data-course-id')===last) : null;
-  if(!initial) initial = items[0];
-  if(initial) showCourse(initial);
-})();
-</script>
-<script>
-// Simple Add Module show/hide (remove Bootstrap collapse to prevent flicker)
-(function initPlainAddModuleToggle(){
-  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded', initPlainAddModuleToggle); return;}
-  if(window.__plainAddModuleInit) return; window.__plainAddModuleInit = true;
-  document.addEventListener('click', function(e){
-    const btn = e.target.closest('.add-module-btn');
-    if(!btn) return;
-    e.preventDefault();
-    const courseId = btn.getAttribute('data-course-id');
-    const section = document.getElementById('addModuleForm-'+courseId);
-    if(!section) return;
-    const willHide = !section.classList.contains('d-none');
-    document.querySelectorAll('.add-module-section').forEach(sec=>{ if(sec!==section) sec.classList.add('d-none'); });
-    if(willHide){
-      section.classList.add('d-none');
-      try { localStorage.removeItem('openAddForCourse'); } catch(_){}
-    } else {
-      section.classList.remove('d-none');
-      try { localStorage.setItem('openAddForCourse', courseId); } catch(_){}
-    }
+  backBtn.addEventListener('click', ()=>{ showOverview(); });
+  document.addEventListener('click', e=>{
+    const manageBtn = e.target.closest('.manage-course-btn');
+    if(manageBtn){ e.preventDefault(); showCourse(manageBtn.getAttribute('data-course-id')); }
+    const delCourseBtn = e.target.closest('.delete-course-btn');
+    if(delCourseBtn){ e.preventDefault(); if(confirm('Delete this course?')){ const cid=delCourseBtn.getAttribute('data-course-id'); const f=document.getElementById('delete-course-form-'+cid); if(f) f.submit(); } }
+    const toggleAdd = e.target.closest('.toggle-add-module');
+    if(toggleAdd){ const target = document.querySelector(toggleAdd.getAttribute('data-target')); if(target){ new bootstrap.Collapse(target,{toggle:true}); } }
   });
-  // Restore previously open add form
-  let last=null; try { last = localStorage.getItem('openAddForCourse'); } catch(_){}
-  if(last){ const sec = document.getElementById('addModuleForm-'+last); if(sec) sec.classList.remove('d-none'); }
+  try { const last = localStorage.getItem('adminCourseMgmt.selectedCourse'); if(last){ const exists = document.getElementById('course-manage-'+last); if(exists){ showCourse(last); } } } catch(e){}
 })();
 </script>
 <script>
-// Persist Add Module form open state (removed old collapse-dependent logic)
+// Module detail modal logic (removed edit/content button handlers since buttons removed on cards)
+(function(){
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',arguments.callee);return;}
+  const modalEl = document.getElementById('moduleDetailModal');
+  if(!modalEl) return;
+  const bsModal = new bootstrap.Modal(modalEl);
+  const bodyContainer = document.getElementById('moduleDetailModalBody');
+  function openModuleModal(moduleId, focus){
+    const tpl = document.getElementById('module-detail-template-'+moduleId);
+    if(!tpl || !bodyContainer) return;
+    bodyContainer.innerHTML = tpl.innerHTML;
+    // After injecting, initialize the quiz builder (preload existing quiz JSON if any)
+    try{
+      if(window.initQuizBuilderForm){
+        const qbForm = bodyContainer.querySelector('.quiz-builder-form');
+        if(qbForm){ window.initQuizBuilderForm(qbForm); }
+      }
+    }catch(e){ /* non-fatal */ }
+    // If the injected template does not include the qcount controls, insert a visible control group
+    try{
+      const quizPane = bodyContainer.querySelector('#quiz-pane-'+moduleId) || bodyContainer.querySelector('[id^="quiz-pane-"]') || bodyContainer.querySelector('.quiz-questions')?.closest('.tab-pane');
+      // find the quiz-questions accordion or the container where to insert controls
+      const accordion = bodyContainer.querySelector('.quiz-questions');
+      if(accordion){
+        // look for an existing qcount control nearby
+        const existingCtrl = bodyContainer.querySelector('.qcount-input') || bodyContainer.querySelector('.qcount-decr');
+        if(!existingCtrl){
+          const ctrl = document.createElement('div');
+          ctrl.className = 'd-flex align-items-center gap-2 mb-2 qcount-controls';
+          ctrl.innerHTML = `<button type="button" class="btn btn-sm btn-outline-secondary qcount-decr" data-module-id="${moduleId}">&minus;</button>
+                              <input type="number" min="1" max="40" value="1" class="form-control form-control-sm qcount-input" data-module-id="${moduleId}" style="width:80px" />
+                              <button type="button" class="btn btn-sm btn-outline-secondary qcount-incr" data-module-id="${moduleId}">+</button>
+                              <small class="text-muted ms-2">Questions</small>`;
+          accordion.parentNode.insertBefore(ctrl, accordion);
+        }
+      }
+    }catch(e){ /* non-fatal */ }
+    if(focus==='edit'){ setTimeout(()=>{ const inp=bodyContainer.querySelector('input[name="module_name"]'); if(inp) inp.focus(); },120); }
+    if(focus==='content'){ setTimeout(()=>{ const firstTab=bodyContainer.querySelector('.nav-pills .nav-link:not(.active)'); if(firstTab) firstTab.click(); },150); }
+    bsModal.show();
+  }
+    // Wire up qcount controls for the injected modal content (plus/minus/slider/number)
+    (function wireCounts(root){
+      const decr = root.querySelectorAll('.qcount-decr');
+      const incr = root.querySelectorAll('.qcount-incr');
+      const inputs = root.querySelectorAll('.qcount-input');
+      decr.forEach(btn=>{ btn.addEventListener('click', (e)=>{ const mid=btn.dataset.moduleId; const container = root.querySelector('.quiz-questions') || document.querySelector(`#quiz-pane-${mid} .quiz-questions`); if(!container) return; const qs = container.querySelectorAll('.quiz-question'); if(qs.length<=1) return; const last = qs[qs.length-1]; const rem = last.querySelector('.remove-question'); if(rem && !rem.disabled) rem.click(); inputs.forEach(i=>{ if(i.dataset.moduleId===mid) i.value = Math.max(1, qs.length-1); }); }); });
+      incr.forEach(btn=>{ btn.addEventListener('click', (e)=>{ const mid=btn.dataset.moduleId; const add = root.querySelector('.add-question') || document.querySelector(`#quiz-pane-${mid} .add-question`); if(add) add.click(); setTimeout(()=>{ inputs.forEach(i=>{ if(i.dataset.moduleId===mid) i.value = parseInt(i.value||'1',10)+1; }); },60); }); });
+      inputs.forEach(inp=>{ inp.addEventListener('change', (e)=>{ const mid=inp.dataset.moduleId; const target = Math.max(1, Math.min(40, parseInt(e.target.value||'1',10))); const container = root.querySelector('.quiz-questions') || document.querySelector(`#quiz-pane-${mid} .quiz-questions`); if(!container) return; const add = root.querySelector('.add-question') || document.querySelector(`#quiz-pane-${mid} .add-question`); let current = container.querySelectorAll('.quiz-question').length; while(current < target && current < 40){ if(add) add.click(); current++; } while(current > target && current > 1) { const qs = container.querySelectorAll('.quiz-question'); const last = qs[qs.length-1]; const rem = last.querySelector('.remove-question'); if(rem && !rem.disabled){ rem.click(); } current--; } inp.value = target; }); });
+    })(bodyContainer);
+  document.addEventListener('click', e=>{
+    const showBtn = e.target.closest('.show-module-modal');
+    if(showBtn){ e.preventDefault(); openModuleModal(showBtn.getAttribute('data-module-id')); }
+  });
+})();
 </script>
-<script>
-// Dynamic quiz builder (add/remove/reindex up to 5 questions)
-(function quizBuilderInit(){
-  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', quizBuilderInit); return; }
-  function buildQuestionBlock(moduleId, index){
-    const wrapper = document.createElement('fieldset');
-    wrapper.className = 'border rounded p-2 mb-2 quiz-question-block';
-    wrapper.setAttribute('data-index', index);
-    wrapper.innerHTML = `
-      <legend class="float-none w-auto px-2 small mb-1 d-flex justify-content-between align-items-center">Question <span class="qq-number">${index}</span>
-        <button type="button" class="btn btn-sm btn-outline-danger ms-2 remove-question-btn" title="Remove question" ${index===1?'disabled':''}><i class="fas fa-trash"></i></button>
-      </legend>
-      <input class="form-control form-control-sm mb-2 quiz-question-input" name="quiz_question_${index}" placeholder="Enter question ${index}">
-      <div class="row g-1 mb-1 answers-block">
-        ${[1,2,3,4,5].map(an=>`<div class='col-md-4'><input class='form-control form-control-sm answer-input' name='answer_${index}_${an}' placeholder='Answer ${an}'></div>`).join('')}
+<!-- Module Detail Modal -->
+<div class="modal fade" id="moduleDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-layer-group me-2 text-primary"></i>Module Detail</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="d-flex align-items-center gap-2 mb-1">
-        <label class="small mb-0">Correct Answer #</label>
-        <select class="form-select form-select-sm correct-select" name="correct_answer_${index}" style="width:auto;">
-          ${[1,2,3,4,5].map(an=>`<option value='${an}'>${an}</option>`).join('')}
-        </select>
+      <div class="modal-body" id="moduleDetailModalBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+// Unified Quiz Builder (accordion style, now up to 20 questions) with dynamic init & existing quiz preload
+(function quizBuilder(){
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',quizBuilder);return;}
+  const MAX_Q = 40; // increased from 20 to 40
+  const MAX_A = 4; // new constant for answers
+  function createQuestion(moduleId, idx, data){
+    const wrapper = document.createElement('div');
+    wrapper.className = 'quiz-question';
+    wrapper.dataset.index = idx;
+    const qText = data && data.question ? data.question : '';
+    const answers = (data && Array.isArray(data.answers) ? data.answers : []).slice(0,MAX_A);
+    while(answers.length < MAX_A) answers.push('');
+    let correct = data && data.correct ? parseInt(data.correct,10) : 1;
+    if(correct > MAX_A) correct = MAX_A;
+    wrapper.innerHTML = `
+      <div class="quiz-question-header" role="button" tabindex="0" aria-expanded="false">
+        <div class="d-flex align-items-center gap-2">
+          <div class="question-index-badge">${idx}</div>
+          <strong class="small mb-0">Question ${idx}</strong>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-outline-danger btn-xs remove-question" ${idx===1?'disabled':''} title="Remove"><i class="fas fa-trash"></i></button>
+          <i class="fas fa-chevron-down rotate small text-secondary"></i>
+        </div>
+      </div>
+      <div class="quiz-question-body">
+        <div class="mb-2">
+          <label class="form-label small mb-1">Question Text</label>
+          <textarea class="form-control form-control-sm question-input" name="quiz_question_${idx}" rows="3" placeholder="Enter question ${idx}" required>${escapeHtml(qText)}</textarea>
+        </div>
+        <div class="answer-row row g-2 mb-2">
+          ${[1,2,3,4].map(a=>`<div class='col-6'><div class='input-group input-group-sm'><span class='input-group-text'>${a}</span><input class='form-control answer-input' data-answer-pos='${a}' name='answer_${idx}_${a}' placeholder='Answer ${a} (optional)' value='${escapeHtml(answers[a-1]||'')}'></div></div>`).join('')}
+        </div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <label class="small mb-0">Correct Answer #</label>
+          <select class="form-select form-select-sm correct-select" name="correct_answer_${idx}" style="max-width:110px;"></select>
+          <small class="text-muted small flex-grow-1">Min 2 answers required.</small>
+        </div>
       </div>`;
+    // Initialize correct select options after insertion
+    setTimeout(()=>{ updateCorrectOptions(wrapper, correct); },0);
     return wrapper;
   }
-  function reindex(form){
-    const blocks = [...form.querySelectorAll('.quiz-question-block')];
-    blocks.forEach((b,i)=>{
-      const newIdx = i+1;
-      b.setAttribute('data-index', newIdx);
-      b.querySelector('.qq-number').textContent = newIdx;
-      const qInput = b.querySelector('.quiz-question-input');
-      qInput.name = `quiz_question_${newIdx}`;
-      [...b.querySelectorAll('.answer-input')].forEach((inp,ai)=>{ inp.name = `answer_${newIdx}_${ai+1}`; });
-      const sel = b.querySelector('.correct-select');
-      sel.name = `correct_answer_${newIdx}`;
-      const rmBtn = b.querySelector('.remove-question-btn');
-      if(rmBtn) rmBtn.disabled = (newIdx===1);
+  function updateCorrectOptions(questionEl, desired){
+    const answers = [...questionEl.querySelectorAll('.answer-input')];
+    const filled = answers.filter(a=>a.value.trim()!== '');
+    const select = questionEl.querySelector('.correct-select');
+    if(!select) return;
+    const prev = desired || parseInt(select.value,10) || 1;
+    const count = filled.length;
+    select.innerHTML = '';
+    for(let i=1;i<=count;i++){
+      const opt = document.createElement('option');
+      opt.value = i; opt.textContent = i;
+      if(i===prev || prev>count && i===1) opt.selected = true;
+      select.appendChild(opt);
+    }
+    if(count===0){
+      // No answers yet; add placeholder disabled option
+      const opt = document.createElement('option');
+      opt.textContent = '-'; opt.value = '1'; select.appendChild(opt);
+    }
+  }
+  function escapeHtml(str){
+    return (str||'').replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+  }
+  function reindex(container){
+    [...container.querySelectorAll('.quiz-question')].forEach((q,i)=>{
+      const idx = i+1;
+      q.dataset.index = idx;
+      q.querySelector('.question-index-badge').textContent = idx;
+      q.querySelector('strong').textContent = 'Question '+idx;
+      const qInput = q.querySelector('.question-input');
+      qInput.name = 'quiz_question_'+idx;
+      qInput.placeholder = 'Enter question '+idx;
+      [...q.querySelectorAll('.answer-input')].forEach((inp,aIdx)=>{ inp.name = 'answer_'+idx+'_'+(aIdx+1); });
+      const sel = q.querySelector('.correct-select'); sel.name = 'correct_answer_'+idx;
+      const rm = q.querySelector('.remove-question'); if(rm) rm.disabled = idx===1;
     });
   }
-  function updateAddBtnState(container){
-    const addBtn = container.closest('.quiz-form').querySelector('.add-question-btn');
-    const count = container.querySelectorAll('.quiz-question-block').length;
-    if(addBtn) addBtn.disabled = count >=5;
+  function updateAddBtnState(form){ const btn = form.querySelector('.add-question'); if(!btn) return; const count = form.querySelectorAll('.quiz-question').length; btn.disabled = count>=MAX_Q; }
+  function ensureFloatingSave(form){ const floating = form.querySelector('.floating-save'); if(floating) floating.classList.remove('d-none'); }
+  function preloadExisting(form, container){
+    let existingQuiz = null;
+    const script = form.querySelector('.existing-quiz-data');
+    if(script){ try { existingQuiz = JSON.parse(script.textContent); } catch(e) { existingQuiz = null; } }
+    if(existingQuiz && existingQuiz.questions && Array.isArray(existingQuiz.questions) && existingQuiz.questions.length){
+      container.innerHTML = '';
+      existingQuiz.questions.slice(0, MAX_Q).forEach((q,i)=>{ container.appendChild(createQuestion(container.dataset.moduleId||'x', i+1, q)); });
+      // Open first for clarity
+      const first = container.querySelector('.quiz-question');
+      if(first){ first.classList.add('open'); const header = first.querySelector('.quiz-question-header'); if(header) header.setAttribute('aria-expanded','true'); }
+    }
   }
-  document.addEventListener('click', (e)=>{
-    if(e.target.closest('.add-question-btn')){
-      const btn = e.target.closest('.add-question-btn');
-      const moduleId = btn.getAttribute('data-module-id');
-      const container = document.getElementById('quiz-questions-' + moduleId);
-      const current = container.querySelectorAll('.quiz-question-block').length;
-      if(current < 5){
-        container.appendChild(buildQuestionBlock(moduleId, current+1));
-        updateAddBtnState(container);
+  function initQuizBuilderForm(form){
+    if(!form) return;
+    const container = form.querySelector('.quiz-questions');
+    if(!container) return;
+    if(!container.dataset.moduleId){ const mid = form.getAttribute('data-module-id'); if(mid) container.dataset.moduleId = mid; }
+    if(container.children.length===0){
+      preloadExisting(form, container);
+      if(container.children.length===0){ container.appendChild(createQuestion(container.dataset.moduleId || 'x',1)); }
+    }
+    updateAddBtnState(form); ensureFloatingSave(form);
+    if(!form.dataset.quizBuilderInitialized){
+      form.addEventListener('submit', ()=>{ reindex(form.querySelector('.quiz-questions')); });
+      form.dataset.quizBuilderInitialized = 'true';
+    }
+  }
+  // Expose for dynamic use
+  window.initQuizBuilderForm = initQuizBuilderForm;
+  document.querySelectorAll('.quiz-builder-form').forEach(initQuizBuilderForm);
+  document.addEventListener('click', e=>{
+    const addBtn = e.target.closest('.add-question');
+    if(addBtn){ const form = addBtn.closest('form'); const container = form.querySelector('.quiz-questions'); const count = container.querySelectorAll('.quiz-question').length; if(count<MAX_Q){ const mid = container.dataset.moduleId; container.appendChild(createQuestion(mid, count+1)); updateAddBtnState(form); ensureFloatingSave(form); } }
+    const header = e.target.closest('.quiz-question-header');
+    if(header){ const q = header.parentElement; const open = q.classList.toggle('open'); header.setAttribute('aria-expanded', open?'true':'false'); }
+    const rmBtn = e.target.closest('.remove-question');
+    if(rmBtn){ const q = rmBtn.closest('.quiz-question'); const form = rmBtn.closest('form'); q.classList.add('removing'); setTimeout(()=>{ q.remove(); reindex(form.querySelector('.quiz-questions')); updateAddBtnState(form); },180); }
+  });
+  document.addEventListener('input', e=>{
+    const ans = e.target.closest('.answer-input');
+    if(ans){
+      const q = ans.closest('.quiz-question');
+      updateCorrectOptions(q);
+    }
+  });
+  document.addEventListener('submit', e=>{
+    const form = e.target.closest('.quiz-builder-form');
+    if(form){
+      let ok = true; let firstBad=null;
+      form.querySelectorAll('.quiz-question').forEach(q=>{
+        const filled = [...q.querySelectorAll('.answer-input')].filter(a=>a.value.trim()!=='');
+        if(filled.length < 2){
+          ok = false; if(!firstBad) firstBad=q; q.classList.add('border','border-danger');
+        } else {
+          q.classList.remove('border-danger');
+        }
+      });
+      if(!ok){
+        e.preventDefault();
+        if(firstBad){ firstBad.classList.add('open'); firstBad.scrollIntoView({behavior:'smooth', block:'center'}); }
+        alert('Each question needs at least 2 answers.');
       }
-    } else if(e.target.closest('.remove-question-btn')){
-      const rm = e.target.closest('.remove-question-btn');
-      if(rm.disabled) return;
-      const block = rm.closest('.quiz-question-block');
-      const form = rm.closest('form');
-      block.remove();
-      reindex(form);
-      const container = form.querySelector('.quiz-questions');
-      updateAddBtnState(container);
     }
-  });
-  // Initialize quiz forms
-  document.querySelectorAll('.quiz-questions').forEach(container => {
-    if(container.querySelectorAll('.quiz-question-block').length === 0){
-      const moduleId = container.getAttribute('data-module-id');
-      container.appendChild(buildQuestionBlock(moduleId,1));
-      updateAddBtnState(container);
-    }
-  });
-  document.querySelectorAll('.quiz-form').forEach(form => {
-    form.addEventListener('submit', () => { reindex(form); });
   });
 })();
 </script>
 <script>
-// Module edit/content panel toggles with persistence (hardened against flicker)
-(function initModulePanelToggles(){
-  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded', initModulePanelToggles); return;}
-  if(window.__modulePanelTogglesInitV2) return; window.__modulePanelTogglesInitV2 = true;
-  let lastClick = 0;
-  function openPanel(moduleId, panelType){
-    const editPanel = document.getElementById('editModuleForm-'+moduleId);
-    const contentPanel = document.getElementById('contentForm-'+moduleId);
-    const targetPanel = panelType === 'edit' ? editPanel : contentPanel;
-    if(!targetPanel) return;
-    // Hide all others first
-    document.querySelectorAll('.module-panel').forEach(p=>{ if(p!==targetPanel) p.classList.add('d-none'); });
-    targetPanel.classList.remove('d-none');
-    try { localStorage.setItem('openModulePanel', JSON.stringify({moduleId, panelType})); } catch(e){}
+// Global delegated handlers for quiz question count controls (works for injected modal content)
+document.addEventListener('DOMContentLoaded', function(){
+  const MAX_Q = 40;
+
+  function getQuizContainer(moduleId){
+    return document.querySelector(`.quiz-questions[data-module-id="${moduleId}"]`);
   }
+
+  function getAddButton(moduleId){
+    return document.querySelector(`.add-question[data-module-id="${moduleId}"]`);
+  }
+
+  function currentQuestionCount(moduleId){
+    const c = getQuizContainer(moduleId);
+    return c ? c.querySelectorAll('.quiz-question').length : 0;
+  }
+
+  function ensureAtLeastOne(moduleId){
+    const cnt = currentQuestionCount(moduleId);
+    if(cnt === 0){ const add = getAddButton(moduleId); if(add) add.click(); }
+  }
+
+  function setCount(moduleId, target){
+    target = Math.max(1, Math.min(MAX_Q, parseInt(target||'1',10)||1));
+    const c = getQuizContainer(moduleId);
+    const add = getAddButton(moduleId);
+    if(!c || !add) return;
+    let curr = currentQuestionCount(moduleId);
+    while(curr < target && curr < MAX_Q){ add.click(); curr++; }
+    while(curr > target && curr > 1){
+      const qs = c.querySelectorAll('.quiz-question');
+      const last = qs[qs.length-1];
+      if(!last) break;
+      const rem = last.querySelector('.remove-question');
+      if(rem && !rem.disabled){ rem.click(); }
+      else break;
+      curr--;
+    }
+  }
+
+  // Click delegation for plus/minus buttons
   document.addEventListener('click', function(e){
-    // Close buttons
-    const closeBtn = e.target.closest('.module-panel-close');
-    if(closeBtn){
-      const target = document.getElementById(closeBtn.getAttribute('data-target'));
-      if(target){ target.classList.add('d-none'); try { localStorage.removeItem('openModulePanel'); } catch(e){} }
-      return;
+    const decr = e.target.closest('.qcount-decr');
+    if(decr){
+      const moduleId = decr.dataset.moduleId;
+      if(!moduleId){
+        // try to find nearby input
+        const input = decr.closest('.qcount-controls')?.querySelector('.qcount-input');
+        if(input) { input.value = Math.max(1, parseInt(input.value||'1',10)-1); input.dispatchEvent(new Event('change')); }
+        return;
+      }
+      const input = document.querySelector(`.qcount-input[data-module-id="${moduleId}"]`);
+      const v = Math.max(1, parseInt((input && input.value) || '1',10) - 1);
+      if(input) { input.value = v; }
+      setCount(moduleId, v);
     }
-    const btn = e.target.closest('.module-toggle');
-    if(!btn) return;
+    const incr = e.target.closest('.qcount-incr');
+    if(incr){
+      const moduleId = incr.dataset.moduleId;
+      if(!moduleId){
+        const input = incr.closest('.qcount-controls')?.querySelector('.qcount-input');
+        if(input) { input.value = Math.min(40, parseInt(input.value||'1',10)+1); input.dispatchEvent(new Event('change')); }
+        return;
+      }
+      const input = document.querySelector(`.qcount-input[data-module-id="${moduleId}"]`);
+      const v = Math.min(MAX_Q, parseInt((input && input.value) || '1',10) + 1);
+      if(input) { input.value = v; }
+      setCount(moduleId, v);
+    }
+  });
+
+  // Change / input delegation for numeric inputs (debounced)
+  const timers = new Map();
+  document.addEventListener('input', function(e){
+    const input = e.target.closest('.qcount-input');
+    if(!input) return;
+    const moduleId = input.dataset.moduleId;
+    clearTimeout(timers.get(input));
+    timers.set(input, setTimeout(()=>{
+      if(moduleId){ setCount(moduleId, input.value); }
+      else {
+        // try find nearest module id via ancestor
+        const container = input.closest('[data-module-id]');
+        const mid = container ? container.getAttribute('data-module-id') : null;
+        if(mid) setCount(mid, input.value);
+      }
+    }, 400));
+  });
+
+  // Immediate on Enter
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'Enter') return;
+    const input = e.target.closest('.qcount-input');
+    if(!input) return;
     e.preventDefault();
-    const now = performance.now();
-    if(now - lastClick < 40) return; // debounce double-fire
-    lastClick = now;
-    const moduleId = btn.getAttribute('data-module-id');
-    const panelType = btn.getAttribute('data-panel');
-    openPanel(moduleId, panelType);
+    const moduleId = input.dataset.moduleId;
+    if(moduleId) setCount(moduleId, input.value);
+    else {
+      const container = input.closest('[data-module-id]');
+      const mid = container ? container.getAttribute('data-module-id') : null;
+      if(mid) setCount(mid, input.value);
+    }
+  });
+});
+</script>
+<script>
+// Accessibility & minor enhancements
+(function(){
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',arguments.callee);return;}
+  document.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ const card = e.target.closest('.course-card'); if(card){ const btn = card.querySelector('.manage-course-btn'); if(btn){ btn.click(); e.preventDefault(); } } }
   });
 })();
 </script>
 <script>
-// Restore last open module panel (and optionally tab) after reload/navigation
-(function restoreModulePanel(){
-  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded', restoreModulePanel); return;}
-  function attemptRestore(){
-    let data = null;
-    try { data = JSON.parse(localStorage.getItem('openModulePanel')||'null'); } catch(e){ data=null; }
-    if(!data) return;
-    const { moduleId, panelType } = data;
-    const panel = document.getElementById((panelType==='edit'?'editModuleForm-':'contentForm-')+moduleId);
-    if(!panel) return; // Might belong to another course that was deleted
-    // Ensure correct course section is visible
-    const courseId = panel.getAttribute('data-course-id');
-    if(courseId){
-      const courseItem = document.querySelector('.course-item[data-course-id="'+courseId+'"]');
-      if(courseItem){ courseItem.click(); }
-    }
-    // Slight delay to allow course view to render
-    setTimeout(()=>{ panel.classList.remove('d-none'); }, 120);
-  }
-  // Run after initial selection script likely finished
-  setTimeout(attemptRestore, 250);
+// Safety override: remove legacy Bootstrap text-truncate side-effects if any leftover
+(function(){
+  document.querySelectorAll('.course-card h5.card-title.text-truncate, .module-card h6.text-truncate').forEach(el=>el.classList.remove('text-truncate'));
 })();
 </script>
-<script>
-// Persist Add Module form open state
-(function initAddModulePersistence(){
-  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded', initAddModulePersistence); return;}
-})();
-</script>
-<style>
-  .quiz-question-block legend { font-size: 0.8rem; }
-</style>
 {% endblock %}

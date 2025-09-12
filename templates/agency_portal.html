@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <div class="mb-4">
+    <h2 class="h4">Agency Portal</h2>
+    {% if agency %}
+      <div class="text-muted">{{ agency.agency_name }} (ID: {{ agency.agency_id }})</div>
+      <div class="small text-muted">Email: {{ agency.email }} | Phone: {{ agency.contact_number }}</div>
+    {% endif %}
+  </div>
+
+  <div class="row g-4">
+    <div class="col-md-5">
+      <div class="card">
+        <div class="card-header">Add New User</div>
+        <div class="card-body">
+          <form method="post" action="{{ url_for('agency_create_user') }}">
+            <div class="mb-3">
+              <label class="form-label">Full name</label>
+              <input name="full_name" class="form-control" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Email</label>
+              <input type="email" name="email" class="form-control" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Password</label>
+              <input type="password" name="password" class="form-control" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">User category</label>
+              <select name="user_category" class="form-select">
+                <option value="citizen">Citizen</option>
+                <option value="foreigner">Foreigner</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Create user</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-7">
+      <div class="card">
+        <div class="card-header">Your Users</div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-striped mb-0">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Category</th>
+                  <th>Completed</th>
+                  <th>Avg score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for u in users %}
+                {% set stats = module_counts.get(u.User_id, {}) %}
+                <tr>
+                  <td>{{ u.full_name }}</td>
+                  <td>{{ u.email }}</td>
+                  <td>{{ (u.user_category or 'citizen')|capitalize }}</td>
+                  <td>{{ stats.get('completed', 0) }}</td>
+                  <td>{{ '%.1f'|format(stats.get('avg_score', 0.0)) }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="5" class="text-center text-muted">No users yet</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

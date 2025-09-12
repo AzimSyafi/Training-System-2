@@ -5,97 +5,87 @@
     <div class="p-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2><i class="fas fa-users"></i> User Management</h2>
-            <!-- Replaced link with modal trigger button -->
             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
-                <i class="fas fa-user-plus"></i> Create New User
+                <i class="fas fa-user-plus"></i> Create New Account
             </button>
         </div>
-
-        {% if users %}
-            <div class="card">
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-striped align-middle">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Series</th>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Agency</th>
-                                    <th>Recruitment Date</th>
-                                    <th>Rating</th>
-                                    <th class="text-center" style="width:60px;">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for user in users %}
-                                <tr id="user-row-{{ user.User_id }}">
-                                    <!-- ID column updated to include U- prefix for clarity -->
-                                    <td>
-                                        {% if user.number_series and user.number_series|length == 10 and user.number_series[:2] == 'SG' %}
-                                            U-{{ user.number_series[2:] }}
+        {% if merged_accounts %}
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>ID</th>
+                                <th>Series</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Agency</th>
+                                <th>Status</th>
+                                <th class="text-center" style="width:60px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for acc in merged_accounts %}
+                            <tr id="{{ acc.type }}-row-{{ acc.id }}">
+                                <td>{{ acc.type|capitalize }}</td>
+                                <td>
+                                    {% if acc.type == 'user' %}
+                                        {% if acc.number_series and acc.number_series|length == 10 and acc.number_series[:2] == 'SG' %}
+                                            U-{{ acc.number_series[2:] }}
                                         {% else %}
-                                            U-{{ user.User_id }}
+                                            U-{{ acc.id }}
                                         {% endif %}
-                                    </td>
-                                    <td>{{ user.number_series or '' }}</td>
-                                    <td>{{ user.full_name }}</td>
-                                    <td>{{ user.email }}</td>
-                                    <td>{{ user.agency.agency_name }}</td>
-                                    <td>{{ user.recruitment_date.strftime('%Y-%m-%d') if user.recruitment_date else 'N/A' }}</td>
-                                    <td id="user-rating-{{ user.User_id }}">
-                                        {% for i in range(1, 6) %}
-                                            {% if i <= user.rating_star %}
-                                                <i class="fas fa-star text-warning"></i>
-                                            {% else %}
-                                                <i class="far fa-star text-muted"></i>
-                                            {% endif %}
-                                        {% endfor %}
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="dropdown">
-                                            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="User actions">
-                                                <i class="fas fa-ellipsis-h"></i>
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                <li>
-                                                    <button class="dropdown-item" onclick="viewUserProgress({{ user.User_id }})">
-                                                        <i class="fas fa-eye me-2 text-info"></i>View Progress
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button class="dropdown-item" onclick="resetUserProgress({{ user.User_id }}, '{{ user.full_name }}')">
-                                                        <i class="fas fa-undo me-2 text-warning"></i>Reset Progress
-                                                    </button>
-                                                </li>
-                                                <li><hr class="dropdown-divider"></li>
-                                                <li>
-                                                    <button class="dropdown-item text-danger" onclick="deleteUser({{ user.User_id }}, '{{ user.full_name }}')">
-                                                        <i class="fas fa-trash-alt me-2"></i>Delete User
-                                                    </button>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+                                    {% elif acc.type == 'trainer' %}
+                                        {% if acc.number_series and acc.number_series|length == 10 and acc.number_series.startswith('TR') %}
+                                            T-{{ acc.number_series[2:] }}
+                                        {% else %}
+                                            T-{{ acc.id }}
+                                        {% endif %}
+                                    {% elif acc.type == 'admin' %}
+                                        A-{{ acc.id }}
+                                    {% endif %}
+                                </td>
+                                <td>{% if acc.type == 'user' or acc.type == 'trainer' %}{{ acc.number_series or '' }}{% else %}&mdash;{% endif %}</td>
+                                <td>{% if acc.type == 'admin' %}{{ acc.name }}{% else %}{{ acc.name }}{% endif %}</td>
+                                <td>{{ acc.email }}</td>
+                                <td>{% if acc.type == 'user' %}{{ acc.agency }}{% else %}&mdash;{% endif %}</td>
+                                <td>
+                                    {% if acc.type == 'trainer' %}
+                                        <span class="badge {% if acc.active_status %}bg-success{% else %}bg-secondary{% endif %}" id="trainer-status-{{ acc.id }}">{% if acc.active_status %}Active{% else %}Inactive{% endif %}</span>
+                                    {% else %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions">
+                                            <i class="fas fa-ellipsis-h"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li><button class="dropdown-item" onclick="openChangeRoleModal('{{ acc.id }}', '{{ acc.type }}')"><i class="fas fa-user-cog me-2 text-primary"></i>Change Role</button></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><button class="dropdown-item text-danger" onclick="deleteUserOrTrainer('{{ acc.id }}', '{{ acc.name }}', '{{ acc.type }}')"><i class="fas fa-trash-alt me-2"></i>Delete</button></li>
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        {% else %}
-            <div class="alert alert-info">
-                <h5><i class="fas fa-info-circle"></i> No Users Found</h5>
-                <p>No users have been registered yet.</p>
-                <!-- Modal trigger for first user creation -->
-                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
-                    <i class="fas fa-user-plus"></i> Create First User
-                </button>
-            </div>
-        {% endif %}
         </div>
+        {% else %}
+        <div class="alert alert-info">
+            <h5><i class="fas fa-info-circle"></i> No Accounts Found</h5>
+            <p>No users or trainers have been registered yet.</p>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+                <i class="fas fa-user-plus"></i> Create First Account
+            </button>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -152,6 +142,35 @@
   </div>
 </div>
 
+<!-- Change Role Modal -->
+<div class="modal fade" id="changeRoleModal" tabindex="-1" aria-labelledby="changeRoleModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="changeRoleModalLabel">Change Role</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="changeRoleForm">
+        <div class="modal-body">
+          <input type="hidden" id="changeRoleUserId" name="user_id">
+          <div class="mb-3">
+            <label for="newRole" class="form-label">Select New Role</label>
+            <select class="form-select" id="newRole" name="new_role" required>
+              <option value="user">User</option>
+              <option value="trainer">Trainer</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Change Role</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- User Progress Modal -->
 <div class="modal fade" id="userProgressModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -166,10 +185,26 @@
         </div>
     </div>
 </div>
+
+<div id="tempAlertContainer" style="position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:2000;width:fit-content;max-width:90vw;"></div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
+function showTempAlert(message, type = 'success', duration = 1500) {
+    const container = document.getElementById('tempAlertContainer');
+    if (!container) return;
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show`;
+    alert.role = 'alert';
+    alert.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
+    container.appendChild(alert);
+    setTimeout(() => {
+        if (alert.parentNode) alert.parentNode.removeChild(alert);
+    }, duration);
+}
+
 function viewUserProgress(userId) {
     fetch(`/api/user_progress/${userId}`)
         .then(response => response.json())
@@ -207,7 +242,12 @@ function viewUserProgress(userId) {
 
 function resetUserProgress(userId, userName) {
     if (!confirm(`Reset all progress for ${userName}?`)) return;
-    fetch("{{ safe_url_for('reset_user_progress') }}", {
+    const resetUrl = "{{ safe_url_for('reset_user_progress') }}";
+    if (!resetUrl || resetUrl === '#' || resetUrl.startsWith('#')) {
+        showTempAlert('Reset endpoint not available.', 'danger');
+        return;
+    }
+    fetch(resetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `user_id=${userId}`
@@ -215,7 +255,6 @@ function resetUserProgress(userId, userName) {
     .then(response => response.json())
     .then(data => {
         showTempAlert(data.message || 'Progress reset.', data.success ? 'success' : 'danger');
-        // If success, clear rating stars visually
         if (data.success) {
             const ratingCell = document.getElementById(`user-rating-${userId}`);
             if (ratingCell) {
@@ -226,37 +265,55 @@ function resetUserProgress(userId, userName) {
     .catch(() => showTempAlert('Failed to reset progress.', 'danger'));
 }
 
-function deleteUser(userId, fullName) {
-    if (!confirm(`Delete user ${fullName}? This cannot be undone.`)) return;
-    fetch("{{ safe_url_for('delete_user') }}", {
+function openChangeRoleModal(userId, userType) {
+    document.getElementById('changeRoleUserId').value = userId;
+    document.getElementById('newRole').value = userType;
+    new bootstrap.Modal(document.getElementById('changeRoleModal')).show();
+}
+
+document.getElementById('changeRoleForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const userId = document.getElementById('changeRoleUserId').value;
+    const newRole = document.getElementById('newRole').value;
+    fetch("/change_role", {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `user_id=${userId}`
+        body: `user_id=${userId}&new_role=${newRole}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        showTempAlert(data.message || 'Role updated.', data.success ? 'success' : 'danger', 1500);
+        if (data.success) {
+            setTimeout(() => location.reload(), 1500);
+        }
+    })
+    .catch(() => showTempAlert('Failed to change role.', 'danger', 2000));
+});
+
+function deleteUserOrTrainer(userId, fullName, userType) {
+    if (!confirm(`Delete ${userType} ${fullName}? This cannot be undone.`)) return;
+    let url = userType === 'trainer' ? "{{ safe_url_for('delete_trainer') }}" : "{{ safe_url_for('delete_user') }}";
+    if (!url || url === '#' || url.startsWith('#')) {
+        showTempAlert('Delete endpoint not available.', 'danger');
+        return;
+    }
+    let key = userType === 'trainer' ? 'trainer_id' : 'user_id';
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `${key}=${userId}`
     })
     .then(r => r.json())
     .then(resp => {
         if (resp.success) {
-            const row = document.getElementById(`user-row-${userId}`);
+            const row = document.getElementById(`${userType}-row-${userId}`);
             if (row) row.remove();
-            showTempAlert(resp.message || 'User deleted.', 'success');
+            showTempAlert(resp.message || (userType.charAt(0).toUpperCase() + userType.slice(1)) + ' deleted.', 'success');
         } else {
-            showTempAlert(resp.message || 'Failed to delete user.', 'danger');
+            showTempAlert(resp.message || 'Failed to delete.', 'danger');
         }
     })
-    .catch(() => showTempAlert('Error deleting user.', 'danger'));
-}
-
-function showTempAlert(msg, type='info', timeout=3000) {
-    let alertBox = document.getElementById('globalTempAlert');
-    if (!alertBox) {
-        alertBox = document.createElement('div');
-        alertBox.id = 'globalTempAlert';
-        alertBox.className = `alert alert-${type} position-fixed top-0 end-0 m-3 shadow`;
-        document.body.appendChild(alertBox);
-    }
-    alertBox.className = `alert alert-${type} position-fixed top-0 end-0 m-3 shadow`;
-    alertBox.innerHTML = msg;
-    setTimeout(() => { if (alertBox) alertBox.remove(); }, timeout);
+    .catch(() => showTempAlert('Error deleting.', 'danger'));
 }
 
 // Auto-open modal if server indicated so via query param

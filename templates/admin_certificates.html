@@ -35,7 +35,7 @@
                                     <th>User</th>
                                     <th>Module Type</th>
                                     <th>Issue Date</th>
-                                    <th>Rating</th>
+                                    <th>Score</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -47,15 +47,7 @@
                                     <td>{{ certificate.user.full_name }}</td>
                                     <td>{{ certificate.module_type }}</td>
                                     <td>{{ certificate.issue_date.strftime('%Y-%m-%d') }}</td>
-                                    <td>
-                                        {% for i in range(1, 6) %}
-                                            {% if i <= certificate.star_rating %}
-                                                <i class="fas fa-star text-warning"></i>
-                                            {% else %}
-                                                <i class="far fa-star text-muted"></i>
-                                            {% endif %}
-                                        {% endfor %}
-                                    </td>
+                                    <td>{{ certificate.score }}%</td>
                                     <td>
                                         <a href="{{ certificate.certificate_url }}" class="btn btn-sm btn-outline-primary" target="_blank">
                                             <i class="fas fa-download"></i> Download

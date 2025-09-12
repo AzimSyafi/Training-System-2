@@ -33,18 +33,6 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None)
     # Create overlay PDF with user info
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
-    # Use overall_percentage for stars
-    percent = overall_percentage
-    if percent < 20:
-        stars = 1
-    elif percent < 40:
-        stars = 2
-    elif percent < 60:
-        stars = 3
-    elif percent < 70:
-        stars = 4
-    else:
-        stars = 5
 
     # Attempt-based Course Grade from user progress
     try:
@@ -59,30 +47,20 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None)
     can.setFont("Times-Roman", 28)
     can.setFillColorRGB(0, 0, 0)
     can.drawCentredString(425, 290, name)
-    # Passport/IC, Module, Stars, Date text, Date all Times New Roman, 14pt, Black
+    # Passport/IC, Module, Date text, Date all Times New Roman, 14pt, Black
     can.setFont("Times-Roman", 14)
     can.drawCentredString(425, 260, f"Passport/IC: {passport_ic}")
     can.drawCentredString(425, 230, course_type.upper())
-    # Register DejaVuSans font for star rendering (use correct path)
-    font_path = os.path.join('static', 'cert_templates', 'dejavu-fonts-ttf-2.37', 'ttf', 'DejaVuSans.ttf')
-    if os.path.exists(font_path):
-        pdfmetrics.registerFont(TTFont('DejaVuSans', font_path))
-        star_font = 'DejaVuSans'
-    else:
-        star_font = 'Helvetica'
-    # Place Stars (centered at 425, 200) with star font
-    can.setFont(star_font, 20)
-    can.setFillColorRGB(0, 0, 0)
-    can.drawCentredString(425, 200, '\u2605' * stars)
-    # Display overall percentage under the stars
+
+    # Display overall percentage
     can.setFont("Times-Roman", 14)
-    can.drawCentredString(425, 185, f"Overall Percentage: {percent}%")
-    # Display Course Grade (attempt-based) under the overall percentage
-    can.drawCentredString(425, 170, f"Course Grade: {course_grade}")
+    can.drawCentredString(425, 200, f"Overall Percentage: {overall_percentage}%")
+    # Display Course Grade (attempt-based)
+    can.drawCentredString(425, 185, f"Course Grade: {course_grade}")
     # Set font size for text and date to 12
     can.setFont("Times-Roman", 12)
-    can.drawCentredString(425, 155, "received training and fulfilled the requirements on")
-    can.drawCentredString(425, 135, date_str)
+    can.drawCentredString(425, 170, "received training and fulfilled the requirements on")
+    can.drawCentredString(425, 150, date_str)
     can.save()
     packet.seek(0)
 
@@ -96,18 +74,22 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None)
     with open(output_path, "wb") as f:
         output_pdf.write(f)
 
-    # After generating the certificate, save it in the Certificate table
+    # After generating the certificate, save it in the Certificate table (no star_rating column)
     if not cert:
         cert = Certificate(
             user_id=user_id,
             module_type=course_type,
             module_id=module.module_id,
             issue_date=datetime.now().date(),
-            star_rating=stars,
-            score=overall_percentage,  # Save overall_percentage as score for reference
+            score=overall_percentage,
             certificate_url=output_path.replace('static/', '/static/')
         )
         db.session.add(cert)
+        db.session.commit()
+    else:
+        # Update existing cert's score/url if needed
+        cert.score = overall_percentage
+        cert.certificate_url = output_path.replace('static/', '/static/')
         db.session.commit()
     return output_path
 
@@ -115,7 +97,6 @@ if __name__ == "__main__":
     from app import app
     with app.app_context():
         try:
-            # Example standalone generation with a placeholder overall percentage
             cert_path = generate_certificate(1, 'TNG', 75)
             print(f"Certificate generated at: {cert_path}")
         except Exception as e:
