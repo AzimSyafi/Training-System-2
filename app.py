@@ -556,9 +556,28 @@ def load_user(user_id):
 @app.route('/uploads/<path:filename>')  # unified route; path allows subdirectories if needed
 def serve_upload(filename):
     """Serve uploaded profile pictures or module slide files from their respective directories.
-    Tries profile pictures folder first, then static/uploads. Returns 404 if not found."""
+    Tries profile pictures folder first, then static/uploads. Returns 404 if not found.
+    If the requested file is a module slide, enforce disclaimer acceptance for regular users."""
     profile_dir = app.config.get('UPLOAD_FOLDER', 'static/profile_pics')
     slides_dir = os.path.join(app.root_path, 'static', 'uploads')
+
+    # If this filename corresponds to a module slide, enforce disclaimer for regular users
+    try:
+        m = Module.query.filter_by(slide_url=filename).first()
+        if m is not None:
+            # If unauthenticated or a regular user who hasn't agreed, block
+            if not current_user.is_authenticated:
+                from flask import abort
+                return abort(403)
+            # Allow admins/trainers to bypass; enforce for regular users
+            if isinstance(current_user, User):
+                if not current_user.has_agreed_to_module_disclaimer(m.module_id):
+                    from flask import abort
+                    return abort(403)
+    except Exception:
+        # On error, fall through to normal serving to avoid breaking avatars
+        pass
+
     candidate = os.path.join(profile_dir, filename)
     if os.path.exists(candidate):
         return send_from_directory(profile_dir, filename)
@@ -570,8 +589,19 @@ def serve_upload(filename):
 
 # Also expose a dedicated endpoint for slides to match template links
 @app.route('/slides/<path:filename>')
+@login_required
 def serve_uploaded_slide(filename):
+    """Serve module slide files from static/uploads with mandatory disclaimer enforcement.
+    Resolves the filename to a Module to check per-user agreement before serving."""
     slides_dir = os.path.join(app.root_path, 'static', 'uploads')
+
+    # Check if the file belongs to a module and enforce acceptance for regular users
+    m = Module.query.filter_by(slide_url=filename).first()
+    if m is not None and isinstance(current_user, User):
+        if not current_user.has_agreed_to_module_disclaimer(m.module_id):
+            from flask import abort
+            return abort(403)
+    # Non-user roles (admin/trainer/agency) can view for QA/review
     return send_from_directory(slides_dir, filename)
 
 # Home route

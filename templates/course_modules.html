@@ -75,20 +75,21 @@
             <div class="bg-blue-50 module-inner-panel-blue p-4 rounded-lg">
               <h4 class="text-lg font-semibold mb-2">Module Slides</h4>
               {% if module.slide_url %}
-                {% set slide_url = '/static/uploads/' ~ module.slide_url %}
+                {% set slide_url_gated = url_for('serve_uploaded_slide', filename=module.slide_url) %}
                 {% if module.slide_url.endswith('.pdf') %}
                   <div class="max-w-4xl mx-auto mb-2">
-                    <iframe class="w-full h-96 border rounded deferred-iframe" data-src="{{ slide_url }}" allowfullscreen></iframe>
+                    <iframe class="w-full h-96 border rounded deferred-iframe" data-src="{{ slide_url_gated }}" allowfullscreen></iframe>
                   </div>
                 {% elif module.slide_url.endswith('.pptx') %}
                   <div class="max-w-4xl mx-auto mb-2">
+                    {# Keep Office embed using absolute static URL for compatibility #}
                     {% set absolute_src = (request.url_root ~ 'static/uploads/' ~ module.slide_url) | trim('/') %}
                     <iframe class="w-full h-96 border rounded deferred-iframe" data-src="https://view.officeapps.live.com/op/embed.aspx?src={{ absolute_src | url_encode }}" allowfullscreen></iframe>
                   </div>
                 {% else %}
                   <p class="text-gray-600 mb-4">Unsupported slide format. Please use PDF or PPTX.</p>
                 {% endif %}
-                <a href="{{ slide_url }}" class="btn btn-primary mt-2" download>Download Slide</a>
+                <a href="{{ slide_url_gated }}" class="btn btn-primary mt-2" download>Download Slide</a>
               {% else %}
                 <p class="text-gray-600 mb-4">No slides available for this module.</p>
               {% endif %}

@@ -251,6 +251,7 @@
 
     </style>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/module_cards.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     {% block styles %}{% endblock %}
 </head>
 <body class="{% if request.endpoint in ['index','login','signup','onboarding','module_quiz'] %}no-sidebar{% endif %}">
@@ -428,6 +429,7 @@
             }
         });
     </script>
+    <script src="{{ url_for('static', filename='responsive.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
