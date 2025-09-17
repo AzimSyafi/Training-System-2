@@ -152,6 +152,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     user_category = db.Column(db.String(20), nullable=False, default='citizen')  # 'citizen' or 'foreigner'
+    is_finalized = db.Column(db.Boolean, nullable=False, default=False)  # signup finalized after onboarding
     visa_expiry_date = db.Column(db.Date)
     emergency_contact_phone = db.Column(db.String(20))
     emergency_contact_name = db.Column(db.String(100))  # Emergency contact's name
@@ -167,6 +168,8 @@ class User(UserMixin, db.Model):
     visa_number = db.Column(db.String(50))
     ic_number = db.Column(db.String(50), nullable=True)  # Required for citizens
     passport_number = db.Column(db.String(50), nullable=True)  # Required for foreigners
+    # New column to track module disclaimer agreements (JSON format: {"module_id": timestamp})
+    module_disclaimer_agreements = db.Column(db.Text, default='{}')
 
     # Relationship
     certificates = db.relationship('Certificate', backref='user', lazy=True)
@@ -177,7 +180,8 @@ class User(UserMixin, db.Model):
     def profile_pic_url(self):
         from flask import url_for
         if self.Profile_picture:
-            return url_for('static', filename=f'profile_pics/{self.Profile_picture}')
+            # Serve via unified uploads route so it works in dev/prod
+            return url_for('serve_upload', filename=self.Profile_picture)
         return None
 
     @property
@@ -278,6 +282,28 @@ class User(UserMixin, db.Model):
         if attempts >= 26:
             return 'Z+'
         return chr(ord('A') + attempts)
+
+    def has_agreed_to_module_disclaimer(self, module_id):
+        """Check if user has agreed to disclaimer for a specific module"""
+        import json
+        try:
+            agreements = json.loads(self.module_disclaimer_agreements or '{}')
+            return str(module_id) in agreements
+        except (json.JSONDecodeError, TypeError):
+            return False
+
+    def agree_to_module_disclaimer(self, module_id):
+        """Record user's agreement to module disclaimer"""
+        import json
+        try:
+            agreements = json.loads(self.module_disclaimer_agreements or '{}')
+        except (json.JSONDecodeError, TypeError):
+            agreements = {}
+
+        agreements[str(module_id)] = datetime.now(UTC).isoformat()
+        self.module_disclaimer_agreements = json.dumps(agreements)
+        db.session.commit()
+        return True
 
 class Course(db.Model):
     __tablename__ = 'course'
@@ -402,37 +428,6 @@ class Trainer(UserMixin, db.Model):
             return check_password_hash(self.password_hash, password)
         return False
 
-    @property
-    def username(self):
-        return self.name
-
-    @property
-    def profile_pic(self):
-        return self.profile_image
-
-    @property
-    def displayed_id(self):
-        return self.number_series or str(self.trainer_id)
-
-    def assignModule(self, module_id):
-        self.module_id = module_id
-        db.session.commit()
-
-    def getAssignedUsers(self):
-        return User.query.filter_by(trainer=self.name).all()
-
-    def getSchedule(self):
-        # Return trainer's schedule
-        return {
-            'trainer_id': self.trainer_id,
-            'availability': self.availability,
-            'assigned_module': self.module_id
-        }
-
-    def updateAvailability(self, new_availability):
-        self.availability = new_availability
-        db.session.commit()
-
 class UserModule(db.Model):
     __tablename__ = 'user_module'
 
@@ -440,251 +435,133 @@ class UserModule(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.User_id'), nullable=False)
     module_id = db.Column(db.Integer, db.ForeignKey('module.module_id'), nullable=False)
     is_completed = db.Column(db.Boolean, default=False)
-    score = db.Column(db.Float, default=0.0)
+    score = db.Column(db.Float)
     completion_date = db.Column(db.DateTime)
-    quiz_answers = db.Column(db.Text)  # Store user's quiz answers as JSON string
-    reattempt_count = db.Column(db.Integer, default=0)  # Track number of reattempts
+    quiz_answers = db.Column(db.Text)
+    reattempt_count = db.Column(db.Integer, default=0)  # added
 
-    def complete_module(self, score):
+    def get_completion_status(self):
+        return self.is_completed
+
+    def markCompleted(self):
         self.is_completed = True
-        self.score = score
         self.completion_date = datetime.now()
         db.session.commit()
 
-    def get_grade_letter(self):
-        """Get grade letter based on reattempt count: A=0, B=1, C=2, etc."""
-        if self.reattempt_count >= 26:
-            return 'Z+'
-        return chr(ord('A') + self.reattempt_count)
+    def updateScore(self, new_score):
+        # Only update if better
+        if self.score is None or new_score > self.score:
+            self.score = new_score
+            db.session.commit()
 
-class Management(db.Model):
-    __tablename__ = 'management'
+    def get_grade_letter(self):
+        """Return letter grade based on per-module reattempt count if available; fallback to A."""
+        attempts = self.reattempt_count or 0
+        if attempts >= 26:
+            return 'Z+'
+        return chr(ord('A') + attempts)
+
+class UserCourseProgress(db.Model):
+    __tablename__ = 'user_course_progress'
 
     id = db.Column(db.Integer, primary_key=True)
-    manager_name = db.Column(db.String(255), nullable=False)
-    designation = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    signature = db.Column(db.String(255))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.User_id'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'), nullable=False)
+    completed = db.Column(db.Boolean, default=False)
+    completion_date = db.Column(db.Date)
+    reattempt_count = db.Column(db.Integer, default=0)
 
-    def generateReport(self):
-        # Generate comprehensive training report
-        total_users = User.query.count()
-        completed_modules = UserModule.query.filter_by(is_completed=True).count()
-        issued_certificates = Certificate.query.count()
-
-        return {
-            'total_users': total_users,
-            'completed_modules': completed_modules,
-            'issued_certificates': issued_certificates,
-            'completion_rate': (completed_modules / total_users) * 100 if total_users > 0 else 0
-        }
-
-    def getCompletionStatistics(self):
-        # Get detailed completion statistics
-        stats = db.session.query(
-            Module.module_name,
-            db.func.count(UserModule.id).label('total_attempts'),
-            db.func.count(db.case((UserModule.is_completed == True, 1))).label('completed'),
-            db.func.avg(UserModule.score).label('avg_score')
-        ).join(UserModule).group_by(Module.module_id).all()
-
-        return stats
-
-    def exportModuleData(self):
-        # Export module data for analysis
-        return Module.query.all()
-
-    def getPerformanceMetrics(self):
-        # Get performance metrics
-        metrics = db.session.query(
-            db.func.avg(UserModule.score).label('avg_score'),
-            db.func.max(UserModule.score).label('max_score'),
-            db.func.min(UserModule.score).label('min_score')
-        ).filter(UserModule.is_completed == True).first()
-
-        return metrics
-
+class Management:
     def getDashboard(self):
-        # Get dashboard data
-        return {
-            'total_users': User.query.count(),
-            'total_modules': Module.query.count(),
-            'total_certificates': Certificate.query.count(),
-            'active_trainers': Trainer.query.filter_by(active_status=True).count(),
-            'completion_stats': self.getCourseCompletionStatistics(),
-            'performance_metrics': self.getPerformanceMetrics()
-        }
-
-    def getCourseCompletionStatistics(self):
-        # Get completion statistics at the course level
-        from sqlalchemy.sql import func, case
-        stats = (
-            db.session.query(
-                Course.name.label('course_name'),
-                func.count(UserModule.id).label('total_attempts'),
-                func.count(case((UserModule.is_completed == True, 1))).label('completed'),
-                func.avg(UserModule.score).label('avg_score')
-            )
-            .join(Module, Module.course_id == Course.course_id)
-            .join(UserModule, UserModule.module_id == Module.module_id)
-            .group_by(Course.course_id)
+        from sqlalchemy.sql import func
+        total_users = User.query.count()
+        total_modules = Module.query.count()
+        total_certificates = Certificate.query.count()
+        active_trainers = Trainer.query.filter_by(active_status=True).count()
+        # Completion stats: number of completed modules per user
+        completion_stats = (
+            db.session.query(User.full_name, func.count(UserModule.id))
+            .join(UserModule, User.User_id == UserModule.user_id)
+            .filter(UserModule.is_completed.is_(True))
+            .group_by(User.full_name)
             .all()
         )
-        # Return as list of dicts for template compatibility
-        return [
-            {
-                'course_name': s.course_name,
-                'total_attempts': s.total_attempts,
-                'completed': s.completed,
-                'avg_score': s.avg_score
-            } for s in stats
-        ]
+        # Placeholder
+        performance_metrics = None
+        return {
+            'total_users': total_users,
+            'total_modules': total_modules,
+            'total_certificates': total_certificates,
+            'active_trainers': active_trainers,
+            'completion_stats': completion_stats,
+            'performance_metrics': performance_metrics
+        }
 
 class Registration:
     @staticmethod
     def registerUser(user_data):
-        # Remove 'password' from user_data before creating User
-        password = user_data.pop('password', None)
+        # Check if email already exists
+        existing_user = User.query.filter_by(email=user_data['email']).first()
+        if existing_user:
+            raise ValueError(f"Email {user_data['email']} is already registered. Please use a different email or login instead.")
 
-        # Check if agency_id exists in the database
-        agency_id = user_data.get('agency_id')
-        if agency_id:
-            agency = Agency.query.get(agency_id)
-            if not agency:
-                # Create a default agency if it doesn't exist
-                agency = Agency(agency_id=agency_id, agency_name=f"Default Agency {agency_id}")
-                db.session.add(agency)
-                try:
-                    db.session.flush()  # Check if agency can be added without committing
-                except Exception as e:
-                    db.session.rollback()
-                    raise Exception(f"Could not create default agency: {str(e)}")
+        # Create a new user with number_series automatically generated
+        user = User(
+            full_name=user_data['full_name'],
+            email=user_data['email'],
+            user_category=user_data['user_category'],
+            agency_id=user_data['agency_id'],
+            is_finalized=False
+        )
+        user.set_password(user_data['password'])
 
-        user = User(**user_data)
-        if password:
-            user.set_password(password)
-        db.session.add(user)
+        # Define these variables outside try-except so they're always available
+        year = datetime.now(UTC).strftime('%Y')
+        seq_name = f'user_number_series_{year}_seq'
 
         try:
+            db.session.add(user)
+            db.session.flush()
+            # Set number_series with prefix SG + current year + 4-digit sequence per-year
+            db.session.execute(text(f"CREATE SEQUENCE IF NOT EXISTS {seq_name}"))
+            seq_val = db.session.execute(text(f"SELECT nextval('{seq_name}')")).scalar()
+            user.number_series = f"SG{year}{int(seq_val):04d}"
             db.session.commit()
         except IntegrityError as e:
             db.session.rollback()
-            if 'violates foreign key constraint' in str(e) and 'agency_id' in str(e):
-                # Specifically handle agency_id foreign key violations
-                raise Exception("Agency does not exist. Please select a valid agency.")
-            raise e
+            # Check if this is a duplicate email error (shouldn't happen due to pre-check, but just in case)
+            if 'user_email_key' in str(e.orig) or 'duplicate key value violates unique constraint' in str(e.orig):
+                raise ValueError(f"Email {user_data['email']} is already registered. Please use a different email.")
 
+            # If it's a different integrity error (like sequence conflicts), retry once
+            try:
+                seq_val = db.session.execute(text(f"SELECT nextval('{seq_name}')")).scalar()
+                user.number_series = f"SG{year}{int(seq_val):04d}"
+                db.session.add(user)
+                db.session.commit()
+            except IntegrityError as retry_error:
+                db.session.rollback()
+                raise RuntimeError(f"Failed to register user after retry: {str(retry_error)}")
         return user
-
-    @staticmethod
-    def assignAgency(user_id, agency_id):
-        user = User.query.get(user_id)
-        if user:
-            user.agency_id = agency_id
-            db.session.commit()
-            return True
-        return False
-
-    @staticmethod
-    def getUserList():
-        return User.query.all()
-
-    @staticmethod
-    def getAgencyList():
-        return Agency.query.all()
-
-    @staticmethod
-    def getModuleList():
-        return Module.query.all()
-
-    @staticmethod
-    def generateUserid():
-        last_user = User.query.order_by(User.User_id.desc()).first()
-        return (last_user.User_id + 1) if last_user else 1
 
 class WorkHistory(db.Model):
     __tablename__ = 'work_history'
-    work_history_id = db.Column(db.Integer, primary_key=True)
+
+    id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.User_id'), nullable=False)
     company_name = db.Column(db.String(255), nullable=False)
     position_title = db.Column(db.String(255))
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
 
-    # Relationship
-    user = db.relationship('User', back_populates='work_histories', lazy=True)
+    user = db.relationship('User', back_populates='work_histories')
 
-    def getWorkDuration(self):
-        if self.start_date and self.end_date:
-            return (self.end_date - self.start_date).days
-        return 0
-
-    def getCompanyName(self):
-        return self.company_name
-
-    def getPositionTitle(self):
-        return self.position_title
-
-    def getWorkHistoryDetails(self):
+    def to_dict(self):
         return {
-            'work_history_id': self.work_history_id,
+            'id': self.id,
             'user_id': self.user_id,
             'company_name': self.company_name,
             'position_title': self.position_title,
-            'start_date': self.start_date,
-            'end_date': self.end_date
+            'start_date': self.start_date.isoformat() if self.start_date else None,
+            'end_date': self.end_date.isoformat() if self.end_date else None
         }
-
-class UserCourseProgress(db.Model):
-    __tablename__ = 'user_course_progress'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.User_id'), nullable=False)
-    course_id = db.Column(db.Integer, nullable=False)
-    completed = db.Column(db.Boolean, default=False)
-    completion_date = db.Column(db.DateTime)
-    certificate_url = db.Column(db.String(255))
-    # New: Track how many full course reattempts (resets) the user has done
-    reattempt_count = db.Column(db.Integer, default=0)
-
-    def mark_complete(self, certificate_url=None):
-        self.completed = True
-        self.completion_date = datetime.now()
-        if certificate_url:
-            self.certificate_url = certificate_url
-        db.session.commit()
-
-    def get_grade_letter(self):
-        if self.reattempt_count >= 26:
-            return 'Z+'
-        return chr(ord('A') + (self.reattempt_count or 0))
-
-# --- Automatic prefixed number_series assignment ---
-@event.listens_for(User, 'before_insert')
-def assign_number_series(mapper, connection, target):
-    """Assign SGYYYYNNNN for users. Uses per-year sequence user_number_series_{year}_seq."""
-    existing = getattr(target, 'number_series', None)
-    if existing:
-        # Normalize: ensure starts with SG and correct length
-        existing = existing.strip().upper()
-        if existing.startswith('SG') and len(existing) == 10:
-            return
-        # Strip non-alphanumerics and regenerate below
-    year = datetime.now(UTC).strftime('%Y')  # updated
-    seq_name = f'user_number_series_{year}_seq'
-    connection.execute(text(f"CREATE SEQUENCE IF NOT EXISTS {seq_name}"))
-    seq_val = connection.execute(text(f"SELECT nextval('{seq_name}')")).scalar()
-    target.number_series = f"SG{year}{seq_val:04d}"
-
-@event.listens_for(Trainer, 'before_insert')
-def assign_trainer_number_series(mapper, connection, target):
-    """Assign TRYYYYNNNN for trainers. Uses per-year sequence trainer_number_series_{year}_seq."""
-    existing = getattr(target, 'number_series', None)
-    if existing:
-        existing = existing.strip().upper()
-        if existing.startswith('TR') and len(existing) == 10:
-            return
-    year = datetime.now(UTC).strftime('%Y')  # updated
-    seq_name = f'trainer_number_series_{year}_seq'
-    connection.execute(text(f"CREATE SEQUENCE IF NOT EXISTS {seq_name}"))
-    seq_val = connection.execute(text(f"SELECT nextval('{seq_name}')")).scalar()
-    target.number_series = f"TR{year}{seq_val:04d}"

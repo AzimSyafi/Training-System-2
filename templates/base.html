@@ -288,7 +288,7 @@
             <button class="profile-trigger" id="profileTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="profileMenu">
                 <div class="profile-avatar">
                     {% if current_user.profile_pic %}
-                        <img src="{{ url_for('static', filename='profile_pics/' + current_user.profile_pic) }}" alt="User avatar">
+                        <img src="{{ current_user.profile_pic_url }}" alt="User avatar">
                     {% else %}
                         {{ current_user.username[0]|upper }}
                     {% endif %}

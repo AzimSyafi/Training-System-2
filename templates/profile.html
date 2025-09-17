@@ -31,7 +31,7 @@
         <div class="flex gap-6">
           <!-- Profile Picture -->
           <div class="w-32 flex flex-col items-start">
-            <img id="profile-img" src="{{ url_for('static', filename='profile_pics/' ~ user.Profile_picture) if user.Profile_picture else url_for('static', filename='default_avatar.png') }}" alt="Profile Picture" class="w-28 h-28 rounded-full object-cover border-4 border-blue-200 mb-2">
+            <img id="profile-img" src="{{ user.profile_pic_url or url_for('static', filename='default_avatar.png') }}" alt="Profile Picture" class="w-28 h-28 rounded-full object-cover border-4 border-blue-200 mb-2">
           </div>
 
           <!-- Info Fields -->
@@ -126,7 +126,7 @@
       <h2 class="text-xl font-bold mb-4">Edit Personal Information</h2>
       <form id="edit-profile-form" method="POST" action="/profile" enctype="multipart/form-data">
         <div class="mb-4 flex flex-col items-center">
-          <img id="modal-profile-img" src="{{ url_for('static', filename='profile_pics/' ~ user.Profile_picture) if user.Profile_picture else url_for('static', filename='default_avatar.png') }}" alt="Profile Picture" class="w-24 h-24 rounded-full object-cover border-4 border-blue-200 mb-2">
+          <img id="modal-profile-img" src="{{ user.profile_pic_url or url_for('static', filename='default_avatar.png') }}" alt="Profile Picture" class="w-24 h-24 rounded-full object-cover border-4 border-blue-200 mb-2">
           <input type="file" name="profile_pic" accept="image/*" class="mt-2" />
         </div>
         <div class="mb-2">

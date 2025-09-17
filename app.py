@@ -1,6 +1,3 @@
-import sys
-print("Python executable:", sys.executable)
-
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.utils import secure_filename
@@ -11,9 +8,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text, inspect as sa_inspect
 import re
 import urllib.parse
-import json
 import logging
 from werkzeug.routing import BuildError  # added
+import json
 # Load .env for local development only
 try:
     # Treat presence of any hosted env signal or an existing DB URL as production
@@ -398,13 +395,15 @@ def _initialize_schema():
         try:
             if inspector.has_table('course'):
                 defaults = [
-                    {'name': 'NEPAL SECURITY GUARD TRAINING (TNG)', 'code': 'TNG', 'allowed': 'foreigner'},
-                    {'name': 'CERTIFIED SECURITY GUARD (CSG)', 'code': 'CSG', 'allowed': 'citizen'}
+                    {'name': 'NEPAL SECURITY GUARD TRAINING (TNG)', 'code': 'TNG', 'allowed_category': 'foreigner'},
+                    {'name': 'CERTIFIED SECURITY GUARD (CSG)', 'code': 'CSG', 'allowed_category': 'citizen'}
                 ]
-                db.session.execute(text(
-                    "INSERT INTO course (name, code, allowed_category) VALUES (:name, :code, :allowed) "
-                    "ON CONFLICT (code) DO NOTHING"
-                ), defaults)
+                # Use ORM upserts: check existence by code (case-insensitive) and create missing ones.
+                for d in defaults:
+                    existing = Course.query.filter(db.func.lower(db.func.trim(Course.code)) == d['code'].lower()).first()
+                    if not existing:
+                        c = Course(name=d['name'], code=d['code'], allowed_category=d['allowed_category'])
+                        db.session.add(c)
                 db.session.commit()
             else:
                 print('[SCHEMA GUARD] Skipping course defaults: course table not found.')
@@ -412,23 +411,59 @@ def _initialize_schema():
             db.session.rollback()
             print(f'[SCHEMA GUARD] Could not ensure default courses: {e}')
 
+        # Ensure user.is_finalized column exists
+        try:
+            if inspector.has_table('user'):
+                user_columns = {c['name'] for c in inspector.get_columns('user')}
+                if 'is_finalized' not in user_columns:
+                    db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS is_finalized BOOLEAN DEFAULT FALSE'))
+                    db.session.commit()
+                    print('[SCHEMA GUARD] Added is_finalized to user')
+        except Exception as e:
+            db.session.rollback()
+            print(f'[SCHEMA GUARD] Could not ensure user.is_finalized: {e}')
+
         # Ensure default agency exists
         if inspector.has_table('agency'):
             # Check required columns in agency table
             agency_columns = {c['name']: c for c in inspector.get_columns('agency')}
-            # Build INSERT statement with required fields
+            # Use the actual database column names when constructing the INSERT and
+            # be robust to differing casing (Postgres may show lowercased names
+            # unless the column was created with quotes). We will quote column
+            # identifiers in the INSERT to preserve exact names returned by the
+            # inspector and provide sensible defaults for non-nullable columns.
             required_values = {'agency_id': 1, 'agency_name': 'Default Agency'}
-            # Add non-nullable fields with default values
-            for col_name, col_info in agency_columns.items():
-                if col_info.get('nullable') is False and col_name not in required_values:
-                    if col_name == 'contact_number':
-                        required_values[col_name] = '0000000000'
-                    elif col_name in ('address', 'Reg_of_Company', 'PIC', 'email'):
-                        required_values[col_name] = ''
+            for actual_name, col_info in agency_columns.items():
+                # Skip if we already provided a value
+                if actual_name in required_values:
+                    continue
+                if col_info.get('nullable') is False:
+                    lname = actual_name.lower()
+                    if lname == 'contact_number':
+                        required_values[actual_name] = '0000000000'
+                    elif lname in ('address', 'reg_of_company', 'pic', 'email'):
+                        required_values[actual_name] = ''
+                    else:
+                        # Best-effort default based on detected type
+                        col_type = col_info.get('type')
+                        try:
+                            tstr = str(col_type).lower() if col_type is not None else ''
+                        except Exception:
+                            tstr = ''
+                        if 'char' in tstr or 'text' in tstr or 'varchar' in tstr:
+                            required_values[actual_name] = ''
+                        elif 'int' in tstr or 'numeric' in tstr:
+                            required_values[actual_name] = 0
+                        else:
+                            # Fallback to empty string to avoid SQL errors for most
+                            # textual columns. None is also acceptable but using
+                            # '' is safer for non-nullable text fields.
+                            required_values[actual_name] = ''
             # Construct dynamic insert SQL
-            cols = ', '.join(required_values.keys())
+            # Quote identifiers to match inspector-returned names exactly.
+            cols_quoted = ', '.join(f'"{c}"' for c in required_values.keys())
             placeholders = ', '.join(f':{k}' for k in required_values.keys())
-            insert_sql = f"INSERT INTO agency ({cols}) VALUES ({placeholders}) ON CONFLICT (agency_id) DO NOTHING"
+            insert_sql = f"INSERT INTO agency ({cols_quoted}) VALUES ({placeholders}) ON CONFLICT (agency_id) DO NOTHING"
             try:
                 db.session.execute(text(insert_sql), required_values)
                 db.session.commit()
@@ -733,6 +768,7 @@ def signup():
     if request.method == 'POST':
         # Get form data
         user_category = request.form.get('user_category', 'citizen')
+        email = (request.form.get('email') or '').strip().lower()
 
         # Get agency_id from form or use default if not provided
         try:
@@ -765,9 +801,23 @@ def signup():
                     flash('Invalid agency selected. Please try again.')
                     return render_template('signup.html', agencies=Agency.query.all())
 
+        # If an existing unf inalized user has this email, hard-delete them and dependents to free the email
+        try:
+            to_purge = User.query.filter(db.func.lower(db.func.trim(User.email)) == email, User.is_finalized.is_(False)).all()
+            for existing_user in to_purge:
+                WorkHistory.query.filter_by(user_id=existing_user.User_id).delete(synchronize_session=False)
+                UserModule.query.filter_by(user_id=existing_user.User_id).delete(synchronize_session=False)
+                UserCourseProgress.query.filter_by(user_id=existing_user.User_id).delete(synchronize_session=False)
+                Certificate.query.filter_by(user_id=existing_user.User_id).delete(synchronize_session=False)
+                db.session.delete(existing_user)
+            if to_purge:
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+
         user_data = {
             'full_name': request.form['full_name'],
-            'email': request.form['email'],
+            'email': email,
             'password': request.form['password'],
             'user_category': user_category,
             'agency_id': agency_id
@@ -783,25 +833,58 @@ def signup():
             if passport_number:
                 user_data['passport_number'] = passport_number
 
-        # Check if user already exists
-        if User.query.filter_by(email=user_data['email']).first():
+        # Check if user already exists and is finalized (only finalized users should block signup)
+        existing_finalized = User.query.filter(db.func.lower(db.func.trim(User.email)) == email, User.is_finalized.is_(True)).first()
+        if existing_finalized:
             flash('Email already registered')
             return render_template('signup.html', agencies=Agency.query.all())
 
         # Register user
         try:
             user = Registration.registerUser(user_data)
-            # Auto-login and redirect to onboarding wizard
+            # Mark as pending until onboarding is completed or skipped at the last step
             login_user(user)
             session['user_type'] = 'user'
             session['user_id'] = user.get_id()
+            session['pending_signup'] = True
+            session['sign_up_finalized'] = False
             return redirect(url_for('onboarding', step=1))
+        except ValueError as e:
+            # Handle duplicate email and other validation errors with user-friendly messages
+            flash(str(e), 'error')
+            return render_template('signup.html', agencies=Agency.query.all())
         except Exception as e:
-            flash(f'Error during registration: {str(e)}')
+            # Handle other unexpected errors
+            flash(f'An unexpected error occurred during registration: {str(e)}', 'error')
             return render_template('signup.html', agencies=Agency.query.all())
 
     agencies = Agency.query.all()
-    return render_template('signup.html', agencies=agencies, malaysian_states=MALAYSIAN_STATES)
+    return render_template('signup.html', agencies=agencies)
+
+@app.route('/cancel_onboarding')
+@login_required
+def cancel_onboarding():
+    """Cancel onboarding: if current user is not finalized, delete user and related rows; then logout and go to signup."""
+    try:
+        if isinstance(current_user, User):
+            u = db.session.get(User, current_user.User_id)
+            if u and not getattr(u, 'is_finalized', False):
+                WorkHistory.query.filter_by(user_id=u.User_id).delete(synchronize_session=False)
+                UserModule.query.filter_by(user_id=u.User_id).delete(synchronize_session=False)
+                UserCourseProgress.query.filter_by(user_id=u.User_id).delete(synchronize_session=False)
+                Certificate.query.filter_by(user_id=u.User_id).delete(synchronize_session=False)
+                db.session.delete(u)
+                db.session.commit()
+    except Exception:
+        db.session.rollback()
+        # Fall through to logout and redirect
+    # Always logout and clear session before leaving onboarding
+    try:
+        logout_user()
+    except Exception:
+        pass
+    session.clear()
+    return redirect(url_for('signup'))
 
 @app.route('/onboarding', methods=['GET', 'POST'])
 @login_required
@@ -826,7 +909,18 @@ def onboarding():
     step = max(1, min(step, total_steps))
 
     if request.method == 'POST':
+        # Determine last step now so we can handle Skip correctly
+        last_step = 5 if user_cat == 'foreigner' else 4
         if 'skip' in request.form:
+            # Finalize only if skipping at the last step; otherwise just go to dashboard without finalizing
+            if step == last_step:
+                try:
+                    current_user.is_finalized = True
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                session['sign_up_finalized'] = True
+                session['pending_signup'] = False
             return redirect(url_for('user_dashboard'))
         # Save fields for the current step
         try:
@@ -849,6 +943,24 @@ def onboarding():
                     if passport_number is not None:
                         current_user.passport_number = passport_number
                     current_user.ic_number = None
+                # Profile picture upload (optional)
+                if 'profile_pic' in request.files:
+                    f = request.files['profile_pic']
+                    if f and getattr(f, 'filename', ''):
+                        import time
+                        filename_raw = secure_filename(f.filename)
+                        _, ext = os.path.splitext(filename_raw)
+                        ext = (ext or '').lower()
+                        allowed_ext = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
+                        if ext in allowed_ext:
+                            save_dir = app.config.get('UPLOAD_FOLDER', os.path.join('static', 'profile_pics'))
+                            os.makedirs(save_dir, exist_ok=True)
+                            unique_name = f"u{current_user.User_id}_{int(time.time())}{ext}"
+                            save_path = os.path.join(save_dir, unique_name)
+                            f.save(save_path)
+                            current_user.Profile_picture = unique_name
+                        elif ext:
+                            flash('Unsupported image type. Please upload PNG, JPG, JPEG, GIF, or WEBP.')
             elif step == 2:
                 # Contact details
                 current_user.emergency_contact_phone = request.form.get('phone') or request.form.get('emergency_contact_phone')
@@ -921,11 +1033,19 @@ def onboarding():
         except Exception as e:
             db.session.rollback()
             flash('Could not save your progress. Please try again.')
-            return render_template('onboarding.html', step=step, total_steps=total_steps, user=current_user)
+            return render_template('onboarding.html', step=step, total_steps=total_steps, user=current_user, malaysian_states=MALAYSIAN_STATES)
 
         # Advance to next step or finish
         next_step = step + 1
         if next_step > total_steps:
+            # Finalize signup upon completion
+            try:
+                current_user.is_finalized = True
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+            session['sign_up_finalized'] = True
+            session['pending_signup'] = False
             return redirect(url_for('user_dashboard'))
         return redirect(url_for('onboarding', step=next_step))
 
@@ -1208,8 +1328,21 @@ def my_certificates():
 @app.route('/agency')
 @login_required
 def agency():
-    # Show all agencies (or could filter by user's agency)
-    ags = Agency.query.all()
+    # Show only the current user's agency for regular users/agency accounts; admins see all
+    try:
+        if isinstance(current_user, Admin):
+            ags = Agency.query.order_by(Agency.agency_name.asc()).all()
+        elif isinstance(current_user, AgencyAccount):
+            ag = db.session.get(Agency, getattr(current_user, 'agency_id', None))
+            ags = [ag] if ag else []
+        elif isinstance(current_user, User):
+            ag = db.session.get(Agency, getattr(current_user, 'agency_id', None))
+            ags = [ag] if ag else []
+        else:
+            ags = []
+    except Exception:
+        logging.exception('[AGENCY] Failed to load agency list')
+        ags = []
     return render_template('agency.html', agencies=ags)
 
 # --- Agency portal routes ---
@@ -1596,12 +1729,463 @@ def recalculate_ratings():
     flash('Ratings recalculated.')
     return redirect(url_for('admin_dashboard'))
 
-if __name__ == '__main__':
-    host = os.environ.get('HOST', '127.0.0.1')
+@app.route('/modules/<course_code>')
+@app.route('/course/<course_code>', endpoint='course_modules')  # alias endpoint used by templates
+@login_required
+def modules_by_course(course_code):
+    """Show modules for a given course code (case-insensitive).
+    Computes per-user progress and which modules are unlocked for the current user.
+    """
     try:
-        port = int(os.environ.get('PORT', '5000'))
+        code = (course_code or '').strip()
+        course = Course.query.filter(Course.code.ilike(code)).first()
+        if not course:
+            from flask import abort
+            return abort(404)
+        # Order modules with helper
+        modules = _series_sort(list(course.modules))
+
+        user_progress = {}
+        overall_percentage = None
+        # Compute user-specific progress only for regular users
+        if isinstance(current_user, User):
+            try:
+                module_ids = [m.module_id for m in modules]
+                ums = {}
+                if module_ids:
+                    rows = UserModule.query.filter(UserModule.user_id == current_user.User_id, UserModule.module_id.in_(module_ids)).all()
+                    ums = {r.module_id: r for r in rows}
+                # Determine unlocked status: first module unlocked, subsequent unlocked when previous module completed
+                for idx, m in enumerate(modules):
+                    if idx == 0:
+                        unlocked = True
+                    else:
+                        prev_m = modules[idx - 1]
+                        prev_um = ums.get(prev_m.module_id)
+                        unlocked = bool(prev_um and prev_um.is_completed)
+                    setattr(m, 'unlocked', unlocked)
+                    user_progress[m.module_id] = ums.get(m.module_id)
+                # Compute overall average score for completed modules (if any)
+                if module_ids:
+                    avg = db.session.query(db.func.avg(UserModule.score)).filter(
+                        UserModule.user_id == current_user.User_id,
+                        UserModule.module_id.in_(module_ids),
+                        UserModule.is_completed.is_(True)
+                    ).scalar()
+                    if avg is not None:
+                        try:
+                            overall_percentage = int(round(float(avg or 0.0), 0))
+                        except Exception:
+                            overall_percentage = None
+            except Exception:
+                logging.exception('[MODULES] Could not compute user progress')
+                user_progress = {}
+                for m in modules:
+                    setattr(m, 'unlocked', True)
+
+        return render_template('course_modules.html', modules=modules, course_name=course.name, user_progress=user_progress, overall_percentage=overall_percentage)
     except Exception:
-        port = 5000
-    debug = os.environ.get('FLASK_DEBUG', '1') in ('1', 'true', 'True')
-    print(f"Starting Flask server at http://{host}:{port} (debug={debug})")
-    app.run(host=host, port=port, debug=debug)
+        logging.exception('[MODULES] Failed to load modules for course %s', course_code)
+        from flask import abort
+        return abort(500)
+
+# Quiz player routes and APIs
+@app.route('/module/<int:module_id>/quiz')
+@login_required
+def module_quiz(module_id: int):
+    try:
+        module = db.session.get(Module, module_id)
+        if not module:
+            from flask import abort
+            return abort(404)
+        course = db.session.get(Course, getattr(module, 'course_id', None)) if getattr(module, 'course_id', None) else None
+        user_module = None
+        if isinstance(current_user, User):
+            user_module = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
+        return render_template('quiz_take.html', module=module, course=course, user_module=user_module)
+    except Exception:
+        logging.exception('[QUIZ] Failed to render quiz for module %s', module_id)
+        from flask import abort
+        return abort(500)
+
+def _get_module_quiz(module: Module):
+    """Parse module.quiz_json -> list of questions. Returns [] on error.
+    Supports:
+    - New schema: [ {text: str, answers: [ {text:str, isCorrect:bool}, ... ]}, ... ]
+    - Legacy schema: { questions: [ { question|text: str, answers|options: [str|{text,isCorrect}], correct: int|str }, ... ] }
+    """
+    try:
+        raw = getattr(module, 'quiz_json', None)
+        if not raw:
+            return []
+        data = json.loads(raw)
+        # Normalize to new list schema
+        out = []
+        if isinstance(data, list):
+            source_questions = data
+            for q in source_questions:
+                if not isinstance(q, dict):
+                    continue
+                qtext = (q.get('text') or '').strip()
+                answers_in = q.get('answers') or []
+                a_norm = []
+                for a in answers_in:
+                    if isinstance(a, dict):
+                        a_norm.append({'text': (a.get('text') or '').strip(), 'isCorrect': bool(a.get('isCorrect'))})
+                    elif isinstance(a, str):
+                        a_norm.append({'text': a.strip(), 'isCorrect': False})
+                if a_norm and not any(x['isCorrect'] for x in a_norm):
+                    a_norm[0]['isCorrect'] = True
+                if qtext and len(a_norm) >= 2:
+                    out.append({'text': qtext, 'answers': a_norm})
+            return out
+        if isinstance(data, dict) and isinstance(data.get('questions'), list):
+            source_questions = data.get('questions')
+            for item in source_questions:
+                if not isinstance(item, dict):
+                    continue
+                qtext = (item.get('text') or item.get('question') or '').strip()
+                answers_in = item.get('answers') or item.get('options') or []
+                a_norm = []
+                for a in answers_in:
+                    if isinstance(a, dict):
+                        a_norm.append({'text': (a.get('text') or '').strip(), 'isCorrect': bool(a.get('isCorrect'))})
+                    elif isinstance(a, str):
+                        a_norm.append({'text': a.strip(), 'isCorrect': False})
+                # Apply 'correct' index if provided (1-based typical)
+                corr = item.get('correct')
+                try:
+                    ci = int(corr)
+                    idx = ci - 1 if ci > 0 else ci
+                    if 0 <= idx < len(a_norm):
+                        for i in range(len(a_norm)):
+                            a_norm[i]['isCorrect'] = (i == idx)
+                except Exception:
+                    if a_norm and not any(x['isCorrect'] for x in a_norm):
+                        a_norm[0]['isCorrect'] = True
+                if qtext and len(a_norm) >= 2:
+                    out.append({'text': qtext, 'answers': a_norm})
+            return out
+        return []
+    except Exception:
+        return []
+
+# Helper: parse quiz from form submissions (admin/trainer content forms)
+def _parse_quiz_from_form(form) -> list:
+    """Build quiz list from form fields like quiz_question_1, answer_1_1..answer_1_5, correct_answer_1.
+    Also supports a single 'quiz_data' or 'quiz_json' field containing JSON array.
+    Returns list of normalized questions suitable for storage.
+    """
+    raw = form.get('quiz_data') or form.get('quiz_json')
+    if raw:
+        try:
+            data = json.loads(raw)
+            if isinstance(data, list):
+                out = []
+                for q in data:
+                    if not isinstance(q, dict):
+                        continue
+                    qtext = (q.get('text') or '').strip()
+                    answers = q.get('answers') or []
+                    a_norm = []
+                    for a in answers:
+                        if isinstance(a, dict):
+                            a_norm.append({'text': (a.get('text') or '').strip(), 'isCorrect': bool(a.get('isCorrect'))})
+                        elif isinstance(a, str):
+                            a_norm.append({'text': a.strip(), 'isCorrect': False})
+                    if qtext and len(a_norm) >= 2 and any(x['isCorrect'] for x in a_norm):
+                        out.append({'text': qtext, 'answers': a_norm})
+                if out:
+                    return out
+        except Exception:
+            pass
+    # Indexed fallback up to 50 questions, 5 answers each
+    questions = []
+    for i in range(1, 51):
+        qtext = (form.get(f'quiz_question_{i}') or '').strip()
+        if not qtext:
+            continue
+        answers = []
+        for j in range(1, 6):
+            atext = (form.get(f'answer_{i}_{j}') or '').strip()
+            if atext:
+                answers.append({'text': atext, 'isCorrect': False})
+        if not answers:
+            continue
+        try:
+            corr = int(form.get(f'correct_answer_{i}') or '1')
+        except Exception:
+            corr = 1
+        idx = max(1, min(corr, len(answers))) - 1
+        for k in range(len(answers)):
+            answers[k]['isCorrect'] = (k == idx)
+        if len(answers) >= 2:
+            questions.append({'text': qtext, 'answers': answers})
+    return questions
+
+# Quiz APIs consumed by quiz_take.html and quiz_builder.js
+@app.route('/api/load_quiz/<int:module_id>')
+@login_required
+def api_load_quiz(module_id: int):
+    module = db.session.get(Module, module_id)
+    if not module:
+        return jsonify([])
+    return jsonify(_get_module_quiz(module))
+
+@app.route('/api/user_quiz_answers/<int:module_id>')
+@login_required
+def api_user_quiz_answers(module_id: int):
+    if not isinstance(current_user, User):
+        return jsonify([])
+    um = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
+    if not um or not getattr(um, 'quiz_answers', None):
+        return jsonify([])
+    try:
+        data = json.loads(um.quiz_answers)
+        return jsonify(data if isinstance(data, list) else [])
+    except Exception:
+        return jsonify([])
+
+@app.route('/api/save_quiz_answers/<int:module_id>', methods=['POST'])
+@login_required
+def api_save_quiz_answers(module_id: int):
+    if not isinstance(current_user, User):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    try:
+        payload = request.get_json(silent=True) or {}
+        answers = payload.get('answers', [])
+        um = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
+        if not um:
+            um = UserModule(user_id=current_user.User_id, module_id=module_id)
+            db.session.add(um)
+        um.quiz_answers = json.dumps(answers)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        logging.exception('[QUIZ] Save answers failed for module %s', module_id)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/submit_quiz/<int:module_id>', methods=['POST'])
+@login_required
+def api_submit_quiz(module_id: int):
+    if not isinstance(current_user, User):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    module = db.session.get(Module, module_id)
+    if not module:
+        return jsonify({'success': False, 'message': 'Module not found'}), 404
+    try:
+        payload = request.get_json(silent=True) or {}
+        user_answers = payload.get('answers', [])
+        is_reattempt = bool(payload.get('is_reattempt'))
+        quiz = _get_module_quiz(module)
+        total = len(quiz)
+        correct = 0
+        for idx, q in enumerate(quiz):
+            try:
+                correct_index = next((i for i, a in enumerate(q.get('answers', [])) if a.get('isCorrect')), None)
+            except Exception:
+                correct_index = None
+            if correct_index is not None and idx < len(user_answers) and user_answers[idx] == correct_index:
+                correct += 1
+        score_pct = int(round((correct / total) * 100.0)) if total else 0
+        um = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
+        if not um:
+            um = UserModule(user_id=current_user.User_id, module_id=module_id)
+            db.session.add(um)
+        if is_reattempt:
+            try:
+                um.reattempt_count = (um.reattempt_count or 0) + 1
+            except Exception:
+                um.reattempt_count = 1
+        um.is_completed = True
+        um.score = float(score_pct)
+        um.completion_date = datetime.now()
+        um.quiz_answers = json.dumps(user_answers)
+        db.session.commit()
+        try:
+            grade = um.get_grade_letter()
+        except Exception:
+            attempts = um.reattempt_count or 0
+            grade = 'Z+' if attempts >= 26 else chr(ord('A') + attempts)
+        return jsonify({'success': True, 'score': score_pct, 'grade_letter': grade, 'reattempt_count': int(um.reattempt_count or 0)})
+    except Exception as e:
+        db.session.rollback()
+        logging.exception('[QUIZ] Submit failed for module %s', module_id)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/reattempt_course/<course_code>', methods=['POST'])
+@login_required
+def api_reattempt_course(course_code: str):
+    if not isinstance(current_user, User):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    try:
+        course = Course.query.filter(Course.code.ilike(course_code)).first()
+        if not course:
+            return jsonify({'success': False, 'message': 'Course not found'}), 404
+        m_ids = [m.module_id for m in course.modules]
+        if m_ids:
+            rows = UserModule.query.filter(UserModule.user_id == current_user.User_id, UserModule.module_id.in_(m_ids)).all()
+            for um in rows:
+                um.is_completed = False
+                um.score = 0.0
+                um.completion_date = None
+                um.quiz_answers = None
+            ucp = UserCourseProgress.query.filter_by(user_id=current_user.User_id, course_id=course.course_id).first()
+            if not ucp:
+                ucp = UserCourseProgress(user_id=current_user.User_id, course_id=course.course_id, completed=False, reattempt_count=1)
+                db.session.add(ucp)
+            else:
+                ucp.reattempt_count = (ucp.reattempt_count or 0) + 1
+                ucp.completed = False
+                ucp.completion_date = None
+            db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        logging.exception('[QUIZ] Reattempt course reset failed for %s', course_code)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/agree_module_disclaimer/<int:module_id>', methods=['POST'])
+@login_required
+def api_agree_module_disclaimer(module_id: int):
+    """Handle user agreement to module disclaimer/terms"""
+    if not isinstance(current_user, User):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+    # Verify module exists
+    module = db.session.get(Module, module_id)
+    if not module:
+        return jsonify({'success': False, 'message': 'Module not found'}), 404
+
+    try:
+        # Record the user's agreement
+        success = current_user.agree_to_module_disclaimer(module_id)
+
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Disclaimer agreement recorded',
+                'module_id': module_id
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to record disclaimer agreement'
+            }), 500
+
+    except Exception as e:
+        db.session.rollback()
+        logging.exception('[DISCLAIMER] Failed to record agreement for module %s', module_id)
+        return jsonify({
+            'success': False,
+            'message': f'Error recording disclaimer agreement: {str(e)}'
+        }), 500
+
+@app.route('/api/check_module_disclaimer/<int:module_id>', methods=['GET'])
+@login_required
+def api_check_module_disclaimer(module_id: int):
+    """Check if user has agreed to module disclaimer"""
+    if not isinstance(current_user, User):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+    try:
+        has_agreed = current_user.has_agreed_to_module_disclaimer(module_id)
+        return jsonify({
+            'success': True,
+            'has_agreed': has_agreed,
+            'module_id': module_id
+        })
+    except Exception as e:
+        logging.exception('[DISCLAIMER] Failed to check agreement for module %s', module_id)
+        return jsonify({
+            'success': False,
+            'message': f'Error checking disclaimer status: {str(e)}'
+        }), 500
+@app.route('/admin/module/<int:module_id>/content', methods=['POST'])
+@login_required
+def manage_module_content(module_id: int):
+    # Allow Admins and Trainers to manage content
+    if not (isinstance(current_user, Admin) or isinstance(current_user, Trainer)):
+        return redirect(url_for('login'))
+    m = db.session.get(Module, module_id)
+    if not m:
+        flash('Module not found.')
+        return redirect(url_for('admin_course_management'))
+    content_type = (request.form.get('content_type') or '').strip().lower()
+    try:
+        if content_type == 'slide':
+            # Save uploaded slide file (pdf/ppt/pptx) and/or slide text into Module.content
+            f = request.files.get('slide_file') if 'slide_file' in request.files else None
+            slide_text = request.form.get('slide_text')
+            if f and f.filename:
+                filename = secure_filename(f.filename)
+                # Persist to uploads directory
+                uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
+                os.makedirs(uploads_dir, exist_ok=True)
+                f.save(os.path.join(uploads_dir, filename))
+                m.slide_url = filename
+            # Save slide text even without a file
+            if slide_text is not None:
+                m.content = slide_text
+            db.session.commit()
+            flash('Slides updated.')
+        elif content_type == 'video':
+            youtube_url = (request.form.get('youtube_url') or '').strip()
+            m.youtube_url = youtube_url
+            db.session.commit()
+            flash('Video link updated.')
+        elif content_type == 'quiz':
+            # Parse quiz from form fields into legacy schema { questions: [...] }
+            questions = _parse_quiz_from_form(request.form)
+            payload = {'questions': questions if isinstance(questions, list) else []}
+            m.quiz_json = json.dumps(payload, ensure_ascii=False)
+            db.session.commit()
+            flash('Quiz saved.')
+        else:
+            flash('Unknown content type.')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[ADMIN CONTENT] Failed to save content for module %s', module_id)
+        flash('Could not save content. Please try again.')
+    # Redirect back to the course management page
+    return redirect(url_for('admin_course_management'))
+
+if __name__ == '__main__':
+    # Development server configuration
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1', 'yes', 'on')
+
+    print(f"[SERVER] Starting Flask development server on port {port}")
+    print(f"[SERVER] Debug mode: {debug}")
+    print(f"[SERVER] Open your browser to: http://localhost:{port}")
+
+    # Run the Flask development server
+    app.run(
+        host='0.0.0.0',  # Allow connections from any IP (useful for development)
+        port=port,
+        debug=debug,
+        threaded=True  # Enable threading for better performance
+    )
+
+# Safety check: Ensure this file can always be run directly
+# This prevents the "exit code 0" problem where the app initializes but doesn't start serving
+def _ensure_runnable():
+    """Safety function to verify this file is properly executable"""
+    import sys
+    if len(sys.argv) > 0 and sys.argv[0].endswith('app.py'):
+        # This file was executed directly, make sure we have server startup code
+        frame = sys._getframe()
+        while frame:
+            if frame.f_code.co_name == '<module>' and 'if __name__ ==' in frame.f_code.co_filename:
+                return True  # Found the main block
+            frame = frame.f_back
+
+        # If we get here, something might be wrong with the main block
+        print("⚠️  WARNING: app.py may not have proper server startup code!")
+        print("💡 Use 'python run_server.py' for reliable startup")
+        return False
+    return True
+
+# Execute the safety check when this module is loaded
+_ensure_runnable()

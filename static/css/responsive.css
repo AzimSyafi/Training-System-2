@@ -1,0 +1,71 @@
+/* Global responsive helpers */
+:root {
+  --rs-font-scale: 1;
+  --rs-spacing-scale: 1;
+}
+
+/* Make media scale within containers */
+img, video, canvas, svg { max-width: 100%; height: auto; }
+
+/* Base typography scales slightly via JS-driven var while keeping readability */
+body { font-size: clamp(16px, calc(16px * var(--rs-font-scale)), 18px); line-height: 1.5; }
+
+h1 { font-size: clamp(1.75rem, calc(2rem * var(--rs-font-scale)), 2.25rem); }
+h2 { font-size: clamp(1.5rem, calc(1.75rem * var(--rs-font-scale)), 2rem); }
+h3 { font-size: clamp(1.25rem, calc(1.5rem * var(--rs-font-scale)), 1.75rem); }
+h4 { font-size: clamp(1.125rem, calc(1.25rem * var(--rs-font-scale)), 1.5rem); }
+h5 { font-size: clamp(1rem, calc(1.125rem * var(--rs-font-scale)), 1.25rem); }
+h6 { font-size: clamp(0.95rem, calc(1rem * var(--rs-font-scale)), 1.125rem); }
+
+p, li, label, .form-text, .text-body, .text-body-secondary { font-size: clamp(0.95rem, calc(1rem * var(--rs-font-scale)), 1.125rem); }
+
+/* Ensure buttons and inputs are touch-friendly */
+button, .btn,
+input[type="button"], input[type="submit"], input[type="reset"],
+input[type="text"], input[type="email"], input[type="password"],
+select, textarea, .form-control {
+  min-height: 44px;
+  padding: calc(0.5rem * var(--rs-spacing-scale)) calc(0.875rem * var(--rs-spacing-scale));
+  font-size: clamp(16px, calc(16px * var(--rs-font-scale)), 20px);
+}
+
+/* Cards and images */
+.card img, .module-card-rounded img { width: 100%; height: auto; display: block; }
+.card-title { font-size: clamp(1.05rem, calc(1.15rem * var(--rs-font-scale)), 1.35rem); }
+.card-subtitle, .card-text { font-size: clamp(0.95rem, calc(1rem * var(--rs-font-scale)), 1.125rem); }
+
+/* Tables: enable horizontal scroll on small screens without redesigning DOM */
+@media (max-width: 768px) {
+  .table { display: block; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table thead th, .table tbody td { white-space: nowrap; }
+}
+
+/* Layout paddings and sidebar behavior */
+@media (max-width: 1024px) {
+  :root { --sidebar-expanded: 180px; }
+  .main-content { padding: 1.25rem 0.75rem; }
+}
+
+@media (max-width: 768px) {
+  .main-content { margin-left: 0 !important; padding: 1rem 0.75rem; }
+  /* Keep sidebar visually collapsed to free content space; JS toggles classes on resize */
+  .sidebar .nav-link { padding-left: 0.75rem; padding-right: 0.75rem; }
+}
+
+/* Form elements should fill container width on narrow screens */
+@media (max-width: 768px) {
+  input[type="text"], input[type="email"], input[type="password"], select, textarea, .form-control, .form-select {
+    width: 100%;
+  }
+}
+
+/* Utility spacing that scales with var */
+.mt-responsive { margin-top: calc(1rem * var(--rs-spacing-scale)); }
+.mb-responsive { margin-bottom: calc(1rem * var(--rs-spacing-scale)); }
+.py-responsive { padding-top: calc(0.75rem * var(--rs-spacing-scale)); padding-bottom: calc(0.75rem * var(--rs-spacing-scale)); }
+
+/* Ensure any fixed toolbars/cards don’t crowd mobile */
+@media (max-width: 768px) {
+  .card { border-radius: 12px; }
+}
+

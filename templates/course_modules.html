@@ -51,23 +51,27 @@
         <p class="text-gray-700 mb-6">{{ module.content }}</p>
         <ul class="nav nav-tabs mb-4" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#slide-{{ module.module_id }}" type="button" role="tab">
+            <button class="nav-link slide-tab-btn" data-bs-toggle="tab" data-bs-target="#slide-{{ module.module_id }}" type="button" role="tab" data-module-id="{{ module.module_id }}">
               <i class="fas fa-file-powerpoint mr-2"></i>Slide
             </button>
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#video-{{ module.module_id }}" type="button" role="tab">
-              <i class="fas fa-video mr-2"></i>Video
-            </button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#quizlink-{{ module.module_id }}" type="button" role="tab">
-              <i class="fas fa-question-circle mr-2"></i>Quiz
+              <i class="fas fa-video mr-2"></i>Video & Quiz
             </button>
           </li>
         </ul>
         <div class="tab-content">
-          <div class="tab-pane fade show active" id="slide-{{ module.module_id }}" role="tabpanel">
+          <!-- Default state: show instructions to select a tab -->
+          <div class="default-tab-content" id="default-{{ module.module_id }}">
+            <div class="bg-gray-50 p-4 rounded-lg text-center">
+              <i class="fas fa-mouse-pointer text-gray-400 text-4xl mb-3"></i>
+              <h5 class="text-gray-600 mb-2">Select Content Type</h5>
+              <p class="text-gray-500 mb-0">Choose from Slides or Video & Quiz to view the module content.</p>
+            </div>
+          </div>
+
+          <div class="tab-pane fade" id="slide-{{ module.module_id }}" role="tabpanel">
             <div class="bg-blue-50 module-inner-panel-blue p-4 rounded-lg">
               <h4 class="text-lg font-semibold mb-2">Module Slides</h4>
               {% if module.slide_url %}
@@ -106,14 +110,16 @@
                 <p class="text-gray-600 mb-4">No video available for this module.</p>
                {% endif %}
             </div>
-          </div>
-          <div class="tab-pane fade" id="quizlink-{{ module.module_id }}" role="tabpanel">
-            <div class="bg-blue-50 module-inner-panel-blue p-4 rounded-lg">
-              <div class="text-lg font-semibold mb-3 flex items-center">Knowledge Check</div>
+
+            <!-- Quiz section directly below video -->
+            <div class="bg-blue-50 module-inner-panel-blue p-4 rounded-lg mt-4">
+              <div class="text-lg font-semibold mb-3 flex items-center">
+                <i class="fas fa-question-circle mr-2"></i>Knowledge Check
+              </div>
               {% if user_module and user_module.is_completed %}
                 <div class="alert alert-success mb-3 p-2 text-sm">Quiz completed. You can review or reattempt in the Quiz Player.</div>
               {% endif %}
-              <p class="text-gray-600 mb-3">Open the dedicated Quiz Player for an immersive experience.</p>
+              <p class="text-gray-600 mb-3">Test your understanding of the video content with this interactive quiz.</p>
               <a href="{{ url_for('module_quiz', module_id=module.module_id) }}" class="btn btn-primary btn-lg">
                 <i class="fas fa-play me-1"></i> Open Quiz Player
               </a>
@@ -126,7 +132,54 @@
     {% endfor %}
   </div>
 </div>
+
+<!-- Disclaimer Modal -->
+<div class="modal fade" id="disclaimerModal" tabindex="-1" aria-labelledby="disclaimerModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title" id="disclaimerModalLabel">
+          <i class="fas fa-exclamation-triangle me-2"></i>Terms and Conditions
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" disabled></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <strong>Important Notice:</strong> Please read and agree to the following terms before accessing the module slides.
+        </div>
+        <div class="terms-content" style="max-height: 300px; overflow-y: auto; border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; background-color: #f8f9fa;">
+          <h6>Module Access Terms and Conditions</h6>
+          <p>By accessing the training module slides, you acknowledge and agree to the following:</p>
+          <ul>
+            <li><strong>Educational Purpose:</strong> The materials are provided for educational and training purposes only.</li>
+            <li><strong>Confidentiality:</strong> The content may contain proprietary information and should not be shared with unauthorized individuals.</li>
+            <li><strong>Proper Use:</strong> You agree to use the materials responsibly and in accordance with the training objectives.</li>
+            <li><strong>Intellectual Property:</strong> All materials are protected by copyright and other intellectual property rights.</li>
+            <li><strong>No Redistribution:</strong> You may not copy, distribute, or redistribute the materials without explicit permission.</li>
+            <li><strong>Completion Requirement:</strong> You are expected to review all materials thoroughly as part of your training requirements.</li>
+            <li><strong>Compliance:</strong> You agree to comply with all applicable laws and regulations while using these materials.</li>
+          </ul>
+          <p><strong>Data Collection:</strong> Your access and progress through the materials may be tracked for training completion and assessment purposes.</p>
+          <p><strong>Updates:</strong> These terms may be updated periodically, and continued use constitutes acceptance of any changes.</p>
+        </div>
+        <div class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" id="agreeCheckbox">
+          <label class="form-check-label" for="agreeCheckbox">
+            <strong>I have read and agree to the terms and conditions above</strong>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="agreeButton" disabled>
+          <i class="fas fa-check me-1"></i>Agree & Proceed
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
+
 
 {% block scripts %}
 <script>
@@ -178,6 +231,171 @@ function activateDeferredIframes(root=document){
 
 document.addEventListener('DOMContentLoaded', function(){
   activateDeferredIframes();
+
+  // Initialize disclaimer modal functionality
+  initializeDisclaimerModal();
 });
+
+// Disclaimer Modal Management
+let currentModuleId = null;
+let disclaimerModal = null;
+
+function initializeDisclaimerModal() {
+  disclaimerModal = new bootstrap.Modal(document.getElementById('disclaimerModal'), {
+    backdrop: 'static',
+    keyboard: false
+  });
+
+  const agreeCheckbox = document.getElementById('agreeCheckbox');
+  const agreeButton = document.getElementById('agreeButton');
+
+  // Enable/disable agree button based on checkbox
+  agreeCheckbox.addEventListener('change', function() {
+    agreeButton.disabled = !this.checked;
+  });
+
+  // Handle agree button click
+  agreeButton.addEventListener('click', function() {
+    if (currentModuleId && agreeCheckbox.checked) {
+      handleDisclaimerAgreement(currentModuleId);
+    }
+  });
+
+  // Handle slide tab clicks
+  document.querySelectorAll('.slide-tab-btn').forEach(button => {
+    button.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const moduleId = this.getAttribute('data-module-id');
+      if (moduleId) {
+        handleSlideTabClick(moduleId, this);
+      }
+    });
+  });
+
+  // Handle regular tab clicks for video and quiz - hide default content
+  document.querySelectorAll('.nav-link:not(.slide-tab-btn)').forEach(button => {
+    button.addEventListener('click', function(e) {
+      const moduleContainer = this.closest('.card-body');
+      if (moduleContainer) {
+        const moduleId = this.getAttribute('data-bs-target')?.match(/-([\d]+)$/)?.[1];
+        if (moduleId) {
+          hideDefaultContent(moduleId);
+        }
+      }
+    });
+  });
+
+  // Reset modal when closed
+  document.getElementById('disclaimerModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('agreeCheckbox').checked = false;
+    document.getElementById('agreeButton').disabled = true;
+    currentModuleId = null;
+  });
+}
+
+function hideDefaultContent(moduleId) {
+  const defaultContent = document.querySelector(`#default-${moduleId}`);
+  if (defaultContent) {
+    defaultContent.style.display = 'none';
+  }
+}
+
+async function handleSlideTabClick(moduleId, tabButton) {
+  try {
+    // Check if user has already agreed to disclaimer for this module
+    const response = await fetch(`/api/check_module_disclaimer/${moduleId}`);
+    const data = await response.json();
+
+    if (data.success && data.has_agreed) {
+      // User has already agreed, show slide content directly
+      showSlideContent(moduleId, tabButton);
+    } else {
+      // User hasn't agreed yet, show disclaimer modal
+      currentModuleId = moduleId;
+      disclaimerModal.show();
+    }
+  } catch (error) {
+    console.error('Error checking disclaimer status:', error);
+    // On error, show disclaimer modal to be safe
+    currentModuleId = moduleId;
+    disclaimerModal.show();
+  }
+}
+
+async function handleDisclaimerAgreement(moduleId) {
+  try {
+    // Show loading state
+    const agreeButton = document.getElementById('agreeButton');
+    const originalText = agreeButton.innerHTML;
+    agreeButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Processing...';
+    agreeButton.disabled = true;
+
+    // Record the agreement via API
+    const response = await fetch(`/api/agree_module_disclaimer/${moduleId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // Agreement recorded successfully, close modal and show content
+      disclaimerModal.hide();
+
+      // Find the slide tab button for this module and show content
+      const tabButton = document.querySelector(`.slide-tab-btn[data-module-id="${moduleId}"]`);
+      if (tabButton) {
+        setTimeout(() => showSlideContent(moduleId, tabButton), 300); // Small delay for modal close animation
+      }
+    } else {
+      // Error recording agreement
+      alert('Error recording agreement: ' + (data.message || 'Unknown error'));
+      agreeButton.innerHTML = originalText;
+      agreeButton.disabled = false;
+    }
+  } catch (error) {
+    console.error('Error recording disclaimer agreement:', error);
+    alert('Error recording agreement. Please try again.');
+
+    // Reset button
+    const agreeButton = document.getElementById('agreeButton');
+    agreeButton.innerHTML = '<i class="fas fa-check me-1"></i>Agree & Proceed';
+    agreeButton.disabled = false;
+  }
+}
+
+function showSlideContent(moduleId, tabButton) {
+  // Remove active class from all tabs in this module's container
+  const moduleContainer = tabButton.closest('.card-body');
+  if (moduleContainer) {
+    const allTabs = moduleContainer.querySelectorAll('.nav-link');
+    const allTabPanes = moduleContainer.querySelectorAll('.tab-pane');
+
+    // Deactivate all tabs and panes
+    allTabs.forEach(tab => tab.classList.remove('active'));
+    allTabPanes.forEach(pane => {
+      pane.classList.remove('show', 'active');
+    });
+
+    // Hide default content
+    hideDefaultContent(moduleId);
+
+    // Activate the slide tab
+    tabButton.classList.add('active');
+
+    // Activate the slide content pane
+    const slidePane = moduleContainer.querySelector(`#slide-${moduleId}`);
+    if (slidePane) {
+      slidePane.classList.add('show', 'active');
+
+      // Activate any deferred iframes in the newly shown content
+      activateDeferredIframes(slidePane);
+    }
+  }
+}
 </script>
 {% endblock %}
