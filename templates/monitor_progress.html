@@ -2,7 +2,12 @@
 {% block title %}Progress Monitor{% endblock %}
 {% block content %}
 <div class="container-fluid py-4">
-  <h2 class="mb-4"><i class="fas fa-chart-line"></i> Progress Monitoring</h2>
+  <h2 class="mb-3 d-flex align-items-center gap-3">
+    <span><i class="fas fa-chart-line"></i> Progress Monitoring</span>
+    {% set rows = course_progress_rows or [] %}
+    <small class="text-muted">{{ rows|length }} result{{ '' if rows|length == 1 else 's' }}</small>
+  </h2>
+
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for category, message in messages %}
@@ -12,6 +17,58 @@
       {% endfor %}
     {% endif %}
   {% endwith %}
+
+  <!-- Filters -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <form method="get" action="{{ url_for('monitor_progress') }}" class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label" for="mp_q">Search</label>
+          <input id="mp_q" type="text" class="form-control" name="q" placeholder="User, Agency, Course" value="{{ (filters.q if filters else request.args.get('q')) or '' }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label" for="mp_agency">Agency</label>
+          <select id="mp_agency" class="form-select" name="agency_id">
+            <option value="">All agencies</option>
+            {% for a in (agencies or []) %}
+              <option value="{{ a.agency_id }}" {% if filters and filters.agency_id==a.agency_id %}selected{% endif %}>{{ a.agency_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label" for="mp_course">Course</label>
+          <select id="mp_course" class="form-select" name="course_id">
+            <option value="">All courses</option>
+            {% for c in (courses or []) %}
+              <option value="{{ c.course_id }}" {% if filters and filters.course_id==c.course_id %}selected{% endif %}>{{ c.name }} ({{ c.code }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label" for="mp_status">Status</label>
+          <select id="mp_status" class="form-select" name="status">
+            {% set st = (filters.status if filters else request.args.get('status')) or '' %}
+            <option value="" {% if st=='' %}selected{% endif %}>All</option>
+            <option value="in_progress" {% if st=='in_progress' %}selected{% endif %}>In Progress</option>
+            <option value="completed" {% if st=='completed' %}selected{% endif %}>Completed</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="mp_min_progress">Progress % range</label>
+          <div class="input-group">
+            <input id="mp_min_progress" type="number" class="form-control" name="min_progress" min="0" max="100" step="1" placeholder="Min" value="{{ (filters.min_progress if filters else request.args.get('min_progress')) or '' }}">
+            <span class="input-group-text">-</span>
+            <input id="mp_max_progress" type="number" class="form-control" name="max_progress" min="0" max="100" step="1" placeholder="Max" aria-label="Max progress" value="{{ (filters.max_progress if filters else request.args.get('max_progress')) or '' }}">
+          </div>
+        </div>
+        <div class="col-12 d-flex gap-2 mt-1">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Apply</button>
+          <a href="{{ url_for('monitor_progress') }}" class="btn btn-outline-secondary">Reset</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
   {% set rows = course_progress_rows or [] %}
   {% if rows and rows|length > 0 %}
   <div class="card shadow-sm">

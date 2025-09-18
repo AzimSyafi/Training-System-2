@@ -473,27 +473,39 @@ class UserCourseProgress(db.Model):
 
 class Management:
     def getDashboard(self):
-        from sqlalchemy.sql import func
+        from sqlalchemy.sql import func, case
+        # High-level counts
         total_users = User.query.count()
         total_modules = Module.query.count()
         total_certificates = Certificate.query.count()
         active_trainers = Trainer.query.filter_by(active_status=True).count()
-        # Completion stats: number of completed modules per user
-        completion_stats = (
-            db.session.query(User.full_name, func.count(UserModule.id))
-            .join(UserModule, User.User_id == UserModule.user_id)
-            .filter(UserModule.is_completed.is_(True))
-            .group_by(User.full_name)
-            .all()
-        )
-        # Placeholder
-        performance_metrics = None
+
+        # Course-level completion stats expected by admin_dashboard.html
+        try:
+            completion_rows = (
+                db.session.query(
+                    Course.name.label('course_name'),
+                    func.count(UserModule.id).label('total_attempts'),
+                    func.count(case((UserModule.is_completed == True, 1))).label('completed'),
+                    func.avg(case((UserModule.is_completed == True, UserModule.score), else_=None)).label('avg_score')
+                )
+                .join(Module, Module.course_id == Course.course_id)
+                .join(UserModule, UserModule.module_id == Module.module_id)
+                .group_by(Course.name)
+                .order_by(Course.name.asc())
+                .all()
+            )
+        except Exception:
+            # Fallback to empty list on any DB error to keep dashboard rendering
+            completion_rows = []
+
+        performance_metrics = None  # Placeholder (kept for template compatibility)
         return {
             'total_users': total_users,
             'total_modules': total_modules,
             'total_certificates': total_certificates,
             'active_trainers': active_trainers,
-            'completion_stats': completion_stats,
+            'completion_stats': completion_rows,
             'performance_metrics': performance_metrics
         }
 

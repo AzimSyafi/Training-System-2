@@ -40,7 +40,14 @@
    .btn-sm { font-size:12px; padding:6px 12px; border-radius:6px; font-weight:500; }
    .empty-courses { background:var(--card-bg); border:1px dashed #cbd5e1; padding:24px; text-align:center; border-radius:12px; }
    body.dark-mode .empty-courses { border-color:#475569; }
- </style>
+   /* Quick Actions */
+   .quick-actions { background:var(--card-bg); border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.06); padding:16px; margin-bottom:24px; }
+   .quick-actions h5 { font-size:18px; font-weight:600; margin:0 0 12px; display:flex; align-items:center; gap:8px; }
+   .qa-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; }
+   .qa-btn { display:flex; align-items:center; justify-content:center; gap:8px; padding:10px 12px; border:1px solid var(--border-color); border-radius:10px; background:var(--card-bg); color:var(--text-color); text-decoration:none; transition:.2s ease; }
+   .qa-btn:hover { background:var(--nav-tabs-link-hover-bg,#f1f5f9); }
+   .qa-btn i { width:18px; text-align:center; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -88,6 +95,30 @@
       <p class="mb-0">Your courses will appear here once available.</p>
     </div>
   {% endif %}
+
+  <!-- Quick Actions -->
+  {% set has_enrollment = (enrolled_courses > 0) %}
+  <div class="quick-actions">
+    <h5><i class="fas fa-bolt"></i> Quick Actions</h5>
+    <div class="qa-grid">
+      {% if not has_enrollment %}
+        <a class="qa-btn" href="{{ url_for('enroll_course') }}"><i class="fas fa-user-plus"></i><span>Enroll in Course</span></a>
+      {% endif %}
+      <a class="qa-btn" href="{{ url_for('courses') }}">
+        <i class="fas fa-play"></i>
+        <span>{% if has_enrollment and completion_pct_courses < 100 %}Continue Learning{% else %}Explore Courses{% endif %}</span>
+      </a>
+      <a class="qa-btn" href="{{ url_for('profile') }}"><i class="fas fa-user"></i><span>Edit Profile</span></a>
+      <a class="qa-btn" href="{{ url_for('my_certificates') }}"><i class="fas fa-award"></i><span>View Certificates</span></a>
+      <a class="qa-btn" href="{{ url_for('agency') }}"><i class="fas fa-building"></i><span>Agency</span></a>
+      {% if not user.is_finalized %}
+        <a class="qa-btn" href="{{ url_for('onboarding', step=1) }}"><i class="fas fa-list-check"></i><span>Complete Onboarding</span></a>
+      {% endif %}
+      <form action="{{ url_for('logout') }}" method="post" class="m-0 p-0">
+        <button type="submit" class="qa-btn" style="width:100%;"><i class="fas fa-sign-out-alt"></i><span>Logout</span></button>
+      </form>
+    </div>
+  </div>
 
   <div class="card mb-4 shadow-sm" style="border-radius:12px;">
     <div class="card-body d-flex flex-column flex-md-row align-items-center gap-4">
