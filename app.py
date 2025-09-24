@@ -101,19 +101,27 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True
 }
 
-# Attempt a quick connectivity test; keep PostgreSQL and DO NOT fall back to SQLite
+# Attempt a quick connectivity test; if PostgreSQL is unreachable locally, fall back to SQLite
 try:
     from sqlalchemy import create_engine  # local import to avoid hard dependency if unused
     uri = app.config.get('SQLALCHEMY_DATABASE_URI') or ''
-    if uri.startswith('postgresql'):
+    if uri.startswith('postgresql') and os.environ.get('FORCE_POSTGRES', '0') not in ('1', 'true', 'True'):
         tmp_engine = create_engine(uri, pool_pre_ping=True)
+        # lightweight ping
+        ok = False
         try:
             with tmp_engine.connect() as conn:
                 conn.execute(text('SELECT 1'))
-                print('[DB] PostgreSQL connectivity check: OK')
-        except Exception as e:
-            # Do not change DB to SQLite; surface connectivity issues at runtime
-            print(f"[DB] PostgreSQL connectivity check failed; staying on PostgreSQL URI. Error: {e}")
+                ok = True
+        except Exception:
+            ok = False
+        if not ok:
+            # Switch to SQLite file under instance/
+            instance_dir = os.path.join(app.root_path, 'instance')
+            os.makedirs(instance_dir, exist_ok=True)
+            sqlite_path = os.path.join(instance_dir, 'security_training.db')
+            app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{sqlite_path}'
+            print(f"[DB] PostgreSQL unreachable, falling back to SQLite at {sqlite_path}")
 except Exception as e:
     # If test fails unexpectedly, keep current URI; subsequent operations may handle it
     print(f"[DB] Connectivity pre-check failed: {e}")
@@ -407,55 +415,6 @@ def _initialize_schema():
         except Exception as e:
             db.session.rollback()
             print(f'[SCHEMA GUARD] Could not add reattempt_count to user_course_progress: {e}')
-        # Ensure work_history has extended columns for detailed experiences
-        try:
-            if inspector.has_table('work_history'):
-                wh_columns = {c['name'] for c in inspector.get_columns('work_history')}
-                # Ensure surrogate id column exists and is populated (for ORM compatibility)
-                try:
-                    if 'id' not in wh_columns:
-                        if db.engine.dialect.name == 'postgresql':
-                            # Create sequence and add id column with defaults
-                            db.session.execute(text("CREATE SEQUENCE IF NOT EXISTS work_history_id_seq"))
-                            db.session.execute(text("ALTER TABLE work_history ADD COLUMN IF NOT EXISTS id INTEGER"))
-                            db.session.execute(text("ALTER TABLE work_history ALTER COLUMN id SET DEFAULT nextval('work_history_id_seq')"))
-                            # Backfill existing rows
-                            db.session.execute(text("UPDATE work_history SET id = nextval('work_history_id_seq') WHERE id IS NULL"))
-                            db.session.execute(text("ALTER TABLE work_history ALTER COLUMN id SET NOT NULL"))
-                            # Add primary key if table has none
-                            pk = inspector.get_pk_constraint('work_history') or {}
-                            constrained = pk.get('constrained_columns') or []
-                            if not constrained:
-                                try:
-                                    db.session.execute(text("ALTER TABLE work_history ADD CONSTRAINT work_history_pkey PRIMARY KEY (id)"))
-                                except Exception:
-                                    # If constraint exists or cannot add, ignore; column is still usable
-                                    pass
-                            db.session.commit()
-                        else:
-                            # Generic fallback (e.g., SQLite): just add the column
-                            try:
-                                db.session.execute(text("ALTER TABLE work_history ADD COLUMN id INTEGER"))
-                            except Exception:
-                                # Column might already exist in some form; ignore
-                                pass
-                            db.session.commit()
-                except Exception as e:
-                    db.session.rollback()
-                    print(f"[SCHEMA GUARD] Could not ensure work_history.id: {e}")
-
-                # Existing extended columns
-                if 'recruitment_date' not in wh_columns:
-                    db.session.execute(text('ALTER TABLE work_history ADD COLUMN IF NOT EXISTS recruitment_date DATE'))
-                if 'visa_number' not in wh_columns:
-                    db.session.execute(text('ALTER TABLE work_history ADD COLUMN IF NOT EXISTS visa_number VARCHAR(50)'))
-                if 'visa_expiry_date' not in wh_columns:
-                    db.session.execute(text('ALTER TABLE work_history ADD COLUMN IF NOT EXISTS visa_expiry_date DATE'))
-                db.session.commit()
-                print('[SCHEMA GUARD] Ensured extended columns on work_history')
-        except Exception as e:
-            db.session.rollback()
-            print(f'[SCHEMA GUARD] Could not ensure extended columns on work_history: {e}')
         # Trainer number_series backfill (only Postgres supports the sequence logic)
         try:
             if inspector.has_table('trainer') and db.engine.dialect.name == 'postgresql':
@@ -508,15 +467,6 @@ def _initialize_schema():
                     db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS is_finalized BOOLEAN DEFAULT FALSE'))
                     db.session.commit()
                     print('[SCHEMA GUARD] Added is_finalized to user')
-                # Ensure user.country column exists
-                if 'country' not in user_columns:
-                    try:
-                        db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS country VARCHAR(100) NULL'))
-                        db.session.commit()
-                        print('[SCHEMA GUARD] Added country to user')
-                    except Exception as e:
-                        db.session.rollback()
-                        print(f'[SCHEMA GUARD] Could not ensure user.country: {e}')
         except Exception as e:
             db.session.rollback()
             print(f'[SCHEMA GUARD] Could not ensure user.is_finalized: {e}')
@@ -1064,7 +1014,7 @@ def monitor_progress():
                     'total_modules': total_modules,
                     'progress_pct': progress_pct,
                     'avg_score': round(avg_score, 1) if avg_score else None,
-                    'status': 'Completed' if progress_pct >= 100 else 'In Progress' if progress_pct > 0 else 'Not Started'
+                    'status': 'Completed' if progress_pct >= 100 else ('In Progress' if progress_pct > 0 else 'Not Started')
                 }
                 course_progress_rows.append(row)
     except Exception:
@@ -1186,7 +1136,7 @@ def signup():
             'agency_id': agency_id
         }
 
-        # Optionally add IC or Passport number and country (collect fully during onboarding)
+        # Optionally add IC or Passport number (collect fully during onboarding)
         if user_category == 'citizen':
             ic_number = request.form.get('ic_number')
             if ic_number:
@@ -1195,9 +1145,6 @@ def signup():
             passport_number = request.form.get('passport_number')
             if passport_number:
                 user_data['passport_number'] = passport_number
-            country = (request.form.get('country') or '').strip()
-            if country:
-                user_data['country'] = country
 
         # Check if user already exists and is finalized (only finalized users should block signup)
         existing_finalized = User.query.filter(db.func.lower(db.func.trim(User.email)) == email, User.is_finalized.is_(True)).first()
@@ -1349,72 +1296,33 @@ def onboarding():
                     positions = request.form.getlist('exp_position')
                     starts = request.form.getlist('exp_start')
                     ends = request.form.getlist('exp_end')
-                    exp_visas = request.form.getlist('exp_visa_number')
-                    exp_visa_exps = request.form.getlist('exp_visa_expiry')
-                    exp_recs = request.form.getlist('exp_recruitment')
                     # Remove existing entries for this user
                     WorkHistory.query.filter_by(user_id=current_user.User_id).delete(synchronize_session=False)
                     # Add new ones
-                    for i in range(max(len(companies), len(positions), len(starts), len(ends), len(exp_visas), len(exp_visa_exps), len(exp_recs))):
+                    for i in range(max(len(companies), len(positions), len(starts), len(ends))):
                         company = (companies[i].strip() if i < len(companies) and companies[i] else '')
                         position = (positions[i].strip() if i < len(positions) and positions[i] else None)
                         start_s = (starts[i].strip() if i < len(starts) and starts[i] else '')
                         end_s = (ends[i].strip() if i < len(ends) and ends[i] else '')
-                        visa_no = (exp_visas[i].strip() if i < len(exp_visas) and exp_visas[i] else None)
-                        visa_exp_s = (exp_visa_exps[i].strip() if i < len(exp_visa_exps) and exp_visa_exps[i] else None)
-                        rec_s = (exp_recs[i].strip() if i < len(exp_recs) and exp_recs[i] else '')
-                        # Skip completely empty row
-                        if not company and not start_s and not end_s and not rec_s:
+                        if not company and not start_s and not end_s:
+                            continue  # skip empty rows
+                        # Require company and both dates
+                        if not company or not start_s or not end_s:
                             continue
-                        # Require at minimum a company and a start-like date (start or recruitment)
-                        if not company:
+                        try:
+                            start_d = datetime.strptime(start_s, '%Y-%m-%d').date()
+                            end_d = datetime.strptime(end_s, '%Y-%m-%d').date()
+                            # Ignore if end before start
+                            if end_d < start_d:
+                                continue
+                        except Exception:
                             continue
-                        # Parse dates with fallbacks
-                        start_d = None
-                        end_d = None
-                        rec_d = None
-                        if rec_s:
-                            try:
-                                rec_d = datetime.strptime(rec_s, '%Y-%m-%d').date()
-                            except Exception:
-                                rec_d = None
-                        if start_s:
-                            try:
-                                start_d = datetime.strptime(start_s, '%Y-%m-%d').date()
-                            except Exception:
-                                start_d = None
-                        # Fallback: if start missing, use recruitment as start
-                        if start_d is None and rec_d is not None:
-                            start_d = rec_d
-                        # If still missing start, skip (model requires start_date)
-                        if start_d is None:
-                            continue
-                        if end_s:
-                            try:
-                                end_d = datetime.strptime(end_s, '%Y-%m-%d').date()
-                            except Exception:
-                                end_d = None
-                        # Default end to start if missing/invalid to satisfy NOT NULL
-                        if end_d is None:
-                            end_d = start_d
-                        # Ignore if end before start
-                        if end_d < start_d:
-                            continue
-                        visa_exp_d = None
-                        if visa_exp_s:
-                            try:
-                                visa_exp_d = datetime.strptime(visa_exp_s, '%Y-%m-%d').date()
-                            except Exception:
-                                visa_exp_d = None
                         wh = WorkHistory(
                             user_id=current_user.User_id,
                             company_name=company,
                             position_title=position,
                             start_date=start_d,
-                            end_date=end_d,
-                            recruitment_date=rec_d or start_d,
-                            visa_number=visa_no,
-                            visa_expiry_date=visa_exp_d
+                            end_date=end_d
                         )
                         db.session.add(wh)
                 except Exception:
@@ -1621,17 +1529,15 @@ def profile():
             current_user.address = request.form.get('address') or current_user.address
             current_user.postcode = request.form.get('postcode') or current_user.postcode
             current_user.state = request.form.get('state') or current_user.state
-            # New: country field
-            current_user.country = request.form.get('country') or current_user.country
-            # Deprecated single working_experience field retained for compat
             current_user.working_experience = request.form.get('working_experience') or current_user.working_experience
-            # Dates and numbers (user-level)
+            # Dates and numbers
             rec = request.form.get('recruitment_date')
             if rec:
                 try:
                     current_user.recruitment_date = datetime.strptime(rec, '%Y-%m-%d').date()
                 except Exception:
                     pass
+            # rating_star removed from schema; ignore any rating_star form input
             current_user.visa_number = request.form.get('visa_number') or current_user.visa_number
             visa_exp = request.form.get('visa_expiry_date')
             if visa_exp:
@@ -1648,11 +1554,11 @@ def profile():
             except Exception:
                 pass
             # Emergency
+            # Emergency contact fields (match model names)
             current_user.emergency_contact_phone = request.form.get('emergency_contact_phone') or current_user.emergency_contact_phone
             current_user.emergency_contact_name = request.form.get('emergency_contact_name') or current_user.emergency_contact_name
             current_user.emergency_contact_relationship = request.form.get('emergency_contact_relationship') or current_user.emergency_contact_relationship
-
-            # Handle profile picture upload
+            # File upload
             if 'profile_pic' in request.files:
                 f = request.files['profile_pic']
                 if f and f.filename:
@@ -1661,83 +1567,6 @@ def profile():
                     os.makedirs(save_dir, exist_ok=True)
                     f.save(os.path.join(save_dir, filename))
                     current_user.Profile_picture = filename
-
-            # Handle multiple working experiences from modal (optional)
-            try:
-                companies = request.form.getlist('exp_company')
-                positions = request.form.getlist('exp_position')
-                starts = request.form.getlist('exp_start')
-                ends = request.form.getlist('exp_end')
-                visas = request.form.getlist('exp_visa_number')
-                visa_exps = request.form.getlist('exp_visa_expiry')
-                recs = request.form.getlist('exp_recruitment')
-                any_exp_fields = any([companies, positions, starts, ends, visas, visa_exps, recs]) and (
-                    (len(companies) + len(positions) + len(starts) + len(ends) + len(visas) + len(visa_exps) + len(recs)) > 0
-                )
-                if any_exp_fields:
-                    # Replace existing experiences for this user
-                    WorkHistory.query.filter_by(user_id=current_user.User_id).delete(synchronize_session=False)
-                    for i in range(max(len(companies), len(positions), len(starts), len(ends), len(visas), len(visa_exps), len(recs))):
-                        company = (companies[i].strip() if i < len(companies) and companies[i] else '')
-                        position = (positions[i].strip() if i < len(positions) and positions[i] else None)
-                        start_s = (starts[i].strip() if i < len(starts) and starts[i] else '')
-                        end_s = (ends[i].strip() if i < len(ends) and ends[i] else '')
-                        visa_no = (visas[i].strip() if i < len(visas) and visas[i] else None)
-                        visa_exp_s = (visa_exps[i].strip() if i < len(visa_exps) and visa_exps[i] else None)
-                        rec_s = (recs[i].strip() if i < len(recs) and recs[i] else '')
-                        # Skip empty rows
-                        if not company and not start_s and not end_s and not rec_s:
-                            continue
-                        # Require company and at least a start-like date
-                        if not company:
-                            continue
-                        # Parse
-                        rec_d = None
-                        start_d = None
-                        end_d = None
-                        if rec_s:
-                            try:
-                                rec_d = datetime.strptime(rec_s, '%Y-%m-%d').date()
-                            except Exception:
-                                rec_d = None
-                        if start_s:
-                            try:
-                                start_d = datetime.strptime(start_s, '%Y-%m-%d').date()
-                            except Exception:
-                                start_d = None
-                        if start_d is None and rec_d is not None:
-                            start_d = rec_d
-                        if start_d is None:
-                            continue
-                        if end_s:
-                            try:
-                                end_d = datetime.strptime(end_s, '%Y-%m-%d').date()
-                            except Exception:
-                                end_d = None
-                        if end_d is None:
-                            end_d = start_d
-                        if end_d < start_d:
-                            continue
-                        visa_exp_d = None
-                        if visa_exp_s:
-                            try:
-                                visa_exp_d = datetime.strptime(visa_exp_s, '%Y-%m-%d').date()
-                            except Exception:
-                                visa_exp_d = None
-                        wh = WorkHistory(
-                            user_id=current_user.User_id,
-                            company_name=company,
-                            position_title=position,
-                            start_date=start_d,
-                            end_date=end_d,
-                            recruitment_date=rec_d or start_d,
-                            visa_number=visa_no,
-                            visa_expiry_date=visa_exp_d
-                        )
-                        db.session.add(wh)
-            except Exception:
-                # Do not block profile update if experience parsing fails
-                pass
             db.session.commit()
             flash('Profile updated successfully.')
         except Exception:
@@ -1745,13 +1574,7 @@ def profile():
             logging.exception('[PROFILE] Update failed')
             flash('Could not update profile. Please try again.')
         return redirect(url_for('profile'))
-    # GET
-    # Fetch experiences sorted by start_date (recruitment date) desc
-    try:
-        experiences = WorkHistory.query.filter_by(user_id=current_user.User_id).order_by(db.func.coalesce(WorkHistory.recruitment_date, WorkHistory.start_date).desc()).all()
-    except Exception:
-        experiences = []
-    return render_template('profile.html', user=current_user, malaysian_states=MALAYSIAN_STATES, experiences=experiences)
+    return render_template('profile.html', user=current_user, malaysian_states=MALAYSIAN_STATES)
 
 @app.route('/courses')
 @login_required
@@ -2137,649 +1960,6 @@ def edit_agency(agency_id: int):
         logging.exception('[ADMIN AGENCIES] Edit failed')
         flash('Failed to update agency.', 'danger')
     return redirect(url_for('admin_agencies'))
-
-@app.route('/modules/<string:course_code>')
-@login_required
-def course_modules(course_code: str):
-    """Show modules for a given course code (e.g., /modules/TNG).
-    Renders course_modules.html with modules, user progress, and unlock flags.
-    """
-    # Only regular users access this page
-    if not isinstance(current_user, User):
-        return redirect(url_for('login'))
-
-    # Normalize input
-    code = (course_code or '').strip()
-    if not code:
-        flash('Invalid course code.', 'warning')
-        return redirect(url_for('courses'))
-
-    # Find course by code (case-insensitive)
-    course = Course.query.filter(Course.code.ilike(code)).first()
-    if not course:
-        flash(f'Course {code} not found.', 'warning')
-        return redirect(url_for('courses'))
-
-    # Enforce category access policy
-    user_cat = normalized_user_category(current_user)
-    allowed = (str(course.allowed_category or '').strip().lower())
-    if allowed not in ('citizen', 'foreigner', 'both'):
-        allowed = 'both'
-    if allowed != 'both' and allowed != user_cat:
-        flash('You do not have access to this course.', 'warning')
-        return redirect(url_for('courses'))
-
-    # Load and sort modules
-    modules = list(getattr(course, 'modules', []) or [])
-    modules = _series_sort(modules)
-
-    # Build user progress map for current user (module_id -> UserModule row)
-    try:
-        module_ids = [m.module_id for m in modules]
-        progress_rows = []
-        if module_ids:
-            progress_rows = (
-                UserModule.query
-                .filter(UserModule.user_id == current_user.User_id, UserModule.module_id.in_(module_ids))
-                .all()
-            )
-        user_progress = {um.module_id: um for um in progress_rows}
-    except Exception:
-        logging.exception('[COURSE MODULES] Failed to load user progress')
-        user_progress = {}
-
-    # Determine unlock flags: first module unlocked, others unlocked if previous completed
-    prev_completed = True
-    for idx, m in enumerate(modules):
-        unlocked = False
-        if idx == 0:
-            unlocked = True
-        else:
-            prev = modules[idx - 1]
-            prev_um = user_progress.get(getattr(prev, 'module_id', None))
-            unlocked = bool(prev_um and getattr(prev_um, 'is_completed', False))
-        # attach transient attribute for template
-        try:
-            setattr(m, 'unlocked', unlocked)
-        except Exception:
-            pass
-
-    # Compute overall average score across completed modules for this course
-    overall_percentage = None
-    try:
-        if module_ids:
-            avg_score_val = (
-                db.session.query(db.func.avg(UserModule.score))
-                .filter(
-                    UserModule.user_id == current_user.User_id,
-                    UserModule.module_id.in_(module_ids),
-                    UserModule.is_completed.is_(True)
-                )
-                .scalar()
-            )
-            if avg_score_val is not None:
-                overall_percentage = int(round(float(avg_score_val or 0.0), 0))
-    except Exception:
-        overall_percentage = None
-
-    return render_template(
-        'course_modules.html',
-        course_name=getattr(course, 'name', code),
-        modules=modules,
-        user_progress=user_progress,
-        overall_percentage=overall_percentage
-    )
-
-
-@app.route('/quiz/<int:module_id>')
-@login_required
-def module_quiz(module_id: int):
-    """Open the Quiz Player for the given module."""
-    if not isinstance(current_user, User):
-        return redirect(url_for('login'))
-    module = db.session.get(Module, module_id)
-    if not module:
-        flash('Module not found.', 'warning')
-        return redirect(url_for('courses'))
-    course = db.session.get(Course, getattr(module, 'course_id', None)) if getattr(module, 'course_id', None) else None
-    user_module = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module.module_id).first()
-    return render_template('quiz_take.html', module=module, course=course, user_module=user_module)
-
-
-# Minimal APIs to support slide disclaimer gating on modules page
-@app.route('/api/check_module_disclaimer/<int:module_id>')
-@login_required
-def api_check_module_disclaimer(module_id: int):
-    try:
-        if not isinstance(current_user, User):
-            return jsonify(success=False, has_agreed=False)
-        has = current_user.has_agreed_to_module_disclaimer(module_id)
-        return jsonify(success=True, has_agreed=has)
-    except Exception as e:
-        logging.exception('[API] check_module_disclaimer failed')
-        return jsonify(success=False, message=str(e)), 500
-
-
-@app.route('/api/agree_module_disclaimer/<int:module_id>', methods=['POST'])
-@login_required
-def api_agree_module_disclaimer(module_id: int):
-    try:
-        if not isinstance(current_user, User):
-            return jsonify(success=False, message='Unauthorized'), 403
-        ok = current_user.agree_to_module_disclaimer(module_id)
-        return jsonify(success=bool(ok))
-    except Exception as e:
-        logging.exception('[API] agree_module_disclaimer failed')
-        return jsonify(success=False, message=str(e)), 500
-
-
-@app.route('/api/reattempt_course/<string:course_code>', methods=['POST'])
-@login_required
-def api_reattempt_course(course_code: str):
-    if not isinstance(current_user, User):
-        return jsonify(success=False, message='Unauthorized'), 403
-    code = (course_code or '').strip()
-    if not code:
-        return jsonify(success=False, message='Invalid course code'), 400
-    course = Course.query.filter(Course.code.ilike(code)).first()
-    if not course:
-        return jsonify(success=False, message='Course not found'), 404
-    try:
-        # Get modules for this course
-        module_ids = [m.module_id for m in getattr(course, 'modules', [])]
-        if module_ids:
-            rows = UserModule.query.filter(
-                UserModule.user_id == current_user.User_id,
-                UserModule.module_id.in_(module_ids)
-            ).all()
-            for um in rows:
-                um.is_completed = False
-                um.score = None
-                um.quiz_answers = None
-                # Do not reset reattempt_count per-module here; leave as is
-            db.session.flush()
-        # Increment course-level reattempt counter (create row if missing)
-        ucp = UserCourseProgress.query.filter_by(user_id=current_user.User_id, course_id=course.course_id).first()
-        if not ucp:
-            ucp = UserCourseProgress(user_id=current_user.User_id, course_id=course.course_id, completed=False, reattempt_count=1)
-            db.session.add(ucp)
-        else:
-            ucp.reattempt_count = int(ucp.reattempt_count or 0) + 1
-            ucp.completed = False
-        db.session.commit()
-        return jsonify(success=True)
-    except Exception as e:
-        db.session.rollback()
-        logging.exception('[API] reattempt_course failed')
-        return jsonify(success=False, message=str(e)), 500
-
-
-@app.route('/api/complete_course', methods=['POST'])
-@login_required
-def api_complete_course():
-    if not isinstance(current_user, User):
-        return jsonify(success=False, message='Unauthorized'), 403
-    try:
-        payload = request.get_json(silent=True) or {}
-        code = (payload.get('course_code') or '').strip()
-        if not code:
-            return jsonify(success=False, message='Missing course_code'), 400
-        course = Course.query.filter(Course.code.ilike(code)).first()
-        if not course:
-            return jsonify(success=False, message='Course not found'), 404
-        # Mark as completed (does not issue certificate here; keep minimal)
-        ucp = UserCourseProgress.query.filter_by(user_id=current_user.User_id, course_id=course.course_id).first()
-        if not ucp:
-            ucp = UserCourseProgress(user_id=current_user.User_id, course_id=course.course_id, completed=True)
-            db.session.add(ucp)
-        else:
-            ucp.completed = True
-        db.session.commit()
-        return jsonify(success=True)
-    except Exception as e:
-        db.session.rollback()
-        logging.exception('[API] complete_course failed')
-        return jsonify(success=False, message=str(e)), 500
-
-@app.route('/api/load_quiz/<int:module_id>')
-@login_required
-def api_load_quiz(module_id: int):
-    try:
-        m = db.session.get(Module, module_id)
-        if not m:
-            return jsonify([])
-        try:
-            raw = m.quiz_json or '[]'
-            data = json.loads(raw)
-            # Handle double-encoded JSON values (string containing JSON)
-            if isinstance(data, str):
-                try:
-                    data = json.loads(data)
-                except Exception:
-                    pass
-        except Exception:
-            data = []
-        # Coerce root to a list if it's a dict with common keys or a single question object
-        def _coerce_to_list(payload):
-            if isinstance(payload, list):
-                return payload
-            if isinstance(payload, dict):
-                for k in ('quiz', 'questions', 'items', 'data'):
-                    v = payload.get(k)
-                    if isinstance(v, list):
-                        return v
-                # Single-question object: treat as one-item list
-                if any(k in payload for k in ('answers', 'options', 'optionA', 'question', 'text')):
-                    return [payload]
-            return []
-        data = _coerce_to_list(data)
-        # Normalize to expected shape: list of {text, answers:[{text,isCorrect}]}
-        def _norm_answers(ans_val):
-            out = []
-            # list of dicts/strings
-            if isinstance(ans_val, list):
-                for opt in ans_val:
-                    if isinstance(opt, dict):
-                        txt = (str(opt.get('text') or opt.get('label') or opt.get('option') or '')).strip()
-                        is_corr = bool(opt.get('isCorrect') or opt.get('correct') or opt.get('is_correct'))
-                        if txt:
-                            out.append({'text': txt, 'isCorrect': is_corr})
-                    elif isinstance(opt, str):
-                        txt = opt.strip()
-                        if txt:
-                            out.append({'text': txt, 'isCorrect': False})
-            # dict of key->dict/string
-            elif isinstance(ans_val, dict):
-                for _, opt in ans_val.items():
-                    if isinstance(opt, dict):
-                        txt = (str(opt.get('text') or opt.get('label') or opt.get('option') or '')).strip()
-                        is_corr = bool(opt.get('isCorrect') or opt.get('correct') or opt.get('is_correct'))
-                        if txt:
-                            out.append({'text': txt, 'isCorrect': is_corr})
-                    elif isinstance(opt, str):
-                        txt = opt.strip()
-                        if txt:
-                            out.append({'text': txt, 'isCorrect': False})
-            return out
-        def _normalize_item(item):
-            if not isinstance(item, dict):
-                return None
-            text = (str(item.get('text') or item.get('question') or '')).strip()
-            answers = []
-            # common fields
-            if 'answers' in item:
-                answers = _norm_answers(item.get('answers'))
-            elif 'options' in item:
-                answers = _norm_answers(item.get('options'))
-            else:
-                # Some shapes: optionA/optionB..., choices, etc.
-                tmp = []
-                for key in ('optionA','optionB','optionC','optionD','optionE'):
-                    val = item.get(key)
-                    if isinstance(val, str) and val.strip():
-                        tmp.append(val.strip())
-                if tmp:
-                    answers = _norm_answers(tmp)
-            # correct index/marker
-            correct_index = None
-            try:
-                if correct_index is None and isinstance(item.get('correctIndex'), (int, float)):
-                    ci = int(item.get('correctIndex'))
-                    correct_index = ci if ci >= 0 else None
-            except Exception:
-                pass
-            # If answers present as strings and correct_index provided
-            if correct_index is not None and isinstance(answers, list) and answers:
-                for i in range(len(answers)):
-                    answers[i]['isCorrect'] = (i == correct_index)
-            # Ensure at least two answers and exactly one correct
-            answers = [a for a in answers if isinstance(a, dict) and str(a.get('text') or '').strip()]
-            if not answers:
-                return None
-            # If no correct marked, mark first; if multiple, keep the first as true and others false
-            marked = [i for i,a in enumerate(answers) if a.get('isCorrect') is True]
-            if not marked:
-                answers[0]['isCorrect'] = True
-                for i in range(1, len(answers)):
-                    answers[i]['isCorrect'] = False
-            # Fallback question text if missing
-            if not text:
-                text = 'Select the correct answer'
-            return {'text': text, 'answers': answers}
-        normalized = []
-        if isinstance(data, list):
-            for it in data:
-                norm = _normalize_item(it)
-                if norm is not None:
-                    normalized.append(norm)
-        # Limit to a reasonable maximum to avoid flooding UI
-        if len(normalized) > 100:
-            normalized = normalized[:100]
-        return jsonify(normalized)
-    except Exception:
-        logging.exception('[API] load_quiz failed')
-        return jsonify([])
-
-
-@app.route('/api/submit_quiz/<int:module_id>', methods=['POST'])
-@login_required
-def api_submit_quiz(module_id: int):
-    try:
-        if not isinstance(current_user, User):
-            return jsonify(success=False, message='Unauthorized'), 403
-        m = db.session.get(Module, module_id)
-        if not m:
-            return jsonify(success=False, message='Module not found'), 404
-        try:
-            raw = m.quiz_json or '[]'
-            quiz_raw = json.loads(raw)
-            # Handle double-encoded JSON
-            if isinstance(quiz_raw, str):
-                try:
-                    quiz_raw = json.loads(quiz_raw)
-                except Exception:
-                    pass
-        except Exception:
-            quiz_raw = []
-        # Coerce root to a list when dict with common keys or a single-question dict
-        def _coerce_to_list(payload):
-            if isinstance(payload, list):
-                return payload
-            if isinstance(payload, dict):
-                for k in ('quiz', 'questions', 'items', 'data'):
-                    v = payload.get(k)
-                    if isinstance(v, list):
-                        return v
-                if any(k in payload for k in ('answers', 'options', 'optionA', 'question', 'text')):
-                    return [payload]
-            return []
-        quiz_raw = _coerce_to_list(quiz_raw)
-        # Normalize quiz to expected shape for grading
-        def _norm_answers(ans_val):
-            out = []
-            if isinstance(ans_val, list):
-                for opt in ans_val:
-                    if isinstance(opt, dict):
-                        txt = (str(opt.get('text') or opt.get('label') or opt.get('option') or '')).strip()
-                        is_corr = bool(opt.get('isCorrect') or opt.get('correct') or opt.get('is_correct'))
-                        if txt:
-                            out.append({'text': txt, 'isCorrect': is_corr})
-                    elif isinstance(opt, str):
-                        txt = opt.strip()
-                        if txt:
-                            out.append({'text': txt, 'isCorrect': False})
-            elif isinstance(ans_val, dict):
-                for _, opt in ans_val.items():
-                    if isinstance(opt, dict):
-                        txt = (str(opt.get('text') or opt.get('label') or opt.get('option') or '')).strip()
-                        is_corr = bool(opt.get('isCorrect') or opt.get('correct') or opt.get('is_correct'))
-                        if txt:
-                            out.append({'text': txt, 'isCorrect': is_corr})
-                    elif isinstance(opt, str):
-                        txt = opt.strip()
-                        if txt:
-                            out.append({'text': txt, 'isCorrect': False})
-            return out
-        def _normalize_item(item):
-            if not isinstance(item, dict):
-                return None
-            text = (str(item.get('text') or item.get('question') or '')).strip()
-            answers = []
-            if 'answers' in item:
-                answers = _norm_answers(item.get('answers'))
-            elif 'options' in item:
-                answers = _norm_answers(item.get('options'))
-            else:
-                tmp = []
-                for key in ('optionA','optionB','optionC','optionD','optionE'):
-                    val = item.get(key)
-                    if isinstance(val, str) and val.strip():
-                        tmp.append(val.strip())
-                if tmp:
-                    answers = _norm_answers(tmp)
-            # Set correct by index if provided
-            correct_index = None
-            try:
-                if isinstance(item.get('correctIndex'), (int, float)):
-                    ci = int(item.get('correctIndex'))
-                    correct_index = ci if ci >= 0 else None
-            except Exception:
-                correct_index = None
-            if correct_index is not None and answers:
-                for i in range(len(answers)):
-                    answers[i]['isCorrect'] = (i == correct_index)
-            # Clean answers
-            answers = [a for a in answers if isinstance(a, dict) and str(a.get('text') or '').strip()]
-            if not answers:
-                return None
-            # Ensure single correct
-            marked = [i for i,a in enumerate(answers) if a.get('isCorrect') is True]
-            first = marked[0] if marked else 0
-            for i in range(len(answers)):
-                answers[i]['isCorrect'] = (i == first)
-            if not text:
-                text = 'Select the correct answer'
-            return {'text': text, 'answers': answers}
-        quiz = []
-        if isinstance(quiz_raw, list):
-            for it in quiz_raw:
-                norm = _normalize_item(it)
-                if norm is not None:
-                    quiz.append(norm)
-        if not isinstance(quiz, list) or not quiz:
-            return jsonify(success=False, message='No quiz available for this module'), 400
-        payload = request.get_json(silent=True) or {}
-        answers = payload.get('answers')
-        is_reattempt = bool(payload.get('is_reattempt'))
-        if not isinstance(answers, list):
-            return jsonify(success=False, message='Invalid answers'), 400
-        # Grade
-        total = len(quiz)
-        correct = 0
-        for idx, q in enumerate(quiz):
-            try:
-                chosen = answers[idx] if idx < len(answers) else None
-                opts = q.get('answers') if isinstance(q, dict) else None
-                if not isinstance(opts, list):
-                    continue
-                correct_idx = None
-                for ai, opt in enumerate(opts):
-                    if isinstance(opt, dict) and opt.get('isCorrect') is True:
-                        correct_idx = ai
-                        break
-                if correct_idx is not None and isinstance(chosen, int) and chosen == correct_idx:
-                    correct += 1
-            except Exception:
-                continue
-        score_pct = int(round((correct / total) * 100.0, 0)) if total else 0
-
-        # Upsert user progress for this module
-        um = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
-        if not um:
-            um = UserModule(user_id=current_user.User_id, module_id=module_id)
-            db.session.add(um)
-            db.session.flush()
-        # Increment reattempt count if flagged
-        if is_reattempt:
-            try:
-                um.reattempt_count = int(um.reattempt_count or 0) + 1
-            except Exception:
-                um.reattempt_count = 1
-        # Save final answers and score
-        um.quiz_answers = json.dumps(answers)
-        if um.score is None or score_pct > (um.score or 0):
-            um.score = float(score_pct)
-        um.is_completed = True
-        um.completion_date = datetime.now(UTC)
-        db.session.commit()
-        grade_letter = um.get_grade_letter()
-        return jsonify(success=True, score=score_pct, grade_letter=grade_letter, reattempt_count=int(um.reattempt_count or 0))
-    except Exception as e:
-        db.session.rollback()
-        logging.exception('[API] submit_quiz failed')
-        return jsonify(success=False, message=str(e)), 500
-
-@app.route('/upload_content', methods=['GET', 'POST'])
-@login_required
-def upload_content():
-    # Limit to trainers/admins to manage content
-    if not (isinstance(current_user, Trainer) or isinstance(current_user, Admin)):
-        return redirect(url_for('login'))
-
-    if request.method == 'POST':
-        # Parse basics
-        try:
-            module_id = int(request.form.get('module_id') or 0)
-        except Exception:
-            module_id = 0
-        content_type = (request.form.get('content_type') or '').strip().lower()
-        m = db.session.get(Module, module_id) if module_id else None
-        if not m:
-            flash('Invalid module selection.', 'warning')
-            return redirect(url_for('upload_content'))
-        try:
-            if content_type == 'slide':
-                f = request.files.get('slide_file')
-                if not f or not getattr(f, 'filename', ''):
-                    flash('Please choose a PDF or PPTX file.', 'warning')
-                    return redirect(url_for('upload_content'))
-                filename = secure_filename(f.filename)
-                name, ext = os.path.splitext(filename)
-                ext = (ext or '').lower()
-                if ext not in ('.pdf', '.pptx', '.ppt'):
-                    flash('Unsupported slide type. Please upload PDF or PPTX.', 'warning')
-                    return redirect(url_for('upload_content'))
-                # Save to static/uploads with a unique filename
-                target_dir = os.path.join(app.root_path, 'static', 'uploads')
-                os.makedirs(target_dir, exist_ok=True)
-                unique = filename
-                i = 1
-                while os.path.exists(os.path.join(target_dir, unique)):
-                    unique = f"{name}_{i}{ext}"
-                    i += 1
-                f.save(os.path.join(target_dir, unique))
-                m.slide_url = unique
-                db.session.commit()
-                flash('Slide uploaded to module.', 'success')
-            elif content_type == 'video':
-                url = (request.form.get('youtube_url') or '').strip()
-                if not url:
-                    flash('Please provide a YouTube URL.', 'warning')
-                    return redirect(url_for('upload_content'))
-                m.youtube_url = url
-                db.session.commit()
-                flash('Video URL saved.', 'success')
-            elif content_type == 'quiz':
-                # Build quiz from up to 5 question slots
-                quiz = []
-                # Allow up to 50 for future-proofing; forms usually send up to 5
-                for qn in range(1, 51):
-                    qtext = (request.form.get(f'quiz_question_{qn}') or '').strip()
-                    if not qtext:
-                        # Stop if we hit a gap and no further fields exist beyond 5
-                        if qn > 5:
-                            continue
-                        # For 1..5, allow blank to be skipped
-                        continue
-                    answers = []
-                    # Collect up to 5 answers from forms used in templates
-                    for an in range(1, 6):
-                        atext = (request.form.get(f'answer_{qn}_{an}') or '').strip()
-                        if atext:
-                            answers.append({'text': atext, 'isCorrect': False})
-                    # Default at least two empty answers if none
-                    if not answers:
-                        continue
-                    # Mark correct
-                    try:
-                        correct_sel = int(request.form.get(f'correct_answer_{qn}') or 0)
-                    except Exception:
-                        correct_sel = 0
-                    if 1 <= correct_sel <= len(answers):
-                        answers[correct_sel - 1]['isCorrect'] = True
-                    else:
-                        # If invalid, make first one correct by default
-                        answers[0]['isCorrect'] = True
-                    quiz.append({'text': qtext, 'answers': answers})
-                if not quiz:
-                    flash('Please provide at least one question and answers.', 'warning')
-                    return redirect(url_for('upload_content'))
-                m.quiz_json = json.dumps(quiz)
-                db.session.commit()
-                flash('Quiz saved to module.', 'success')
-            else:
-                flash('Unsupported content type.', 'warning')
-            return redirect(url_for('upload_content'))
-        except Exception:
-            db.session.rollback()
-            logging.exception('[UPLOAD CONTENT] Failed to save content')
-            flash('Failed to save content. Please try again later.', 'danger')
-            return redirect(url_for('upload_content'))
-
-    # GET: render content management page with modules list
-    try:
-        modules = Module.query.order_by(Module.module_type.asc(), Module.series_number.asc()).all()
-    except Exception:
-        modules = []
-    return render_template('upload_content.html', modules=modules)
-
-@app.route('/api/debug/modules')
-@login_required
-def api_debug_modules():
-    try:
-        rows = []
-        mods = Module.query.all()
-        for m in mods:
-            try:
-                q = json.loads(m.quiz_json or '[]')
-            except Exception:
-                q = []
-            course = db.session.get(Course, getattr(m, 'course_id', None)) if getattr(m, 'course_id', None) else None
-            rows.append({
-                'module_id': m.module_id,
-                'module_name': m.module_name,
-                'course_code': getattr(course, 'code', None),
-                'course_name': getattr(course, 'name', None),
-                'has_quiz': bool(q),
-                'quiz_len': len(q) if isinstance(q, list) else 0,
-            })
-        return jsonify(rows)
-    except Exception as e:
-        logging.exception('[DEBUG] list modules failed')
-        return jsonify([]), 500
-
-
-@app.route('/api/debug/my_experiences')
-@login_required
-def api_debug_my_experiences():
-    try:
-        if not isinstance(current_user, User):
-            return jsonify(success=False, message='Unauthorized'), 403
-        rows = (
-            WorkHistory.query
-            .filter_by(user_id=current_user.User_id)
-            .order_by(db.func.coalesce(WorkHistory.recruitment_date, WorkHistory.start_date).desc())
-            .all()
-        )
-        return jsonify(success=True, count=len(rows), items=[r.to_dict() for r in rows])
-    except Exception as e:
-        logging.exception('[DEBUG] my_experiences failed')
-        return jsonify(success=False, message=str(e)), 500
-
-
-@app.route('/healthz')
-def healthz():
-    try:
-        # Quick DB ping
-        with db.engine.connect() as conn:
-            conn.execute(text('SELECT 1'))
-        # Mask DB URI to avoid secrets disclosure
-        uri = app.config.get('SQLALCHEMY_DATABASE_URI') or ''
-        dialect = db.engine.dialect.name if hasattr(db, 'engine') else 'unknown'
-        return jsonify(ok=True, db=dialect)
-    except Exception as e:
-        logging.exception('[HEALTHZ] Failed')
-        return jsonify(ok=False, error=str(e)), 500
 
 # -------------------------------------------------------------------------------
 # Allow running this file directly: `python app.py`

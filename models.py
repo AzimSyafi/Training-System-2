@@ -168,8 +168,6 @@ class User(UserMixin, db.Model):
     visa_number = db.Column(db.String(50))
     ic_number = db.Column(db.String(50), nullable=True)  # Required for citizens
     passport_number = db.Column(db.String(50), nullable=True)  # Required for foreigners
-    # New: country of citizenship (for foreigners at signup)
-    country = db.Column(db.String(100), nullable=True)
     # New column to track module disclaimer agreements (JSON format: {"module_id": timestamp})
     module_disclaimer_agreements = db.Column(db.Text, default='{}')
 
@@ -527,14 +525,6 @@ class Registration:
             agency_id=user_data['agency_id'],
             is_finalized=False
         )
-        # Optional initial IDs and country at signup
-        if 'ic_number' in user_data:
-            user.ic_number = user_data.get('ic_number')
-        if 'passport_number' in user_data:
-            user.passport_number = user_data.get('passport_number')
-        if 'country' in user_data:
-            user.country = user_data.get('country')
-
         user.set_password(user_data['password'])
 
         # Define these variables outside try-except so they're always available
@@ -575,16 +565,8 @@ class WorkHistory(db.Model):
     position_title = db.Column(db.String(255))
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
-    # New fields to align with requested work_experiences schema
-    recruitment_date = db.Column(db.Date)
-    visa_number = db.Column(db.String(50))
-    visa_expiry_date = db.Column(db.Date)
 
     user = db.relationship('User', back_populates='work_histories')
-
-    @property
-    def position(self):
-        return self.position_title
 
     def to_dict(self):
         return {
@@ -593,8 +575,5 @@ class WorkHistory(db.Model):
             'company_name': self.company_name,
             'position_title': self.position_title,
             'start_date': self.start_date.isoformat() if self.start_date else None,
-            'end_date': self.end_date.isoformat() if self.end_date else None,
-            'recruitment_date': self.recruitment_date.isoformat() if self.recruitment_date else None,
-            'visa_number': self.visa_number,
-            'visa_expiry_date': self.visa_expiry_date.isoformat() if self.visa_expiry_date else None
+            'end_date': self.end_date.isoformat() if self.end_date else None
         }
