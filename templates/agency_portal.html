@@ -4,9 +4,64 @@
   <div class="mb-4">
     <h2 class="h4">Agency Portal</h2>
     {% if agency %}
-      <div class="text-muted">{{ agency.agency_name }} (ID: {{ agency.agency_id }})</div>
-      <div class="small text-muted">Email: {{ agency.email }} | Phone: {{ agency.contact_number }}</div>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="text-muted">{{ agency.agency_name }} (ID: {{ agency.agency_id }})</div>
+          <div class="small text-muted">Email: {{ agency.email }} | Phone: {{ agency.contact_number }}</div>
+        </div>
+        <div class="col-md-6 text-md-end">
+          {% if current_user.__class__.__name__ == 'AgencyAccount' %}
+            <button id="toggleAgencyEdit" class="btn btn-outline-secondary btn-sm">Edit agency details</button>
+          {% endif %}
+        </div>
+      </div>
     {% endif %}
+  </div>
+
+  <div id="agencyDetailsCard" class="card mb-4">
+    <div class="card-header">Agency Details</div>
+    <div class="card-body">
+      {% if not agency %}
+        <div class="text-muted">No agency associated with this account.</div>
+      {% else %}
+        <div id="agencyView">
+          <p><strong>Name:</strong> {{ agency.agency_name }}</p>
+          <p><strong>PIC:</strong> {{ agency.PIC }}</p>
+          <p><strong>Email:</strong> {{ agency.email }}</p>
+          <p><strong>Contact:</strong> {{ agency.contact_number }}</p>
+          <p><strong>Address:</strong> {{ agency.address }}</p>
+        </div>
+
+        {% if current_user.__class__.__name__ == 'AgencyAccount' %}
+        <form id="agencyEditForm" method="post" action="{{ url_for('agency_update_details') }}" style="display:none;">
+          <div class="mb-3">
+            <label for="agency_name" class="form-label">Agency name</label>
+            <input id="agency_name" name="agency_name" class="form-control" value="{{ agency.agency_name }}" />
+          </div>
+          <div class="mb-3">
+            <label for="PIC" class="form-label">Person in Charge (PIC)</label>
+            <input id="PIC" name="PIC" class="form-control" value="{{ agency.PIC }}" />
+          </div>
+          <div class="mb-3">
+            <label for="agency_email" class="form-label">Email</label>
+            <input id="agency_email" name="email" type="email" class="form-control" value="{{ agency.email }}" />
+          </div>
+          <div class="mb-3">
+            <label for="contact_number" class="form-label">Contact number</label>
+            <input id="contact_number" name="contact_number" class="form-control" value="{{ agency.contact_number }}" />
+          </div>
+          <div class="mb-3">
+            <label for="agency_address" class="form-label">Address</label>
+            <textarea id="agency_address" name="address" class="form-control" rows="3">{{ agency.address }}</textarea>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Save changes</button>
+            <button type="button" id="cancelAgencyEdit" class="btn btn-outline-secondary">Cancel</button>
+          </div>
+        </form>
+        {% endif %}
+      {% endif %}
+    </div>
   </div>
 
   <div class="row g-4">
@@ -16,20 +71,20 @@
         <div class="card-body">
           <form method="post" action="{{ url_for('agency_create_user') }}">
             <div class="mb-3">
-              <label class="form-label">Full name</label>
-              <input name="full_name" class="form-control" required />
+              <label for="new_full_name" class="form-label">Full name</label>
+              <input id="new_full_name" name="full_name" class="form-control" required />
             </div>
             <div class="mb-3">
-              <label class="form-label">Email</label>
-              <input type="email" name="email" class="form-control" required />
+              <label for="new_user_email" class="form-label">Email</label>
+              <input id="new_user_email" type="email" name="email" class="form-control" required />
             </div>
             <div class="mb-3">
-              <label class="form-label">Password</label>
-              <input type="password" name="password" class="form-control" required />
+              <label for="new_user_password" class="form-label">Password</label>
+              <input id="new_user_password" type="password" name="password" class="form-control" required />
             </div>
             <div class="mb-3">
-              <label class="form-label">User category</label>
-              <select name="user_category" class="form-select">
+              <label for="new_user_category" class="form-label">User category</label>
+              <select id="new_user_category" name="user_category" class="form-select">
                 <option value="citizen">Citizen</option>
                 <option value="foreigner">Foreigner</option>
               </select>
@@ -59,7 +114,12 @@
                 {% for u in users %}
                 {% set stats = module_counts.get(u.User_id, {}) %}
                 <tr>
-                  <td>{{ u.full_name }}</td>
+                  <td>
+                    {{ u.full_name }}
+                    {% if u.number_series %}
+                      <div class="text-muted small">{{ u.number_series }}</div>
+                    {% endif %}
+                  </td>
                   <td>{{ u.email }}</td>
                   <td>{{ (u.user_category or 'citizen')|capitalize }}</td>
                   <td>{{ stats.get('completed', 0) }}</td>
@@ -78,5 +138,25 @@
     </div>
   </div>
 </div>
-{% endblock %}
 
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const toggle = document.getElementById('toggleAgencyEdit');
+  const form = document.getElementById('agencyEditForm');
+  const view = document.getElementById('agencyView');
+  const cancel = document.getElementById('cancelAgencyEdit');
+  if(toggle && form && view){
+    toggle.addEventListener('click', function(){
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+      view.style.display = form.style.display === 'none' ? 'block' : 'none';
+    });
+  }
+  if(cancel && form && view){
+    cancel.addEventListener('click', function(){
+      form.style.display = 'none';
+      view.style.display = 'block';
+    });
+  }
+});
+</script>
+{% endblock %}

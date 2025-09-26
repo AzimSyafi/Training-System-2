@@ -60,13 +60,20 @@ function completeCourse(courseCode) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ course_code: courseCode })
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.success) {
-      alert('Course completed! Certificate processed.');
+  .then(res => res.json().then(data => ({ ok: res.ok, status: res.status, data })).catch(() => ({ ok: res.ok, status: res.status, data: {} })))
+  .then(({ ok, data }) => {
+    if (ok && data && data.success) {
+      if (data.already_submitted) {
+        alert('Already submitted for approval.');
+      } else if (data.submitted) {
+        alert('Course completed! Sent for approval.');
+      } else {
+        alert('Course completion recorded.');
+      }
       location.reload();
     } else {
-      alert('Error: ' + (data.message || 'Could not complete course.'));
+      const msg = (data && data.message) ? data.message : 'Could not complete course.';
+      alert('Error: ' + msg);
     }
   })
   .catch(()=>alert('Request failed.'));

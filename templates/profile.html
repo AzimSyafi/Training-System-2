@@ -48,6 +48,9 @@
             <div class="font-semibold text-lg" id="postcode_display">{{ user.postcode }}</div>
             <div class="text-gray-500 text-sm mt-2">State</div>
             <div class="font-semibold text-lg" id="state_display">{{ user.state }}</div>
+            <!-- Added Country display -->
+            <div class="text-gray-500 text-sm mt-2">Country</div>
+            <div class="font-semibold text-lg" id="country_display">{{ user.country }}</div>
             <div class="text-gray-500 text-sm mt-2">IC Number</div>
             <div class="font-semibold text-lg" id="ic_number_display">{{ user.ic_number }}</div>
             <div class="text-gray-500 text-sm mt-2">Passport Number</div>
@@ -61,20 +64,37 @@
       <div id="personal-info-errors" class="mt-2 text-red-600 text-sm"></div>
     </div>
 
+    {% set is_authority = (current_user.role | default('')) == 'authority' %}
+
+    {% if not is_authority %}
     <!-- Working Info -->
     <div class="bg-white rounded-xl shadow p-6 mb-8" id="working-info-section">
       <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold text-blue-900">Working Info</h2>
+        <h2 class="text-xl font-bold text-blue-900">Working Experience</h2>
       </div>
       <div id="working-info-fields">
-        <div class="text-gray-500 text-sm">Working Experience</div>
-        <div class="font-semibold text-lg" id="working_experience_display">{{ user.working_experience }}</div>
-        <div class="text-gray-500 text-sm">Recruitment Date</div>
-        <div class="font-semibold text-lg" id="recruitment_date_display">{{ user.recruitment_date }}</div>
-        <div class="text-gray-500 text-sm">Visa Number</div>
-        <div class="font-semibold text-lg" id="visa_number_display">{{ user.visa_number }}</div>
-        <div class="text-gray-500 text-sm">Visa Expiry Date</div>
-        <div class="font-semibold text-lg" id="visa_expiry_date_display">{{ user.visa_expiry_date }}</div>
+        {% if experiences and experiences|length > 0 %}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for exp in experiences %}
+              <div class="border border-gray-200 rounded-lg p-4 shadow-sm">
+                <div class="font-semibold text-lg">{{ exp.company_name }}</div>
+                {% if exp.position_title %}
+                  <div class="text-gray-600">Position: {{ exp.position_title }}</div>
+                {% endif %}
+                <div class="text-gray-600">Recruitment Date: {{ exp.recruitment_date.strftime('%Y-%m-%d') if exp.recruitment_date else (exp.start_date.strftime('%Y-%m-%d') if exp.start_date else '-') }}</div>
+                <div class="text-gray-600">Period: {{ exp.start_date.strftime('%Y-%m-%d') if exp.start_date else '-' }} to {{ exp.end_date.strftime('%Y-%m-%d') if exp.end_date else '-' }}</div>
+                {% if exp.visa_number %}
+                  <div class="text-gray-600">Visa Number: {{ exp.visa_number }}</div>
+                {% endif %}
+                {% if exp.visa_expiry_date %}
+                  <div class="text-gray-600">Visa Expiry: {{ exp.visa_expiry_date.strftime('%Y-%m-%d') }}</div>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-gray-600">No working experience found.</div>
+        {% endif %}
       </div>
     </div>
 
@@ -117,6 +137,7 @@
       </div>
       <div id="emergency-errors" class="mt-2 text-red-600 text-sm"></div>
     </div>
+    {% endif %}
   </div>
 
   <!-- Profile Edit Modal -->
@@ -154,8 +175,21 @@
             {% endfor %}
           </select>
         </div>
+        <!-- Added Country select -->
         <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Working Experience</label>
+          <label class="block text-gray-500 text-sm">Country</label>
+          <select name="country" class="w-full border rounded px-2 py-1">
+            <option value="">Select country</option>
+            <!-- keep existing country options -->
+            {% for opt in [
+              'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia','Australia','Austria','Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados','Belarus','Belgium','Belize','Benin','Bhutan','Bolivia','Bosnia and Herzegovina','Botswana','Brazil','Brunei','Bulgaria','Burkina Faso','Burundi','Cambodia','Cameroon','Canada','Cape Verde','Central African Republic','Chad','Chile','China','Colombia','Comoros','Congo, Democratic Republic of the','Congo, Republic of the','Costa Rica','Cote d\'Ivoire','Croatia','Cuba','Cyprus','Czech Republic','Denmark','Djibouti','Dominica','Dominican Republic','Ecuador','Egypt','El Salvador','Equatorial Guinea','Eritrea','Estonia','Eswatini','Ethiopia','Fiji','Finland','France','Gabon','Gambia','Georgia','Germany','Ghana','Greece','Grenada','Guatemala','Guinea','Guinea-Bissau','Guyana','Haiti','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kiribati','Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho','Liberia','Libya','Liechtenstein','Lithuania','Luxembourg','Madagascar','Malawi','Malaysia','Maldives','Mali','Malta','Marshall Islands','Mauritania','Mauritius','Mexico','Micronesia','Moldova','Monaco','Mongolia','Montenegro','Morocco','Mozambique','Myanmar','Namibia','Nauru','Nepal','Netherlands','New Zealand','Nicaragua','Niger','Nigeria','North Korea','North Macedonia','Norway','Oman','Pakistan','Palau','Panama','Papua New Guinea','Paraguay','Peru','Philippines','Poland','Portugal','Qatar','Romania','Russia','Rwanda','Saint Kitts and Nevis','Saint Lucia','Saint Vincent and the Grenadines','Samoa','San Marino','Sao Tome and Principe','Saudi Arabia','Senegal','Serbia','Seychelles','Sierra Leone','Singapore','Slovakia','Slovenia','Solomon Islands','Somalia','South Africa','South Korea','South Sudan','Spain','Sri Lanka','Sudan','Suriname','Sweden','Switzerland','Syria','Taiwan','Tajikistan','Tanzania','Thailand','Timor-Leste','Togo','Tonga','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Tuvalu','Uganda','Ukraine','United Arab Emirates','United Kingdom','United States','Uruguay','Uzbekistan','Vanuatu','Vatican City','Venezuela','Vietnam','Yemen','Zambia','Zimbabwe' ] %}
+              <option value="{{ opt }}" {% if user.country == opt %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if not is_authority %}
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Working Experience (summary)</label>
           <input type="text" name="working_experience" value="{{ user.working_experience }}" class="w-full border rounded px-2 py-1" />
         </div>
         <div class="mb-2">
@@ -182,6 +216,93 @@
           <label class="block text-gray-500 text-sm">Agency Name</label>
           <input type="text" name="agency_name" value="{{ user.agency.agency_name if user.agency else '' }}" class="w-full border rounded px-2 py-1" />
         </div>
+
+        <!-- Multi Working Experiences Editor -->
+        <div class="mt-4 p-3 border rounded-lg">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-semibold">Working Experiences</h3>
+            <button type="button" id="modal-add-experience" class="px-3 py-1 text-sm bg-blue-100 text-blue-900 rounded hover:bg-blue-200">Add experience</button>
+          </div>
+          <div class="text-xs text-gray-500 mb-2">Tip: For each experience, please provide at least Company and Start Date (or Recruitment Date) so it can be saved.</div>
+          <div id="modal-experience-list" class="flex flex-col gap-3">
+            {% if experiences and experiences|length > 0 %}
+              {% for exp in experiences %}
+                <div class="border rounded p-3 experience-item">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div>
+                      <label class="block text-gray-500 text-xs">Company</label>
+                      <input type="text" name="exp_company" value="{{ exp.company_name }}" class="w-full border rounded px-2 py-1" />
+                    </div>
+                    <div>
+                      <label class="block text-gray-500 text-xs">Position</label>
+                      <input type="text" name="exp_position" value="{{ exp.position_title or '' }}" class="w-full border rounded px-2 py-1" />
+                    </div>
+                    <div>
+                      <label class="block text-gray-500 text-xs">Recruitment Date</label>
+                      <input type="date" name="exp_recruitment" value="{{ exp.recruitment_date.strftime('%Y-%m-%d') if exp.recruitment_date else (exp.start_date.strftime('%Y-%m-%d') if exp.start_date else '') }}" class="w-full border rounded px-2 py-1" />
+                    </div>
+                    <div>
+                      <label class="block text-gray-500 text-xs">Visa Number</label>
+                      <input type="text" name="exp_visa_number" value="{{ exp.visa_number or '' }}" class="w-full border rounded px-2 py-1" />
+                    </div>
+                    <div>
+                      <label class="block text-gray-500 text-xs">Start Date</label>
+                      <input type="date" name="exp_start" value="{{ exp.start_date.strftime('%Y-%m-%d') if exp.start_date else '' }}" class="w-full border rounded px-2 py-1" />
+                    </div>
+                    <div>
+                      <label class="block text-gray-500 text-xs">End Date</label>
+                      <input type="date" name="exp_end" value="{{ exp.end_date.strftime('%Y-%m-%d') if exp.end_date else '' }}" class="w-full border rounded px-2 py-1" />
+                    </div>
+                    <div>
+                      <label class="block text-gray-500 text-xs">Visa Expiry</label>
+                      <input type="date" name="exp_visa_expiry" value="{{ exp.visa_expiry_date.strftime('%Y-%m-%d') if exp.visa_expiry_date else '' }}" class="w-full border rounded px-2 py-1" />
+                    </div>
+                  </div>
+                  <div class="flex justify-end mt-2">
+                    <button type="button" class="remove-exp px-3 py-1 text-sm bg-red-100 text-red-800 rounded hover:bg-red-200">Remove</button>
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div class="border rounded p-3 experience-item">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-gray-500 text-xs">Company</label>
+                    <input type="text" name="exp_company" class="w-full border rounded px-2 py-1" />
+                  </div>
+                  <div>
+                    <label class="block text-gray-500 text-xs">Position</label>
+                    <input type="text" name="exp_position" class="w-full border rounded px-2 py-1" />
+                  </div>
+                  <div>
+                    <label class="block text-gray-500 text-xs">Recruitment Date</label>
+                    <input type="date" name="exp_recruitment" class="w-full border rounded px-2 py-1" />
+                  </div>
+                  <div>
+                    <label class="block text-gray-500 text-xs">Visa Number</label>
+                    <input type="text" name="exp_visa_number" class="w-full border rounded px-2 py-1" />
+                  </div>
+                  <div>
+                    <label class="block text-gray-500 text-xs">Start Date</label>
+                    <input type="date" name="exp_start" class="w-full border rounded px-2 py-1" />
+                  </div>
+                  <div>
+                    <label class="block text-gray-500 text-xs">End Date</label>
+                    <input type="date" name="exp_end" class="w-full border rounded px-2 py-1" />
+                  </div>
+                  <div>
+                    <label class="block text-gray-500 text-xs">Visa Expiry</label>
+                    <input type="date" name="exp_visa_expiry" class="w-full border rounded px-2 py-1" />
+                  </div>
+                </div>
+                <div class="flex justify-end mt-2">
+                  <button type="button" class="remove-exp px-3 py-1 text-sm bg-red-100 text-red-800 rounded hover:bg-red-200">Remove</button>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
         <div class="mb-2">
           <label class="block text-gray-500 text-sm">Emergency Contact</label>
           <input type="text" name="emergency_contact_name" value="{{ user.emergency_contact_name }}" class="w-full border rounded px-2 py-1" />
@@ -194,6 +315,7 @@
           <label class="block text-gray-500 text-sm">Emergency Contact Phone</label>
           <input type="text" name="emergency_contact_phone" value="{{ user.emergency_contact_phone }}" class="w-full border rounded px-2 py-1" />
         </div>
+        {% endif %}
         <div id="modal-profile-errors" class="text-red-600 text-sm mb-2"></div>
         <div class="flex justify-end gap-2 mt-4">
           <button type="button" id="cancel-profile-modal" class="bg-gray-200 text-gray-700 px-4 py-2 rounded shadow hover:bg-gray-300 font-bold">Cancel</button>
@@ -237,9 +359,60 @@ function downloadProfilePDF() {
   }
 }
 
-function saveProfileModal() {
-  // Placeholder: implement profile saving logic here
-  alert('Profile saved! (placeholder)');
+function initModalExperienceEditor(){
+  const list = document.getElementById('modal-experience-list');
+  const addBtn = document.getElementById('modal-add-experience');
+  if(!list || !addBtn) return;
+  function bindRemove(btn){
+    btn.addEventListener('click', function(){
+      const item = this.closest('.experience-item');
+      if(item){ item.remove(); }
+    });
+  }
+  list.querySelectorAll('.remove-exp').forEach(bindRemove);
+  function createItem(){
+    const wrapper = document.createElement('div');
+    wrapper.className = 'border rounded p-3 experience-item';
+    wrapper.innerHTML = `
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div>
+          <label class="block text-gray-500 text-xs">Company</label>
+          <input type="text" name="exp_company" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div>
+          <label class="block text-gray-500 text-xs">Position</label>
+          <input type="text" name="exp_position" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div>
+          <label class="block text-gray-500 text-xs">Recruitment Date</label>
+          <input type="date" name="exp_recruitment" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div>
+          <label class="block text-gray-500 text-xs">Visa Number</label>
+          <input type="text" name="exp_visa_number" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div>
+          <label class="block text-gray-500 text-xs">Start Date</label>
+          <input type="date" name="exp_start" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div>
+          <label class="block text-gray-500 text-xs">End Date</label>
+          <input type="date" name="exp_end" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div>
+          <label class="block text-gray-500 text-xs">Visa Expiry</label>
+          <input type="date" name="exp_visa_expiry" class="w-full border rounded px-2 py-1" />
+        </div>
+      </div>
+      <div class="flex justify-end mt-2">
+        <button type="button" class="remove-exp px-3 py-1 text-sm bg-red-100 text-red-800 rounded hover:bg-red-200">Remove</button>
+      </div>`;
+    bindRemove(wrapper.querySelector('.remove-exp'));
+    return wrapper;
+  }
+  addBtn.addEventListener('click', function(){
+    list.appendChild(createItem());
+  });
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -248,7 +421,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const closeModalBtn = document.getElementById('close-profile-modal');
   const cancelModalBtn = document.getElementById('cancel-profile-modal');
   if (openModalBtn && modal) {
-    openModalBtn.onclick = () => { modal.classList.remove('hidden'); };
+    openModalBtn.onclick = () => { modal.classList.remove('hidden'); initModalExperienceEditor(); };
   }
   if (closeModalBtn && modal) {
     closeModalBtn.onclick = () => { modal.classList.add('hidden'); };
@@ -256,9 +429,10 @@ document.addEventListener('DOMContentLoaded', function() {
   if (cancelModalBtn && modal) {
     cancelModalBtn.onclick = () => { modal.classList.add('hidden'); };
   }
+  // Ensure the Save button performs a normal form submit (avoid JS override)
   const saveProfileBtn = document.getElementById('save-profile-modal');
   if (saveProfileBtn) {
-    saveProfileBtn.onclick = saveProfileModal;
+    saveProfileBtn.onclick = null;
   }
   // Dropdown functionality
   const exportDropdownBtn = document.getElementById('exportDropdownBtn');

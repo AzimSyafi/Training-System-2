@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+{% block title %}Authority Portal{% endblock %}
+{% block content %}
+<div class="container-fluid">
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <h2 class="mb-0">Certificates Approval</h2>
+    <div class="d-flex gap-2 align-items-center">
+      <a href="{{ url_for('authority.authority_portal', status='pending') }}" class="btn btn-outline-primary {% if selected_status=='pending' %}active{% endif %}"><i class="fas fa-hourglass-half me-1"></i> Pending</a>
+      <a href="{{ url_for('authority.authority_portal', status='approved') }}" class="btn btn-outline-success {% if selected_status=='approved' %}active{% endif %}"><i class="fas fa-check me-1"></i> Approved</a>
+      <a href="{{ url_for('authority.authority_portal', status='all') }}" class="btn btn-outline-secondary {% if selected_status=='all' %}active{% endif %}"><i class="fas fa-list me-1"></i> All</a>
+    </div>
+  </div>
+  <div class="card mb-3">
+    <div class="card-body">
+      <form class="row g-2" method="get" action="{{ url_for('authority.authority_portal') }}">
+        <div class="col-sm-3">
+          <label class="form-label">Status</label>
+          <select name="status" class="form-select">
+            <option value="pending" {% if selected_status=='pending' %}selected{% endif %}>Pending</option>
+            <option value="approved" {% if selected_status=='approved' %}selected{% endif %}>Approved</option>
+            <option value="all" {% if selected_status=='all' %}selected{% endif %}>All</option>
+          </select>
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label">Search</label>
+          <input type="text" class="form-control" name="q" value="{{ search_query or '' }}" placeholder="Search by user, course, SG ID, or cert ID" />
+        </div>
+        <div class="col-sm-3 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary w-100"><i class="fas fa-filter me-1"></i> Apply Filters</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="text-muted">Showing {{ rows|length }} result(s)</div>
+    <div>
+      <button id="bulkApproveBtn" class="btn btn-primary" {% if selected_status!='pending' %}disabled{% endif %}>Bulk Approve</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-striped align-middle" id="pendingTable">
+          <thead>
+            <tr>
+              <th style="width:32px;">
+                <input type="checkbox" id="selectAll" {% if selected_status!='pending' %}disabled{% endif %}>
+              </th>
+              <th>Cert ID</th>
+              <th>User</th>
+              <th>Course</th>
+              <th>Issue Date</th>
+              <th>Status</th>
+              <th>Approved At</th>
+              <th>Approved By</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in rows %}
+            <tr data-cert-id="{{ c.certificate_id }}">
+              <td>
+                {% if c.status == 'pending' %}
+                  <input type="checkbox" class="row-check">
+                {% else %}
+                  <input type="checkbox" class="row-check" disabled>
+                {% endif %}
+              </td>
+              <td>#{{ c.certificate_id }}</td>
+              <td>
+                {% if c.user %}
+                  {{ c.user.full_name }}
+                  {% if c.user.number_series %}
+                    <div class="text-muted small">{{ c.user.number_series }}</div>
+                  {% endif %}
+                {% else %}
+                  User #{{ c.user_id }}
+                {% endif %}
+              </td>
+              <td>
+                {% if c.module and c.module.course %}
+                  {{ c.module.course.name }}{% if c.module.course.code %} ({{ c.module.course.code }}){% endif %}
+                {% elif c.module %}
+                  {{ c.module.module_name }}{% if c.module_type %} ({{ c.module_type }}){% endif %}
+                {% else %}
+                  {{ c.module_id }}{% if c.module_type %} ({{ c.module_type }}){% endif %}
+                {% endif %}
+              </td>
+              <td>{{ c.issue_date }}</td>
+              <td class="status-text">
+                {% if c.status == 'pending' %}
+                  <span class="badge bg-warning text-dark">pending</span>
+                {% elif c.status == 'approved' %}
+                  <span class="badge bg-success">approved</span>
+                {% else %}
+                  <span class="badge bg-secondary">{{ c.status }}</span>
+                {% endif %}
+              </td>
+              <td>{% if c.approved_at %}{{ c.approved_at.strftime('%Y-%m-%d %H:%M') }}{% else %}&mdash;{% endif %}</td>
+              <td>{% if c.approved_by %}{{ c.approved_by.full_name }}{% else %}&mdash;{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="text-center text-muted">No certificates found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div id="resultArea" class="mt-3" aria-live="polite"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const table = document.getElementById('pendingTable');
+  const selectAll = document.getElementById('selectAll');
+  const approveBtn = document.getElementById('bulkApproveBtn');
+  const resultArea = document.getElementById('resultArea');
+  const csrfToken = {{ csrf_token|tojson }};
+  const statusMode = {{ (selected_status or 'pending')|tojson }};
+
+  function getSelectedIds(){
+    const rows = table.querySelectorAll('tbody tr');
+    const ids = [];
+    rows.forEach(row => {
+      const cb = row.querySelector('.row-check');
+      if (cb && cb.checked && !cb.disabled) {
+        const id = parseInt(row.getAttribute('data-cert-id'), 10);
+        if (!isNaN(id)) ids.push(id);
+      }
+    });
+    return ids;
+  }
+  function updateButtonState(){
+    if (!approveBtn) return;
+    const sel = getSelectedIds();
+    approveBtn.disabled = (statusMode !== 'pending') || sel.length === 0;
+  }
+
+  if (selectAll) {
+    selectAll.addEventListener('change', function(){
+      const checks = table.querySelectorAll('.row-check');
+      checks.forEach(cb => { if (!cb.disabled) cb.checked = selectAll.checked; });
+      updateButtonState();
+    });
+  }
+  table.addEventListener('change', function(e){
+    if (e.target && e.target.classList.contains('row-check')) {
+      updateButtonState();
+    }
+  });
+
+  if (approveBtn) {
+    approveBtn.addEventListener('click', async function(){
+      const ids = getSelectedIds();
+      if (!ids.length) return;
+      if (ids.length > 100) {
+        resultArea.innerHTML = '<div class="alert alert-warning">You can approve up to 100 at a time.</div>';
+        return;
+      }
+      approveBtn.disabled = true;
+      resultArea.innerHTML = '<div class="alert alert-info">Approving ' + ids.length + ' certificates...</div>';
+      try {
+        const resp = await fetch('{{ url_for('authority.bulk_approve') }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+          },
+          body: JSON.stringify({ ids })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+          const msg = data.error || 'Request failed';
+          resultArea.innerHTML = '<div class="alert alert-danger">' + msg + '</div>';
+        } else {
+          // Success: update rows and message
+          let approved = 0;
+          ids.forEach(id => {
+            const row = table.querySelector('tr[data-cert-id="' + id + '"]');
+            if (row) {
+              const statusCell = row.querySelector('.status-text');
+              if (statusCell) statusCell.innerHTML = '<span class="badge bg-success">approved</span>';
+              // Disable checkbox
+              const cb = row.querySelector('.row-check');
+              if (cb) { cb.checked = false; cb.disabled = true; }
+              // Fill approved columns (optimistic)
+              const approvedAtCell = row.children[6];
+              const approvedByCell = row.children[7];
+              if (approvedAtCell) approvedAtCell.textContent = new Date().toISOString().slice(0,16).replace('T',' ');
+              if (approvedByCell) approvedByCell.textContent = 'You';
+              approved += 1;
+            }
+          });
+          updateButtonState();
+          resultArea.innerHTML = '<div class="alert alert-success">Approved ' + (data.approved ?? approved) + ' of ' + (data.requested ?? ids.length) + '. Skipped ' + (data.skipped ?? 0) + '.</div>';
+        }
+      } catch (e) {
+        resultArea.innerHTML = '<div class="alert alert-danger">Network error.</div>';
+      } finally {
+        updateButtonState();
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

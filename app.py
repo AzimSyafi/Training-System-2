@@ -5,12 +5,13 @@ from datetime import datetime, UTC  # removed unused date
 import os
 from models import db, Admin, User, Agency, Module, Certificate, Trainer, UserModule, Management, Registration, Course, WorkHistory, UserCourseProgress, AgencyAccount
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import text, inspect as sa_inspect
+from sqlalchemy import text, inspect as sa_inspect, or_  # added or_
 import re
 import urllib.parse
 import logging
 from werkzeug.routing import BuildError  # added
 import json
+import math  # Added for ceiling function
 # Load .env for local development only
 try:
     # Treat presence of any hosted env signal or an existing DB URL as production
@@ -101,27 +102,19 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True
 }
 
-# Attempt a quick connectivity test; if PostgreSQL is unreachable locally, fall back to SQLite
+# Attempt a quick connectivity test; keep PostgreSQL and DO NOT fall back to SQLite
 try:
     from sqlalchemy import create_engine  # local import to avoid hard dependency if unused
     uri = app.config.get('SQLALCHEMY_DATABASE_URI') or ''
-    if uri.startswith('postgresql') and os.environ.get('FORCE_POSTGRES', '0') not in ('1', 'true', 'True'):
+    if uri.startswith('postgresql'):
         tmp_engine = create_engine(uri, pool_pre_ping=True)
-        # lightweight ping
-        ok = False
         try:
             with tmp_engine.connect() as conn:
                 conn.execute(text('SELECT 1'))
-                ok = True
-        except Exception:
-            ok = False
-        if not ok:
-            # Switch to SQLite file under instance/
-            instance_dir = os.path.join(app.root_path, 'instance')
-            os.makedirs(instance_dir, exist_ok=True)
-            sqlite_path = os.path.join(instance_dir, 'security_training.db')
-            app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{sqlite_path}'
-            print(f"[DB] PostgreSQL unreachable, falling back to SQLite at {sqlite_path}")
+                print('[DB] PostgreSQL connectivity check: OK')
+        except Exception as e:
+            # Do not change DB to SQLite; surface connectivity issues at runtime
+            print(f"[DB] PostgreSQL connectivity check failed; staying on PostgreSQL URI. Error: {e}")
 except Exception as e:
     # If test fails unexpectedly, keep current URI; subsequent operations may handle it
     print(f"[DB] Connectivity pre-check failed: {e}")
@@ -251,6 +244,30 @@ db.init_app(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+# For API endpoints, return JSON 401 instead of redirecting HTML login page
+@login_manager.unauthorized_handler
+def _unauthorized_handler():
+    try:
+        path = request.path or ''
+        if path.startswith('/api/'):
+            return jsonify(success=False, message='Unauthorized'), 401
+    except Exception:
+        pass
+    # Fallback to normal redirect for non-API routes
+    try:
+        return redirect(url_for('login'))
+    except Exception:
+        # Very defensive: return minimal JSON if even redirect fails
+        return jsonify(success=False, message='Unauthorized'), 401
+
+# Register blueprints
+try:
+    from authority_routes import authority_bp
+    app.register_blueprint(authority_bp)
+except Exception as _e:
+    # Log but don't crash app if import fails during certain offline scripts
+    logging.debug(f"[INIT] Skipping authority blueprint registration: {_e}")
 
 # Prevent browser from caching authenticated pages so Back button doesn’t show them after logout
 @app.after_request
@@ -415,6 +432,55 @@ def _initialize_schema():
         except Exception as e:
             db.session.rollback()
             print(f'[SCHEMA GUARD] Could not add reattempt_count to user_course_progress: {e}')
+        # Ensure work_history has extended columns for detailed experiences
+        try:
+            if inspector.has_table('work_history'):
+                wh_columns = {c['name'] for c in inspector.get_columns('work_history')}
+                # Ensure surrogate id column exists and is populated (for ORM compatibility)
+                try:
+                    if 'id' not in wh_columns:
+                        if db.engine.dialect.name == 'postgresql':
+                            # Create sequence and add id column with defaults
+                            db.session.execute(text("CREATE SEQUENCE IF NOT EXISTS work_history_id_seq"))
+                            db.session.execute(text("ALTER TABLE work_history ADD COLUMN IF NOT EXISTS id INTEGER"))
+                            db.session.execute(text("ALTER TABLE work_history ALTER COLUMN id SET DEFAULT nextval('work_history_id_seq')"))
+                            # Backfill existing rows
+                            db.session.execute(text("UPDATE work_history SET id = nextval('work_history_id_seq') WHERE id IS NULL"))
+                            db.session.execute(text("ALTER TABLE work_history ALTER COLUMN id SET NOT NULL"))
+                            # Add primary key if table has none
+                            pk = inspector.get_pk_constraint('work_history') or {}
+                            constrained = pk.get('constrained_columns') or []
+                            if not constrained:
+                                try:
+                                    db.session.execute(text("ALTER TABLE work_history ADD CONSTRAINT work_history_pkey PRIMARY KEY (id)"))
+                                except Exception:
+                                    # If constraint exists or cannot add, ignore; column is still usable
+                                    pass
+                            db.session.commit()
+                        else:
+                            # Generic fallback (e.g., SQLite): just add the column
+                            try:
+                                db.session.execute(text("ALTER TABLE work_history ADD COLUMN id INTEGER"))
+                            except Exception:
+                                # Column might already exist in some form; ignore
+                                pass
+                            db.session.commit()
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"[SCHEMA GUARD] Could not ensure work_history.id: {e}")
+
+                # Existing extended columns
+                if 'recruitment_date' not in wh_columns:
+                    db.session.execute(text('ALTER TABLE work_history ADD COLUMN IF NOT EXISTS recruitment_date DATE'))
+                if 'visa_number' not in wh_columns:
+                    db.session.execute(text('ALTER TABLE work_history ADD COLUMN IF NOT EXISTS visa_number VARCHAR(50)'))
+                if 'visa_expiry_date' not in wh_columns:
+                    db.session.execute(text('ALTER TABLE work_history ADD COLUMN IF NOT EXISTS visa_expiry_date DATE'))
+                db.session.commit()
+                print('[SCHEMA GUARD] Ensured extended columns on work_history')
+        except Exception as e:
+            db.session.rollback()
+            print(f'[SCHEMA GUARD] Could not ensure extended columns on work_history: {e}')
         # Trainer number_series backfill (only Postgres supports the sequence logic)
         try:
             if inspector.has_table('trainer') and db.engine.dialect.name == 'postgresql':
@@ -467,109 +533,286 @@ def _initialize_schema():
                     db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS is_finalized BOOLEAN DEFAULT FALSE'))
                     db.session.commit()
                     print('[SCHEMA GUARD] Added is_finalized to user')
+                # Ensure user.country column exists
+                if 'country' not in user_columns:
+                    try:
+                        db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS country VARCHAR(100) NULL'))
+                        db.session.commit()
+                        print('[SCHEMA GUARD] Added country to user')
+                    except Exception as e:
+                        db.session.rollback()
+                        print(f'[SCHEMA GUARD] Could not ensure user.country: {e}')
+                # Ensure user.role column exists (for authority approvals and scoping)
+                if 'role' not in user_columns:
+                    try:
+                        db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'agency'"))
+                        # Backfill NULLs to default just in case
+                        db.session.execute(text("UPDATE \"user\" SET role = 'agency' WHERE role IS NULL"))
+                        # Enforce NOT NULL
+                        db.session.execute(text('ALTER TABLE "user" ALTER COLUMN role SET NOT NULL'))
+                        db.session.commit()
+                        print('[SCHEMA GUARD] Added role to user with default and NOT NULL')
+                    except Exception as e:
+                        db.session.rollback()
+                        print(f'[SCHEMA GUARD] Could not ensure user.role: {e}')
         except Exception as e:
             db.session.rollback()
             print(f'[SCHEMA GUARD] Could not ensure user.is_finalized: {e}')
 
-        # Ensure default agency exists
+        # Ensure certificate approval-related columns exist
         try:
-            if inspector.has_table('agency'):
-                if db.engine.dialect.name != 'postgresql':
-                    # SQLite-safe ORM approach
-                    ag = db.session.get(Agency, 1)
-                    if not ag:
-                        ag = Agency(
-                            agency_id=1,
-                            agency_name='Default Agency',
-                            contact_number='0000000000',
-                            address='',
-                            Reg_of_Company='',
-                            PIC='',
-                            email=''
-                        )
-                        db.session.add(ag)
-                        db.session.commit()
-                        print('[SCHEMA GUARD] Ensured default agency exists (SQLite path)')
-                else:
-                    # PostgreSQL dynamic insert based on current schema
-                    agency_columns = {c['name']: c for c in inspector.get_columns('agency')}
-                    required_values = {'agency_id': 1, 'agency_name': 'Default Agency'}
-                    for actual_name, col_info in agency_columns.items():
-                        if actual_name in required_values:
-                            continue
-                        if col_info.get('nullable') is False:
-                            lname = actual_name.lower()
-                            if lname == 'contact_number':
-                                required_values[actual_name] = '0000000000'
-                            elif lname in ('address', 'reg_of_company', 'pic', 'email'):
-                                required_values[actual_name] = ''
-                            else:
-                                col_type = col_info.get('type')
-                                try:
-                                    tstr = str(col_type).lower() if col_type is not None else ''
-                                except Exception:
-                                    tstr = ''
-                                if 'char' in tstr or 'text' in tstr or 'varchar' in tstr:
-                                    required_values[actual_name] = ''
-                                elif 'int' in tstr or 'numeric' in tstr:
-                                    required_values[actual_name] = 0
-                                else:
-                                    required_values[actual_name] = ''
-                    cols_quoted = ', '.join(f'"{c}"' for c in required_values.keys())
-                    placeholders = ', '.join(f':{k}' for k in required_values.keys())
-                    insert_sql = f"INSERT INTO agency ({cols_quoted}) VALUES ({placeholders}) ON CONFLICT (agency_id) DO NOTHING"
+            if inspector.has_table('certificate'):
+                cert_columns = {c['name'] for c in inspector.get_columns('certificate')}
+                # status column
+                if 'status' not in cert_columns:
                     try:
-                        db.session.execute(text(insert_sql), required_values)
+                        db.session.execute(text("ALTER TABLE certificate ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending'"))
+                        db.session.execute(text("UPDATE certificate SET status = 'pending' WHERE status IS NULL"))
+                        db.session.execute(text('ALTER TABLE certificate ALTER COLUMN status SET NOT NULL'))
                         db.session.commit()
-                        print('[SCHEMA GUARD] Ensured default agency exists with ID 1 with required fields')
+                        print('[SCHEMA GUARD] Added status to certificate')
                     except Exception as e:
                         db.session.rollback()
-                        print(f'[SCHEMA GUARD] Could not create default agency: {e}')
-            else:
-                print('[SCHEMA GUARD] Skipping agency default: agency table not found.')
+                        print(f'[SCHEMA GUARD] Could not ensure certificate.status: {e}')
+                # approved_by_id column
+                if 'approved_by_id' not in cert_columns:
+                    try:
+                        db.session.execute(text('ALTER TABLE certificate ADD COLUMN IF NOT EXISTS approved_by_id INTEGER NULL'))
+                        db.session.commit()
+                        print('[SCHEMA GUARD] Added approved_by_id to certificate')
+                    except Exception as e:
+                        db.session.rollback()
+                        print(f'[SCHEMA GUARD] Could not ensure certificate.approved_by_id: {e}')
+                # approved_at column
+                if 'approved_at' not in cert_columns:
+                    try:
+                        db.session.execute(text('ALTER TABLE certificate ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP NULL'))
+                        db.session.commit()
+                        print('[SCHEMA GUARD] Added approved_at to certificate')
+                    except Exception as e:
+                        db.session.rollback()
+                        print(f'[SCHEMA GUARD] Could not ensure certificate.approved_at: {e}')
         except Exception as e:
             db.session.rollback()
-            print(f'[SCHEMA GUARD] Default agency ensure failed: {e}')
+            print(f'[SCHEMA GUARD] Could not ensure certificate columns: {e}')
 
-        # Optionally: create an agency account for default agency if email present and none exists
+        # Ensure user.module_disclaimer_agreements column exists
         try:
-            if inspector.has_table('agency') and inspector.has_table('agency_account'):
-                ag = db.session.get(Agency, 1)
-                if ag and ag.email and not AgencyAccount.query.filter_by(agency_id=ag.agency_id).first():
-                    acct = AgencyAccount(agency_id=ag.agency_id, email=ag.email)
-                    acct.set_password('Agency#' + str(ag.agency_id))
-                    db.session.add(acct)
-                    db.session.commit()
-                    print('[SCHEMA GUARD] Created default agency login account for agency 1')
+            if inspector.has_table('user'):
+                user_cols = {c['name'] for c in inspector.get_columns('user')}
+                if 'module_disclaimer_agreements' not in user_cols:
+                    try:
+                        db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS module_disclaimer_agreements TEXT'))
+                        # Optional: initialize to '{}' for existing rows
+                        db.session.execute(text("UPDATE \"user\" SET module_disclaimer_agreements = '{}' WHERE module_disclaimer_agreements IS NULL"))
+                        db.session.commit()
+                        print('[SCHEMA GUARD] Added module_disclaimer_agreements to user')
+                    except Exception as e:
+                        db.session.rollback()
+                        print(f'[SCHEMA GUARD] Could not ensure user.module_disclaimer_agreements: {e}')
         except Exception as e:
             db.session.rollback()
-            print(f'[SCHEMA GUARD] Could not create default agency account: {e}')
+            print(f'[SCHEMA GUARD] Error inspecting user table: {e}')
 
-        # Ensure a default admin exists so login works initially
+        # Ensure approval_audit table exists even if essentials already present
         try:
-            if inspector.has_table('admin'):
-                has_admin = Admin.query.first()
-                if not has_admin:
-                    default_email = os.environ.get('ADMIN_EMAIL', 'admin@example.com')
-                    default_username = os.environ.get('ADMIN_USERNAME', 'admin')
-                    default_password = os.environ.get('ADMIN_PASSWORD', 'Admin#12345')
-                    new_admin = Admin(username=default_username, email=default_email)
-                    new_admin.set_password(default_password)
-                    db.session.add(new_admin)
-                    db.session.commit()
-                    print(f"[SCHEMA GUARD] Created default admin account {default_email} (change the password!)")
+            if not inspector.has_table('approval_audit'):
+                db.create_all()
+                db.session.commit()
+                print('[SCHEMA GUARD] Ensured approval_audit table exists via create_all')
         except Exception as e:
             db.session.rollback()
-            print(f'[SCHEMA GUARD] Could not ensure default admin: {e}')
+            print(f'[SCHEMA GUARD] Could not ensure approval_audit table: {e}')
     except Exception as e:
         db.session.rollback()
-        print(f"[SCHEMA GUARD] Could not ensure default entities: {e}")
-
-# Execute schema initialization with the advisory lock pattern at import time
-with app.app_context():
-    if not DISABLE_SCHEMA_GUARD:
-        _bootstrap_schema_with_advisory_lock(_initialize_schema)
+        print(f"[SCHEMA GUARD] Could not complete schema initialization: {e}")
 # -------------------------------------------------------------------------------
+# Run schema initialization once at startup (safe + idempotent)
+try:
+    if os.environ.get('DISABLE_SCHEMA_GUARD', '0') not in ('1', 'true', 'True'):
+        # Ensure an application context is active for db.engine access
+        with app.app_context():
+            _bootstrap_schema_with_advisory_lock(_initialize_schema)
+except Exception as e:
+    print(f"[SCHEMA GUARD] Initialization skipped due to error: {e}")
+
+# Minimal self-healing initializer compatible with Flask >=3 (no before_first_request)
+_minimal_schema_done = False
+try:
+    from threading import Lock as _Lock
+    _minimal_schema_lock = _Lock()
+except Exception:
+    _minimal_schema_lock = None
+
+def _ensure_minimal_columns_once():
+    global _minimal_schema_done
+    if _minimal_schema_done:
+        return
+    # lock to avoid duplicate execution under concurrency
+    lock = _minimal_schema_lock
+    if lock is not None:
+        try:
+            lock.acquire()
+        except Exception:
+            lock = None
+    try:
+        if _minimal_schema_done:
+            return
+        try:
+            insp = sa_inspect(db.engine)
+            if insp.has_table('user'):
+                cols = {c['name'] for c in insp.get_columns('user')}
+                if 'role' not in cols:
+                    dialect = (getattr(db.engine, 'dialect', None).name or '').lower()
+                    with db.engine.begin() as conn:
+                        if dialect == 'postgresql':
+                            conn.execute(text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'agency'"))
+                            conn.execute(text("UPDATE \"user\" SET role = 'agency' WHERE role IS NULL"))
+                            try:
+                                conn.execute(text('ALTER TABLE "user" ALTER COLUMN role SET NOT NULL'))
+                            except Exception:
+                                pass
+                        else:
+                            # SQLite & others: no IF NOT EXISTS for ADD COLUMN in older versions
+                            try:
+                                conn.execute(text("ALTER TABLE user ADD COLUMN role VARCHAR(50)"))
+                            except Exception:
+                                # Column may already exist or SQL unsupported; ignore
+                                pass
+                            try:
+                                conn.execute(text("UPDATE user SET role = 'agency' WHERE role IS NULL"))
+                            except Exception:
+                                pass
+                    logging.info('[BOOT] Ensured user.role column exists')
+            # --- Ensure certificate approval columns exist (defensive) ---
+            try:
+                if insp.has_table('certificate'):
+                    cert_cols = {c['name'] for c in insp.get_columns('certificate')}
+                    dialect = (getattr(db.engine, 'dialect', None).name or '').lower()
+                    with db.engine.begin() as conn:
+                        if 'status' not in cert_cols:
+                            if dialect == 'postgresql':
+                                conn.execute(text("ALTER TABLE certificate ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending'"))
+                                conn.execute(text("UPDATE certificate SET status = 'pending' WHERE status IS NULL"))
+                                try:
+                                    conn.execute(text('ALTER TABLE certificate ALTER COLUMN status SET NOT NULL'))
+                                except Exception:
+                                    pass
+                            else:
+                                try:
+                                    conn.execute(text("ALTER TABLE certificate ADD COLUMN status VARCHAR(20)"))
+                                except Exception:
+                                    pass
+                                try:
+                                    conn.execute(text("UPDATE certificate SET status = 'pending' WHERE status IS NULL"))
+                                except Exception:
+                                    pass
+                        if 'approved_by_id' not in cert_cols:
+                            try:
+                                conn.execute(text('ALTER TABLE certificate ADD COLUMN IF NOT EXISTS approved_by_id INTEGER'))
+                            except Exception:
+                                # Best-effort for non-PG
+                                try:
+                                    conn.execute(text('ALTER TABLE certificate ADD COLUMN approved_by_id INTEGER'))
+                                except Exception:
+                                    pass
+                        if 'approved_at' not in cert_cols:
+                            try:
+                                conn.execute(text('ALTER TABLE certificate ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP'))
+                            except Exception:
+                                # Best-effort for non-PG
+                                try:
+                                    conn.execute(text('ALTER TABLE certificate ADD COLUMN approved_at TIMESTAMP'))
+                                except Exception:
+                                    pass
+                    logging.info('[BOOT] Ensured certificate approval columns exist')
+            except Exception as e:
+                logging.warning(f"[BOOT] Could not ensure certificate columns: {e}")
+            # --- Hard-code a mock authority account (idempotent) ---
+            try:
+                # Ensure a default agency exists
+                ag = db.session.get(Agency, 1)
+                if not ag:
+                    ag = Agency(
+                        agency_id=1,
+                        agency_name='Default Agency 1',
+                        contact_number='0000000000',
+                        address='',
+                        Reg_of_Company='',
+                        PIC='',
+                        email='agency1@example.com'
+                    )
+                    db.session.add(ag)
+                    db.session.commit()
+                # Credentials (override via env if desired)
+                email = os.environ.get('AUTHORITY_EMAIL', 'authority@example.com').strip().lower()
+                full_name = os.environ.get('AUTHORITY_NAME', 'Mock Authority')
+                password = os.environ.get('AUTHORITY_PASSWORD', 'Authority@123')
+                # Upsert user by email
+                existing = None
+                try:
+                    existing = User.query.filter(db.func.lower(db.func.trim(User.email)) == email).first()
+                except Exception:
+                    existing = User.query.filter_by(email=email).first()
+                if existing:
+                    existing.role = 'authority'
+                    try:
+                        existing.set_password(password)
+                    except Exception:
+                        pass
+                    try:
+                        existing.is_finalized = True
+                    except Exception:
+                        pass
+                    db.session.commit()
+                    print(f"[MOCK] Authority account ready (updated): {email}")
+                else:
+                    try:
+                        user_data = {
+                            'full_name': full_name,
+                            'email': email,
+                            'password': password,
+                            'user_category': 'citizen',
+                            'agency_id': ag.agency_id,
+                        }
+                        u = Registration.registerUser(user_data)
+                    except Exception:
+                        # Fallback minimal create if registration helper fails
+                        u = User(full_name=full_name, email=email, user_category='citizen', agency_id=ag.agency_id, is_finalized=True)
+                        try:
+                            u.set_password(password)
+                        except Exception:
+                            pass
+                        db.session.add(u)
+                        db.session.commit()
+                    # Elevate to authority and finalize
+                    try:
+                        u.role = 'authority'
+                    except Exception:
+                        pass
+                    try:
+                        u.is_finalized = True
+                    except Exception:
+                        pass
+                    db.session.commit()
+                    print(f"[MOCK] Authority account ready (created): {email}")
+            except Exception as e:
+                db.session.rollback()
+                logging.warning(f"[BOOT] Could not ensure mock authority account: {e}")
+        except Exception as e:
+            logging.warning(f"[BOOT] Minimal schema ensure failed: {e}")
+    finally:
+        _minimal_schema_done = True
+        if lock is not None:
+            try:
+                lock.release()
+            except Exception:
+                pass
+
+@app.before_request
+def _minimal_schema_guard_middleware():
+    # Run the minimal schema check exactly once per process
+    _ensure_minimal_columns_once()
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -583,7 +826,37 @@ def load_user(user_id):
     # Users use SGYYYYNNNN number_series
     if user_type == 'user':
         if isinstance(user_id, str) and user_id.startswith('SG'):
-            u = User.query.filter_by(number_series=user_id).first()
+            try:
+                u = User.query.filter_by(number_series=user_id).first()
+            except Exception as e:
+                # Self-heal if missing user.role column
+                msg = str(e)
+                if 'column user.role does not exist' in msg or 'UndefinedColumn' in msg:
+                    try:
+                        dialect = (getattr(db.engine, 'dialect', None).name or '').lower()
+                        with db.engine.begin() as conn:
+                            if dialect == 'postgresql':
+                                conn.execute(text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'agency'"))
+                                conn.execute(text("UPDATE \"user\" SET role = 'agency' WHERE role IS NULL"))
+                                try:
+                                    conn.execute(text('ALTER TABLE "user" ALTER COLUMN role SET NOT NULL'))
+                                except Exception:
+                                    pass
+                            else:
+                                try:
+                                    conn.execute(text("ALTER TABLE user ADD COLUMN role VARCHAR(50)"))
+                                except Exception:
+                                    pass
+                                try:
+                                    conn.execute(text("UPDATE user SET role = 'agency' WHERE role IS NULL"))
+                                except Exception:
+                                    pass
+                        # Retry once
+                        u = User.query.filter_by(number_series=user_id).first()
+                    except Exception:
+                        u = None
+                else:
+                    u = None
             if u:
                 return u
         # Fallback numeric (legacy sessions)
@@ -632,7 +905,7 @@ def serve_upload(filename):
     """Serve uploaded profile pictures or module slide files from their respective directories.
     Tries profile pictures folder first, then static/uploads. Returns 404 if not found.
     If the requested file is a module slide, enforce disclaimer acceptance for regular users."""
-    profile_dir = app.config.get('UPLOAD_FOLDER', 'static/profile_pics')
+    profile_dir = app.config.get('UPLOAD_FOLDER', 'static_profile_pics')
     slides_dir = os.path.join(app.root_path, 'static', 'uploads')
 
     # If this filename corresponds to a module slide, enforce disclaimer for regular users
@@ -695,6 +968,83 @@ def index():
             return redirect(url_for('agency_portal'))
     return render_template('index.html')
 
+# --- NEW: User signup route (previously missing causing BuildError) ---
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    # Prevent logged-in users from accessing signup again
+    if current_user.is_authenticated:
+        if isinstance(current_user, Admin):
+            return redirect(url_for('admin_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        if isinstance(current_user, User):
+            return redirect(url_for('user_dashboard'))
+        return redirect(url_for('index'))
+    agencies = []
+    try:
+        agencies = Agency.query.order_by(Agency.agency_name.asc()).all()
+    except Exception:
+        logging.exception('[SIGNUP] Failed loading agencies')
+        agencies = []
+    if request.method == 'POST':
+        form = request.form
+        full_name = form.get('full_name','').strip()
+        email = form.get('email','').strip().lower()
+        password = form.get('password','')
+        user_category = form.get('user_category','citizen').strip().lower()
+        agency_id = form.get('agency_id')
+        ic_number = form.get('ic_number','').strip() or None
+        passport_number = form.get('passport_number','').strip() or None
+        country = form.get('country','').strip() or None
+        # Basic validation
+        if not full_name or not email or not password or not agency_id:
+            flash('All required fields must be filled: name, email, password, agency.', 'danger')
+            return render_template('signup.html', agencies=agencies)
+        try:
+            agency_id_int = int(agency_id)
+        except (ValueError, TypeError):
+            flash('Invalid agency selected.', 'danger')
+            return render_template('signup.html', agencies=agencies)
+        try:
+            # Ensure agency exists
+            agency_obj = Agency.query.get(agency_id_int)
+            if not agency_obj:
+                flash('Selected agency does not exist.', 'danger')
+                return render_template('signup.html', agencies=agencies)
+        except Exception:
+            flash('Database error checking agency.', 'danger')
+            return render_template('signup.html', agencies=agencies)
+        data = {
+            'full_name': full_name,
+            'email': email,
+            'password': password,
+            'user_category': 'foreigner' if user_category == 'foreigner' else 'citizen',
+            'agency_id': agency_id_int
+        }
+        # Optional IDs (collected lightly; can be completed later during onboarding/profile editing)
+        if ic_number:
+            data['ic_number'] = ic_number
+        if passport_number:
+            data['passport_number'] = passport_number
+        if country and user_category == 'foreigner':
+            data['country'] = country
+        try:
+            new_user = Registration.registerUser(data)
+            # Auto-login new user
+            login_user(new_user)
+            session['user_type'] = 'user'
+            session['user_id'] = new_user.get_id()
+            flash('Account created successfully! Complete your profile to finalize registration.', 'success')
+            return redirect(url_for('user_dashboard'))
+        except ValueError as ve:
+            flash(str(ve), 'danger')
+        except Exception as e:
+            logging.exception('[SIGNUP] Registration failed')
+            flash('Registration failed due to server error. Please try again later.', 'danger')
+        # On error re-render with agencies
+        return render_template('signup.html', agencies=agencies)
+    return render_template('signup.html', agencies=agencies)
+
 # Authentication routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -753,6 +1103,156 @@ def login():
 
     return render_template('login.html')
 
+# --- NEW: User dashboard (missing earlier; templates and redirects reference this) ---
+@app.route('/user_dashboard')
+@login_required
+def user_dashboard():
+    if not isinstance(current_user, User):
+        # Redirect non-user roles to their respective dashboards
+        if isinstance(current_user, Admin):
+            return redirect(url_for('admin_dashboard'))
+        if isinstance(current_user, Trainer):
+            return redirect(url_for('trainer_portal'))
+        from models import AgencyAccount as _AA
+        if isinstance(current_user, _AA):
+            return redirect(url_for('agency_portal'))
+        return redirect(url_for('login'))
+    try:
+        # Use robust normalization (falls back via IDs if needed)
+        cat = normalized_user_category(current_user)
+        courses_q = Course.query.filter(or_(Course.allowed_category == cat, Course.allowed_category == 'both'))
+        courses = courses_q.order_by(Course.name.asc()).all()
+        # Fallback: if no courses found for the specific category, show all courses (graceful degradation)
+        if not courses:
+            courses = Course.query.order_by(Course.name.asc()).all()
+    except Exception:
+        logging.exception('[USER DASHBOARD] Failed loading courses')
+        courses = []
+    courses_progress = []
+    course_completed_count = 0
+    for c in courses:
+        try:
+            mods = c.modules
+            total_modules = len(mods)
+            if total_modules == 0:
+                completed_modules = 0
+                progress_pct = 0.0
+            else:
+                module_ids = [m.module_id for m in mods]
+                completed_modules = UserModule.query.filter(
+                    UserModule.user_id == current_user.User_id,
+                    UserModule.module_id.in_(module_ids),
+                    UserModule.is_completed.is_(True)
+                ).count()
+                progress_pct = round((completed_modules / total_modules) * 100.0, 1) if total_modules else 0.0
+            if total_modules > 0 and completed_modules == total_modules:
+                course_completed_count += 1
+            courses_progress.append({
+                'course_id': c.course_id,
+                'name': c.name,
+                'code': c.code,
+                'total_modules': total_modules,
+                'completed_modules': completed_modules,
+                'progress': progress_pct
+            })
+        except Exception:
+            logging.exception('[USER DASHBOARD] Error computing progress for course %s', getattr(c, 'code', '?'))
+    course_enrolled_count = len([c for c in courses if len(c.modules) > 0])
+    return render_template(
+        'user_dashboard.html',
+        user=current_user,
+        courses=courses,
+        courses_progress=courses_progress,
+        course_enrolled_count=course_enrolled_count,
+        course_completed_count=course_completed_count
+    )
+
+# --- OPTIONAL: minimal stubs for routes referenced by quick actions if they are not already defined ---
+try:
+    app.view_functions['courses']
+except KeyError:
+    @app.route('/courses')
+    @login_required
+    def courses():
+        # Use normalized category for robustness
+        cat = normalized_user_category(current_user)
+        try:
+            # Fetch all courses to allow displaying locked ones too (improves transparency)
+            all_courses = Course.query.order_by(Course.name.asc()).all()
+        except Exception:
+            logging.exception('[COURSES] Failed loading courses')
+            all_courses = []
+        course_progress = []
+        for c in all_courses:
+            try:
+                allowed = c.allowed_category or 'both'
+                locked = not (
+                    allowed == 'both' or
+                    (allowed == cat)
+                )
+                modules = list(c.modules)
+                module_ids = [m.module_id for m in modules]
+                total_modules = len(modules)
+                if total_modules == 0:
+                    percent = 0
+                    overall_percentage = 0
+                else:
+                    completed_q = UserModule.query.filter(
+                        UserModule.user_id == current_user.User_id,
+                        UserModule.module_id.in_(module_ids),
+                        UserModule.is_completed.is_(True)
+                    )
+                    completed_count = completed_q.count()
+                    percent = round((completed_count / total_modules) * 100) if total_modules else 0
+                    # Average score across completed modules (ignore None)
+                    scores = [um.score for um in completed_q.all() if um.score is not None]
+                    overall_percentage = round(sum(scores)/len(scores),1) if scores else 0
+                course_progress.append({
+                    'name': c.name,
+                    'code': c.code,
+                    'allowed_category': allowed,
+                    'locked': locked,
+                    'percent': percent,
+                    'overall_percentage': overall_percentage
+                })
+            except Exception:
+                logging.exception('[COURSES] Error computing progress for course %s', getattr(c,'code','?'))
+        # If no courses at all (unlikely after defaults), page will show empty message
+        return render_template('courses.html', course_progress=course_progress) if os.path.exists(os.path.join(app.template_folder or 'templates','courses.html')) else jsonify(course_progress)
+
+try:
+    app.view_functions['profile']
+except KeyError:
+    @app.route('/profile')
+    @login_required
+    def profile():
+        return render_template('profile.html', user=current_user) if os.path.exists(os.path.join(app.template_folder or 'templates','profile.html')) else jsonify({'user': current_user.displayed_id})
+
+try:
+    app.view_functions['my_certificates']
+except KeyError:
+    @app.route('/my_certificates')
+    @login_required
+    def my_certificates():
+        certs = []
+        try:
+            certs = Certificate.query.filter_by(user_id=current_user.User_id).order_by(Certificate.issue_date.desc()).all()
+        except Exception:
+            logging.exception('[MY CERTIFICATES] Failed loading certificates')
+        return render_template('my_certificates.html', certificates=certs) if os.path.exists(os.path.join(app.template_folder or 'templates','my_certificates.html')) else jsonify({'count': len(certs)})
+
+try:
+    app.view_functions['agency']
+except KeyError:
+    @app.route('/agency')
+    @login_required
+    def agency():
+        try:
+            ag = Agency.query.get(getattr(current_user, 'agency_id', None)) if hasattr(current_user, 'agency_id') else None
+        except Exception:
+            ag = None
+        return render_template('agency.html', agency=ag) if os.path.exists(os.path.join(app.template_folder or 'templates','agency.html')) else jsonify({'agency': getattr(ag,'agency_name', None)})
+
 # New: unified logout route used by templates (supports POST and GET)
 @app.route('/logout', methods=['POST', 'GET'])
 @login_required
@@ -761,7 +1261,6 @@ def logout():
         logout_user()
     except Exception:
         pass
-    # Clear entire session to remove user_type and other flags
     try:
         session.clear()
     except Exception:
@@ -773,15 +1272,12 @@ def logout():
 @login_required
 def trainer_portal():
     if not isinstance(current_user, Trainer):
-        # Redirect if not a trainer
         return redirect(url_for('login'))
-
     try:
         courses_query = Course.query
         if getattr(current_user, 'course', None):
             courses_query = courses_query.filter(Course.code == current_user.course)
         courses = courses_query.all()
-
         course_stats = []
         modules_by_course = {}
         for course in courses:
@@ -789,7 +1285,6 @@ def trainer_portal():
             module_ids = [m.module_id for m in modules]
             modules_by_course[course.code] = [{'id': m.module_id, 'name': m.module_name} for m in modules]
             trainees_q = User.query
-            # Normalize user_category at query time to avoid mismatches
             if course.allowed_category == 'citizen':
                 trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'citizen')
             elif course.allowed_category == 'foreigner':
@@ -821,7 +1316,6 @@ def trainer_portal():
             })
         active_trainees = User.query.count()
         certificates_issued = Certificate.query.count()
-        # Module star ratings removed; keep avg_rating_pct for template compatibility
         avg_rating_pct = 0.0
         my_courses = len(course_stats)
         progress_rows = []
@@ -882,13 +1376,10 @@ def trainer_portal():
         modules_by_course=modules_by_course
     )
 
-# --- Admin dashboard ---
 @app.route('/admin_dashboard')
 @login_required
 def admin_dashboard():
-    # Only admins can access
     if not isinstance(current_user, Admin):
-        # Redirect other roles to their dashboards
         if isinstance(current_user, Trainer):
             return redirect(url_for('trainer_portal'))
         if isinstance(current_user, User):
@@ -909,1066 +1400,1209 @@ def admin_dashboard():
         }
     return render_template('admin_dashboard.html', dashboard=dashboard)
 
-# Progress monitoring for admins
-@app.route('/monitor_progress')
-@login_required
-def monitor_progress():
-    # Only admins can access
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
+from types import SimpleNamespace
+from sqlalchemy.orm import joinedload
 
-    # Load filter options
+
+def _require_admin():
+    if not current_user.is_authenticated or not isinstance(current_user, Admin):
+        return False
+    return True
+
+@app.route('/admin_users')
+@login_required
+def admin_users():
+    if not _require_admin():
+        return redirect(url_for('login'))
     try:
+        q = request.args.get('q', '').strip().lower()
+        role_filter = request.args.get('role', 'all').lower()
+        agency_id = request.args.get('agency_id')
         agencies = Agency.query.order_by(Agency.agency_name.asc()).all()
+        merged_accounts = []
+        users_q = User.query
+        if agency_id:
+            try:
+                users_q = users_q.filter(User.agency_id == int(agency_id))
+            except ValueError:
+                pass
+        users = users_q.all()
+        for u in users:
+            if q and (q not in (u.full_name or '').lower() and q not in (u.email or '').lower() and q not in (u.number_series or '').lower()):
+                continue
+            if role_filter not in ('all','user'):
+                continue
+            merged_accounts.append({
+                'type': 'user',
+                'id': u.User_id,
+                'number_series': u.number_series,
+                'name': u.full_name,
+                'email': u.email,
+                'agency': getattr(getattr(u, 'agency', None), 'agency_name', ''),
+                'active_status': True,
+            })
+        trainers = Trainer.query.all()
+        for t in trainers:
+            if q and (q not in (t.name or '').lower() and q not in (t.email or '').lower() and q not in (t.number_series or '').lower()):
+                continue
+            if role_filter not in ('all','trainer'):
+                continue
+            merged_accounts.append({
+                'type': 'trainer',
+                'id': t.trainer_id,
+                'number_series': t.number_series,
+                'name': t.name,
+                'email': t.email,
+                'agency': '',
+                'active_status': t.active_status,
+            })
+        admins = Admin.query.all()
+        for a in admins:
+            if q and (q not in (a.username or '').lower() and q not in (a.email or '').lower()):
+                continue
+            if role_filter not in ('all','admin'):
+                continue
+            merged_accounts.append({
+                'type': 'admin',
+                'id': a.admin_id,
+                'number_series': None,
+                'name': a.username,
+                'email': a.email,
+                'agency': '',
+                'active_status': True,
+            })
+        filters = SimpleNamespace(q=q, role=role_filter, agency_id=agency_id, status=request.args.get('status','all'))
     except Exception:
+        logging.exception('[ADMIN USERS] Failed building context')
+        merged_accounts = []
         agencies = []
+        filters = SimpleNamespace(q='', role='all', agency_id=None, status='all')
+    return render_template('admin_users.html', merged_accounts=merged_accounts, agencies=agencies, filters=filters)
+
+@app.route('/admin_course_management')
+@login_required
+def admin_course_management():
+    if not _require_admin():
+        return redirect(url_for('login'))
     try:
         courses = Course.query.order_by(Course.name.asc()).all()
+        course_modules = {}
+        for c in courses:
+            mods = Module.query.filter_by(course_id=c.course_id).order_by(Module.series_number.asc()).all()
+            course_modules[c.course_id] = mods
     except Exception:
+        logging.exception('[ADMIN COURSE MGMT] Error loading courses')
         courses = []
+        course_modules = {}
+    return render_template('admin_course_management.html', courses=courses, course_modules=course_modules)
 
-    # Parse filters safely
-    q = (request.args.get('q') or '').strip()
+@app.route('/admin_certificates')
+@login_required
+def admin_certificates():
+    if not _require_admin():
+        return redirect(url_for('login'))
     try:
-        agency_id = int(request.args.get('agency_id')) if request.args.get('agency_id') else None
+        q = request.args.get('q','').strip().lower()
+        agency_id = request.args.get('agency_id')
+        course_id = request.args.get('course_id')
+        cert_q = Certificate.query.options(joinedload(Certificate.user)).order_by(Certificate.issue_date.desc())
+        if agency_id:
+            try:
+                cert_q = cert_q.join(User).filter(User.agency_id == int(agency_id))
+            except ValueError:
+                pass
+        certificates = cert_q.limit(500).all()
+        if q:
+            filtered = []
+            for c in certificates:
+                hay = ' '.join([
+                    str(c.certificate_id),
+                    c.user.full_name if c.user else '',
+                    c.module_type or ''
+                ]).lower()
+                if q in hay:
+                    filtered.append(c)
+            certificates = filtered
+        agencies = Agency.query.order_by(Agency.agency_name.asc()).all()
+        courses = Course.query.order_by(Course.name.asc()).all()
+        cert_template_url = None
+        try:
+            base = os.path.join(app.static_folder or 'static', 'cert_templates')
+            if os.path.isdir(base):
+                for fname in os.listdir(base):
+                    if fname.lower().endswith(('.pdf','.png','.jpg','.jpeg','.svg')):
+                        from flask import url_for as _uf
+                        cert_template_url = _uf('static', filename=f'cert_templates/{fname}')
+                        break
+        except Exception:
+            pass
+        filters = SimpleNamespace(q=q, agency_id=agency_id, course_id=course_id)
     except Exception:
-        agency_id = None
-    try:
-        course_id = int(request.args.get('course_id')) if request.args.get('course_id') else None
-    except Exception:
-        course_id = None
-    status = (request.args.get('status') or '').strip().lower()  # '', in_progress, completed
-    try:
-        min_progress = int(request.args.get('min_progress')) if request.args.get('min_progress') not in (None, '') else None
-    except Exception:
-        min_progress = None
-    try:
-        max_progress = int(request.args.get('max_progress')) if request.args.get('max_progress') not in (None, '') else None
-    except Exception:
-        max_progress = None
+        logging.exception('[ADMIN CERTIFICATES] Error building context')
+        certificates = []
+        agencies = []
+        courses = []
+        cert_template_url = None
+        filters = SimpleNamespace(q='', agency_id=None, course_id=None)
+    return render_template('admin_certificates.html', certificates=certificates, agencies=agencies, courses=courses, cert_template_url=cert_template_url, filters=filters)
 
-    # Build users list constrained by agency filter
-    users_q = User.query
-    if agency_id:
-        users_q = users_q.filter(User.agency_id == agency_id)
-    # Preload agency to reduce lazy loads in template
+@app.route('/admin_agencies')
+@login_required
+def admin_agencies():
+    if not _require_admin():
+        return redirect(url_for('login'))
     try:
-        users = users_q.all()
+        agencies = Agency.query.options(joinedload(Agency.users)).order_by(Agency.agency_name.asc()).all()
     except Exception:
-        users = []
+        logging.exception('[ADMIN AGENCIES] Failed loading agencies')
+        agencies = []
+    return render_template('admin_agencies.html', agencies=agencies)
 
-    # If there is a text query, we'll apply it after row-build (match name/email/agency)
-
-    # Determine courses to include
-    selected_courses = []
-    if course_id:
-        c = db.session.get(Course, course_id)
-        if c:
-            selected_courses = [c]
-    else:
-        selected_courses = courses
-
-    course_progress_rows = []
+@app.route('/add_agency', methods=['POST'])
+@login_required
+def add_agency():
+    if not _require_admin():
+        return redirect(url_for('login'))
     try:
-        from sqlalchemy import func, case
-        # Build lookup maps
-        users_by_id = {u.User_id: u for u in users}
-        agency_by_id = {a.agency_id: a for a in agencies}
-        user_ids = list(users_by_id.keys())
-        for c in selected_courses:
-            module_ids = [m.module_id for m in getattr(c, 'modules', [])]
-            total_modules = len(module_ids)
-            if total_modules == 0:
-                continue
-            if not user_ids:
-                break
-            # Aggregate per user for this course's modules
-            agg = (
-                db.session.query(
-                    UserModule.user_id.label('uid'),
-                    func.count(UserModule.id).label('total_rows'),
-                    func.sum(case((UserModule.is_completed == True, 1), else_=0)).label('completed_cnt'),
-                    func.avg(case((UserModule.is_completed == True, UserModule.score), else_=None)).label('avg_score')
-                )
-                .filter(UserModule.module_id.in_(module_ids), UserModule.user_id.in_(user_ids))
-                .group_by(UserModule.user_id)
-                .all()
-            )
-            stats = {row.uid: row for row in agg}
-            for uid in user_ids:
-                u = users_by_id.get(uid)
-                if not u:
-                    continue
-                st = stats.get(uid)
-                completed = int(getattr(st, 'completed_cnt', 0) or 0)
-                avg_score = float(getattr(st, 'avg_score', 0.0) or 0.0)
-                progress_pct = int(round((completed / total_modules * 100.0), 0)) if total_modules else 0
-                ag = agency_by_id.get(getattr(u, 'agency_id', None))
-                row = {
-                    'user_name': getattr(u, 'full_name', ''),
-                    'user_email': getattr(u, 'email', ''),
-                    'course_name': getattr(c, 'name', ''),
-                    'course_code': getattr(c, 'code', ''),
-                    'agency_name': getattr(ag, 'agency_name', '') if ag else '',
-                    'completed_modules': completed,
-                    'total_modules': total_modules,
-                    'progress_pct': progress_pct,
-                    'avg_score': round(avg_score, 1) if avg_score else None,
-                    'status': 'Completed' if progress_pct >= 100 else ('In Progress' if progress_pct > 0 else 'Not Started')
-                }
-                course_progress_rows.append(row)
+        a = Agency(
+            agency_name=request.form.get('agency_name','').strip(),
+            PIC=request.form.get('PIC','').strip(),
+            contact_number=request.form.get('contact_number','').strip(),
+            email=request.form.get('email','').strip(),
+            address=request.form.get('address','').strip(),
+            Reg_of_Company=request.form.get('Reg_of_Company','').strip(),
+        )
+        db.session.add(a)
+        db.session.commit()
+        flash('Agency added','success')
     except Exception:
-        logging.exception('[MONITOR PROGRESS] Failed to build rows')
-        course_progress_rows = []
+        db.session.rollback()
+        logging.exception('[ADD AGENCY] Failed')
+        flash('Failed to add agency','danger')
+    return redirect(safe_url_for('admin_agencies'))
 
-    # Apply post-filters
-    if status in ('completed', 'in_progress'):
-        want_completed = (status == 'completed')
-        if want_completed:
-            course_progress_rows = [r for r in course_progress_rows if r['progress_pct'] >= 100]
+@app.route('/edit_agency/<int:agency_id>', methods=['POST'])
+@login_required
+def edit_agency(agency_id):
+    if not _require_admin():
+        return redirect(url_for('login'))
+    ag = Agency.query.get_or_404(agency_id)
+    try:
+        for field in ['agency_name','PIC','contact_number','email','address','Reg_of_Company']:
+            if field in request.form:
+                setattr(ag, field, request.form.get(field).strip())
+        db.session.commit()
+        flash('Agency updated','success')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[EDIT AGENCY] Failed')
+        flash('Failed to update agency','danger')
+    return redirect(safe_url_for('admin_agencies'))
+
+@app.route('/admin_create_agency_account/<int:agency_id>', methods=['POST'])
+@login_required
+def admin_create_agency_account(agency_id):
+    if not _require_admin():
+        return redirect(url_for('login'))
+    ag = Agency.query.get_or_404(agency_id)
+    if ag.account:
+        flash('Agency already has an account','warning')
+        return redirect(safe_url_for('admin_agencies'))
+    try:
+        acc = AgencyAccount(agency_id=ag.agency_id, email=ag.email)
+        acc.set_password('ChangeMe123!')
+        db.session.add(acc)
+        db.session.commit()
+        flash('Agency login created (temporary password: ChangeMe123!)','success')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[CREATE AGENCY ACCOUNT] Failed')
+        flash('Failed to create agency login','danger')
+    return redirect(safe_url_for('admin_agencies'))
+
+@app.route('/create_user', methods=['POST'])
+@login_required
+def create_user():
+    if not _require_admin():
+        return redirect(url_for('login'))
+    full_name = request.form.get('full_name','').strip()
+    email = request.form.get('email','').strip().lower()
+    role = request.form.get('role','').strip().lower()
+    password = request.form.get('password','password123')
+    try:
+        if role == 'trainer':
+            t = Trainer(name=full_name, email=email)
+            t.set_password(password)
+            db.session.add(t)
+        elif role == 'admin':
+            a = Admin(username=full_name, email=email)
+            a.set_password(password)
+            db.session.add(a)
         else:
-            course_progress_rows = [r for r in course_progress_rows if 0 < r['progress_pct'] < 100]
-    if min_progress is not None:
-        course_progress_rows = [r for r in course_progress_rows if r['progress_pct'] >= min_progress]
-    if max_progress is not None:
-        course_progress_rows = [r for r in course_progress_rows if r['progress_pct'] <= max_progress]
-    if q:
-        ql = q.lower()
-        def match(r):
-            return (
-                ql in (r['user_name'] or '').lower() or
-                ql in (r['user_email'] or '').lower() or
-                ql in (r['agency_name'] or '').lower() or
-                ql in (r['course_name'] or '').lower() or
-                ql in (r['course_code'] or '').lower()
-            )
-        course_progress_rows = [r for r in course_progress_rows if match(r)]
+            ag = Agency.query.first()
+            if not ag:
+                flash('Create an agency first before adding users','warning')
+                return redirect(safe_url_for('admin_users'))
+            u = User(full_name=full_name, email=email, agency_id=ag.agency_id, user_category='citizen')
+            u.set_password(password)
+            db.session.add(u)
+        db.session.commit()
+        flash('Account created','success')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[CREATE USER] Failed')
+        flash('Failed to create account','danger')
+    return redirect(safe_url_for('admin_users'))
 
-    # Sort by progress desc, then user name
-    course_progress_rows.sort(key=lambda r: (-r['progress_pct'], (r['user_name'] or '').lower()))
+@app.route('/delete_user', methods=['POST'])
+@login_required
+def delete_user():
+    if not _require_admin():
+        return jsonify(success=False, message='Forbidden')
+    user_id = request.form.get('user_id')
+    try:
+        u = User.query.get(int(user_id)) if user_id else None
+        if not u:
+            return jsonify(success=False, message='User not found')
+        db.session.delete(u)
+        db.session.commit()
+        return jsonify(success=True, message='User deleted')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[DELETE USER] Failed')
+        return jsonify(success=False, message='Delete failed')
 
-    filters = {
-        'q': q,
-        'agency_id': agency_id,
-        'course_id': course_id,
-        'status': status,
-        'min_progress': min_progress,
-        'max_progress': max_progress,
-    }
-    return render_template('monitor_progress.html', course_progress_rows=course_progress_rows, agencies=agencies, courses=courses, filters=filters)
+@app.route('/delete_trainer', methods=['POST'])
+@login_required
+def delete_trainer():
+    if not _require_admin():
+        return jsonify(success=False, message='Forbidden')
+    trainer_id = request.form.get('trainer_id')
+    try:
+        t = Trainer.query.get(int(trainer_id)) if trainer_id else None
+        if not t:
+            return jsonify(success=False, message='Trainer not found')
+        db.session.delete(t)
+        db.session.commit()
+        return jsonify(success=True, message='Trainer deleted')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[DELETE TRAINER] Failed')
+        return jsonify(success=False, message='Delete failed')
 
-# Quick action referenced by admin dashboard (noop-safe)
+@app.route('/reset_user_progress', methods=['POST'])
+@login_required
+def reset_user_progress():
+    if not _require_admin():
+        return jsonify(success=False, message='Forbidden')
+    user_id = request.form.get('user_id')
+    try:
+        if not user_id:
+            return jsonify(success=False, message='Missing user_id')
+        UserModule.query.filter_by(user_id=int(user_id)).delete()
+        db.session.commit()
+        return jsonify(success=True, message='Progress reset')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[RESET PROGRESS] Failed')
+        return jsonify(success=False, message='Reset failed')
+
+@app.route('/change_role', methods=['POST'])
+@login_required
+def change_role():
+    if not _require_admin():
+        return jsonify(success=False, message='Forbidden')
+    return jsonify(success=True, message='Role change stub (not fully implemented).')
+
+@app.route('/create_course', methods=['POST'])
+@login_required
+def create_course():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    name = request.form.get('name','').strip()
+    code = request.form.get('code','').strip().upper()
+    allowed_category = request.form.get('allowed_category','both')
+    if not name or not code:
+        flash('Course name and code required','danger')
+        return redirect(safe_url_for('admin_course_management'))
+    try:
+        existing = Course.query.filter(db.func.lower(db.func.trim(Course.code)) == code.lower()).first()
+        if existing:
+            flash('Course code already exists','warning')
+        else:
+            c = Course(name=name, code=code, allowed_category=allowed_category)
+            db.session.add(c)
+            db.session.commit()
+            flash('Course created','success')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[CREATE COURSE] Failed')
+        flash('Failed to create course','danger')
+    return redirect(safe_url_for('admin_course_management'))
+
+@app.route('/update_course/<int:course_id>', methods=['POST'])
+@login_required
+def update_course(course_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    course = Course.query.get_or_404(course_id)
+    try:
+        course.name = request.form.get('name', course.name).strip()
+        course.allowed_category = request.form.get('allowed_category', course.allowed_category)
+        db.session.commit()
+        flash('Course updated','success')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[UPDATE COURSE] Failed')
+        flash('Failed to update course','danger')
+    return redirect(safe_url_for('admin_course_management'))
+
+@app.route('/delete_course/<int:course_id>', methods=['POST'])
+@login_required
+def delete_course(course_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    c = Course.query.get_or_404(course_id)
+    try:
+        Module.query.filter_by(course_id=c.course_id).delete()
+        db.session.delete(c)
+        db.session.commit()
+        flash('Course deleted','success')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[DELETE COURSE] Failed')
+        flash('Failed to delete course','danger')
+    return redirect(safe_url_for('admin_course_management'))
+
+@app.route('/add_course_module/<int:course_id>', methods=['POST'])
+@login_required
+def add_course_module(course_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    course = Course.query.get_or_404(course_id)
+    module_name = request.form.get('module_name','').strip()
+    series_number = request.form.get('series_number','').strip() or None
+    if not module_name:
+        flash('Module name required','danger')
+        return redirect(safe_url_for('admin_course_management'))
+    try:
+        m = Module(module_name=module_name, module_type=course.code, series_number=series_number, course_id=course.course_id)
+        db.session.add(m)
+        db.session.commit()
+        flash('Module added','success')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[ADD MODULE] Failed')
+        flash('Failed to add module','danger')
+    return redirect(safe_url_for('admin_course_management'))
+
+@app.route('/delete_course_module/<int:module_id>', methods=['POST'])
+@login_required
+def delete_course_module(module_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    m = Module.query.get_or_404(module_id)
+    try:
+        db.session.delete(m)
+        db.session.commit()
+        flash('Module deleted','success')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[DELETE MODULE] Failed')
+        flash('Failed to delete module','danger')
+    return redirect(safe_url_for('admin_course_management'))
+
+@app.route('/update_course_module/<int:module_id>', methods=['POST'])
+@login_required
+def update_course_module(module_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    m = Module.query.get_or_404(module_id)
+    try:
+        m.module_name = request.form.get('module_name', m.module_name).strip()
+        m.series_number = request.form.get('series_number', m.series_number)
+        db.session.commit()
+        flash('Module updated','success')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[UPDATE MODULE] Failed')
+        flash('Failed to update module','danger')
+    return redirect(safe_url_for('admin_course_management'))
+
+@app.route('/manage_module_content/<int:module_id>', methods=['POST'])
+@login_required
+def manage_module_content(module_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    m = Module.query.get_or_404(module_id)
+    ctype = request.form.get('content_type')
+    try:
+        if ctype == 'slide':
+            slide_file = request.files.get('slide_file')
+            slide_text = request.form.get('slide_text','')
+            if slide_file and slide_file.filename:
+                fname = secure_filename(slide_file.filename)
+                # Save into the configured uploads folder under the app root to match serving logic
+                dest_dir = os.path.join(app.root_path, UPLOAD_CONTENT_FOLDER)
+                os.makedirs(dest_dir, exist_ok=True)
+                dest = os.path.join(dest_dir, fname)
+                slide_file.save(dest)
+                m.slide_url = fname
+        elif ctype == 'video':
+            m.youtube_url = request.form.get('youtube_url','').strip()
+        elif ctype == 'quiz':
+            quiz_payload = {}
+            for k, v in request.form.items():
+                if k.startswith('q'):
+                    quiz_payload[k] = v
+            m.quiz_json = json.dumps(quiz_payload) if quiz_payload else m.quiz_json
+        db.session.commit()
+        flash('Content saved','success')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[MANAGE MODULE CONTENT] Failed')
+        flash('Failed to save content','danger')
+    return redirect(safe_url_for('admin_course_management'))
+
+@app.route('/upload_cert_template', methods=['POST'])
+@login_required
+def upload_cert_template():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    f = request.files.get('cert_template')
+    if not f or not f.filename:
+        flash('No file selected','warning')
+        return redirect(safe_url_for('admin_certificates'))
+    try:
+        folder = os.path.join(app.static_folder or 'static', 'cert_templates')
+        os.makedirs(folder, exist_ok=True)
+        fname = secure_filename(f.filename)
+        f.save(os.path.join(folder, fname))
+        flash('Template uploaded','success')
+    except Exception:
+        logging.exception('[UPLOAD CERT TEMPLATE] Failed')
+        flash('Failed to upload template','danger')
+    return redirect(safe_url_for('admin_certificates'))
+
+@app.route('/delete_certificates_bulk', methods=['POST'])
+@login_required
+def delete_certificates_bulk():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('login'))
+    ids = request.form.getlist('cert_ids')
+    if not ids:
+        flash('No certificates selected','warning')
+        return redirect(safe_url_for('admin_certificates'))
+    try:
+        Certificate.query.filter(Certificate.certificate_id.in_([int(i) for i in ids])).delete(synchronize_session=False)
+        db.session.commit()
+        flash(f'Deleted {len(ids)} certificates','success')
+    except Exception:
+        db.session.rollback()
+        logging.exception('[DELETE CERTS BULK] Failed')
+        flash('Failed to delete certificates','danger')
+    return redirect(safe_url_for('admin_certificates'))
+
 @app.route('/recalculate_ratings')
 @login_required
 def recalculate_ratings():
     if not isinstance(current_user, Admin):
         return redirect(url_for('login'))
+    updated = 0
     try:
-        # Ratings columns were removed; keep endpoint for UX and show a friendly message
-        flash('Recalculated ratings.', 'success')
+        modules = Module.query.all()
+        for m in modules:
+            scores = [um.score for um in m.user_modules if um.score is not None]
+            if scores:
+                try:
+                    m.scoring_float = sum(scores)/len(scores)
+                    updated += 1
+                except Exception:
+                    pass
+        if updated:
+            db.session.commit()
+        flash(f'Recalculated average scores for {updated} module(s).', 'success')
     except Exception:
-        logging.exception('[ADMIN] Recalculate ratings failed')
+        db.session.rollback()
+        logging.exception('[RECALCULATE RATINGS] Failed')
         flash('Failed to recalculate ratings.', 'danger')
-    return redirect(url_for('admin_dashboard'))
+    return redirect(safe_url_for('admin_dashboard'))
 
-MALAYSIAN_STATES = [
-    'Johor', 'Kedah', 'Kelantan', 'Melaka', 'Negeri Sembilan', 'Pahang', 'Perak', 'Perlis',
-    'Penang', 'Sabah', 'Sarawak', 'Selangor', 'Terengganu', 'Kuala Lumpur', 'Labuan', 'Putrajaya'
-]
-
-@app.route('/signup', methods=['GET', 'POST'])
-def signup():
-    if request.method == 'POST':
-        # Get form data
-        user_category = request.form.get('user_category', 'citizen')
-        email = (request.form.get('email') or '').strip().lower()
-
-        # Get agency_id from form or use default if not provided
-        try:
-            agency_id = int(request.form.get('agency_id', 1))
-        except (ValueError, TypeError):
-            agency_id = 1
-
-        # Validate agency existence
-        agency = Agency.query.get(agency_id)
-        if not agency:
-            # Create default agency if it doesn't exist
-            try:
-                agency = Agency(
-                    agency_id=agency_id,
-                    agency_name=f"Default Agency {agency_id}",
-                    contact_number="0000000000",
-                    address="",
-                    Reg_of_Company="",
-                    PIC="",
-                    email=""
-                )
-                db.session.add(agency)
-                db.session.commit()
-                print(f"[SIGNUP] Created default agency with ID {agency_id}")
-            except IntegrityError:
-                db.session.rollback()
-                # Another process might have created it; try to fetch again
-                agency = Agency.query.get(agency_id)
-                if not agency:
-                    flash('Invalid agency selected. Please try again.')
-                    return render_template('signup.html', agencies=Agency.query.all())
-
-        # If an existing unf inalized user has this email, hard-delete them and dependents to free the email
-        try:
-            to_purge = User.query.filter(db.func.lower(db.func.trim(User.email)) == email, User.is_finalized.is_(False)).all()
-            for existing_user in to_purge:
-                WorkHistory.query.filter_by(user_id=existing_user.User_id).delete(synchronize_session=False)
-                UserModule.query.filter_by(user_id=existing_user.User_id).delete(synchronize_session=False)
-                UserCourseProgress.query.filter_by(user_id=existing_user.User_id).delete(synchronize_session=False)
-                Certificate.query.filter_by(user_id=existing_user.User_id).delete(synchronize_session=False)
-                db.session.delete(existing_user)
-            if to_purge:
-                db.session.commit()
-        except Exception:
-            db.session.rollback()
-
-        user_data = {
-            'full_name': request.form['full_name'],
-            'email': email,
-            'password': request.form['password'],
-            'user_category': user_category,
-            'agency_id': agency_id
-        }
-
-        # Optionally add IC or Passport number (collect fully during onboarding)
-        if user_category == 'citizen':
-            ic_number = request.form.get('ic_number')
-            if ic_number:
-                user_data['ic_number'] = ic_number
-        else:
-            passport_number = request.form.get('passport_number')
-            if passport_number:
-                user_data['passport_number'] = passport_number
-
-        # Check if user already exists and is finalized (only finalized users should block signup)
-        existing_finalized = User.query.filter(db.func.lower(db.func.trim(User.email)) == email, User.is_finalized.is_(True)).first()
-        if existing_finalized:
-            flash('Email already registered')
-            return render_template('signup.html', agencies=Agency.query.all())
-
-        # Register user
-        try:
-            user = Registration.registerUser(user_data)
-            # Mark as pending until onboarding is completed or skipped at the last step
-            login_user(user)
-            session['user_type'] = 'user'
-            session['user_id'] = user.get_id()
-            session['pending_signup'] = True
-            session['sign_up_finalized'] = False
-            return redirect(url_for('onboarding', step=1))
-        except ValueError as e:
-            # Handle duplicate email and other validation errors with user-friendly messages
-            flash(str(e), 'error')
-            return render_template('signup.html', agencies=Agency.query.all())
-        except Exception as e:
-            # Handle other unexpected errors
-            flash(f'An unexpected error occurred during registration: {str(e)}', 'error')
-            return render_template('signup.html', agencies=Agency.query.all())
-
-    agencies = Agency.query.all()
-    return render_template('signup.html', agencies=agencies)
-
-@app.route('/cancel_onboarding')
+@app.route('/monitor_progress')
 @login_required
-def cancel_onboarding():
-    """Cancel onboarding: if current user is not finalized, delete user and related rows; then logout and go to signup."""
-    try:
-        if isinstance(current_user, User):
-            u = db.session.get(User, current_user.User_id)
-            if u and not getattr(u, 'is_finalized', False):
-                WorkHistory.query.filter_by(user_id=u.User_id).delete(synchronize_session=False)
-                UserModule.query.filter_by(user_id=u.User_id).delete(synchronize_session=False)
-                UserCourseProgress.query.filter_by(user_id=u.User_id).delete(synchronize_session=False)
-                Certificate.query.filter_by(user_id=u.User_id).delete(synchronize_session=False)
-                db.session.delete(u)
-                db.session.commit()
-    except Exception:
-        db.session.rollback()
-        # Fall through to logout and redirect
-    # Always logout and clear session before leaving onboarding
-    try:
-        logout_user()
-    except Exception:
-        pass
-    session.clear()
-    return redirect(url_for('signup'))
-
-@app.route('/onboarding', methods=['GET', 'POST'])
-@login_required
-def onboarding():
-    # Allow only regular users
-    if not isinstance(current_user, User):
-        if isinstance(current_user, Admin):
-            return redirect(url_for('admin_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-
-    # Determine dynamic steps based on user category (trim + lower)
-    user_cat = normalized_user_category(current_user)
-    total_steps = 5 if user_cat == 'foreigner' else 4
-
-    # Current step from query or form
-    try:
-        step = int(request.values.get('step', 1))
-    except Exception:
-        step = 1
-    step = max(1, min(step, total_steps))
-
-    if request.method == 'POST':
-        # Determine last step now so we can handle Skip correctly
-        last_step = 5 if user_cat == 'foreigner' else 4
-        if 'skip' in request.form:
-            # Finalize only if skipping at the last step; otherwise just go to dashboard without finalizing
-            if step == last_step:
-                try:
-                    current_user.is_finalized = True
-                    db.session.commit()
-                except Exception:
-                    db.session.rollback()
-                session['sign_up_finalized'] = True
-                session['pending_signup'] = False
-            return redirect(url_for('user_dashboard'))
-        # Save fields for the current step
-        try:
-            if step == 1:
-                # Personal details
-                full_name = request.form.get('full_name')
-                if full_name:
-                    current_user.full_name = full_name
-                new_cat = request.form.get('user_category')
-                if new_cat in ('citizen', 'foreigner'):
-                    current_user.user_category = new_cat
-                # IC/Passport based on selected category
-                ic_number = request.form.get('ic_number')
-                passport_number = request.form.get('passport_number')
-                if (current_user.user_category or 'citizen') == 'citizen':
-                    if ic_number is not None:
-                        current_user.ic_number = ic_number
-                    current_user.passport_number = None
-                else:
-                    if passport_number is not None:
-                        current_user.passport_number = passport_number
-                    current_user.ic_number = None
-                # Profile picture upload (optional)
-                if 'profile_pic' in request.files:
-                    f = request.files['profile_pic']
-                    if f and getattr(f, 'filename', ''):
-                        import time
-                        filename_raw = secure_filename(f.filename)
-                        _, ext = os.path.splitext(filename_raw)
-                        ext = (ext or '').lower()
-                        allowed_ext = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
-                        if ext in allowed_ext:
-                            save_dir = app.config.get('UPLOAD_FOLDER', os.path.join('static', 'profile_pics'))
-                            os.makedirs(save_dir, exist_ok=True)
-                            unique_name = f"u{current_user.User_id}_{int(time.time())}{ext}"
-                            save_path = os.path.join(save_dir, unique_name)
-                            f.save(save_path)
-                            current_user.Profile_picture = unique_name
-                        elif ext:
-                            flash('Unsupported image type. Please upload PNG, JPG, JPEG, GIF, or WEBP.')
-            elif step == 2:
-                # Contact details
-                current_user.emergency_contact_phone = request.form.get('phone') or request.form.get('emergency_contact_phone')
-                current_user.address = request.form.get('address')
-                current_user.state = request.form.get('state')
-                current_user.postcode = request.form.get('postcode')
-            elif step == 3:
-                # Work details
-                current_user.current_workplace = request.form.get('current_workplace')
-                current_user.working_experience = request.form.get('working_experience')  # retained for backward compat; may be None
-                rec_date = request.form.get('recruitment_date')
-                if rec_date:
-                    try:
-                        current_user.recruitment_date = datetime.strptime(rec_date, '%Y-%m-%d').date()
-                    except Exception:
-                        pass
-                # Working experiences (multiple)
-                try:
-                    companies = request.form.getlist('exp_company')
-                    positions = request.form.getlist('exp_position')
-                    starts = request.form.getlist('exp_start')
-                    ends = request.form.getlist('exp_end')
-                    # Remove existing entries for this user
-                    WorkHistory.query.filter_by(user_id=current_user.User_id).delete(synchronize_session=False)
-                    # Add new ones
-                    for i in range(max(len(companies), len(positions), len(starts), len(ends))):
-                        company = (companies[i].strip() if i < len(companies) and companies[i] else '')
-                        position = (positions[i].strip() if i < len(positions) and positions[i] else None)
-                        start_s = (starts[i].strip() if i < len(starts) and starts[i] else '')
-                        end_s = (ends[i].strip() if i < len(ends) and ends[i] else '')
-                        if not company and not start_s and not end_s:
-                            continue  # skip empty rows
-                        # Require company and both dates
-                        if not company or not start_s or not end_s:
-                            continue
-                        try:
-                            start_d = datetime.strptime(start_s, '%Y-%m-%d').date()
-                            end_d = datetime.strptime(end_s, '%Y-%m-%d').date()
-                            # Ignore if end before start
-                            if end_d < start_d:
-                                continue
-                        except Exception:
-                            continue
-                        wh = WorkHistory(
-                            user_id=current_user.User_id,
-                            company_name=company,
-                            position_title=position,
-                            start_date=start_d,
-                            end_date=end_d
-                        )
-                        db.session.add(wh)
-                except Exception:
-                    # Do not block onboarding if experience parsing fails; proceed with other fields
-                    pass
-            elif step == 4 and user_cat == 'foreigner':
-                # Immigration for foreigners
-                current_user.visa_number = request.form.get('visa_number')
-                visa_exp = request.form.get('visa_expiry_date')
-                if visa_exp:
-                    try:
-                        current_user.visa_expiry_date = datetime.strptime(visa_exp, '%Y-%m-%d').date()
-                    except Exception:
-                        pass
-            # Last step: Emergency (step 5 for foreigner, step 4 for citizen)
-            last_step = 5 if user_cat == 'foreigner' else 4
-            if step == last_step:
-                current_user.emergency_contact_relationship = request.form.get('emergency_contact_relationship')
-                current_user.emergency_contact_name = request.form.get('emergency_contact_name')
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            flash('Could not save your progress. Please try again.')
-            return render_template('onboarding.html', step=step, total_steps=total_steps, user=current_user, malaysian_states=MALAYSIAN_STATES)
-
-        # Advance to next step or finish
-        next_step = step + 1
-        if next_step > total_steps:
-            # Finalize signup upon completion
-            try:
-                current_user.is_finalized = True
-                db.session.commit()
-            except Exception:
-                db.session.rollback()
-            session['sign_up_finalized'] = True
-            session['pending_signup'] = False
-            return redirect(url_for('user_dashboard'))
-        return redirect(url_for('onboarding', step=next_step))
-
-    return render_template('onboarding.html', step=step, total_steps=total_steps, user=current_user, malaysian_states=MALAYSIAN_STATES)
-
-# ------------------- User-facing routes -------------------
-@app.route('/user_dashboard')
-@app.route('/dashboard')
-@login_required
-def user_dashboard():
-    # Only for regular users
-    if not isinstance(current_user, User):
-        if isinstance(current_user, Admin):
-            return redirect(safe_url_for('admin_dashboard'))
-        if isinstance(current_user, Trainer):
-            return redirect(url_for('trainer_portal'))
-        return redirect(url_for('login'))
-
-    try:
-        # Determine allowed courses for this user
-        user_cat = normalized_user_category(current_user)
-        preferred_code = 'TNG' if user_cat == 'foreigner' else 'CSG'
-        main_course = Course.query.filter(Course.code.ilike(preferred_code)).first()
-
-        # Build list of visible courses: always include 'both' courses in addition to main (if any)
-        courses = []
-        if main_course:
-            courses.append(main_course)
-        # Add all courses allowed for both categories (case-insensitive)
-        both_courses = Course.query.filter(db.func.lower(db.func.trim(Course.allowed_category)) == 'both').all()
-        for c in both_courses:
-            if not any(getattr(x, 'course_id', None) == getattr(c, 'course_id', None) for x in courses):
-                courses.append(c)
-        # If no main course exists, also include courses explicitly allowed for the user's category (case-insensitive)
-        if not main_course:
-            extra_allowed = Course.query.filter(db.func.lower(db.func.trim(Course.allowed_category)) == user_cat).all()
-            for c in extra_allowed:
-                if not any(getattr(x, 'course_id', None) == getattr(c, 'course_id', None) for x in courses):
-                    courses.append(c)
-
-        # Compute per-course progress
-        courses_progress = []
-        total_user_modules = []
-        # Added: course-level stats
-        course_enrolled_count = 0
-        course_completed_count = 0
-        for course in courses:
-            c_modules = course.modules
-            module_ids = [m.module_id for m in c_modules]
-            if module_ids:
-                user_um = UserModule.query.filter(
-                    UserModule.user_id == current_user.User_id,
-                    UserModule.module_id.in_(module_ids)
-                ).all()
-            else:
-                user_um = []
-            total_user_modules.extend(user_um)
-            completed = len([um for um in user_um if um.is_completed])
-            total = len(c_modules)
-            progress_pct = int(round((completed / total * 100.0), 0)) if total else 0
-            # Added: derive course-level enrolled/completed
-            enrolled = (len(user_um) > 0)
-            ucp = UserCourseProgress.query.filter_by(user_id=current_user.User_id, course_id=course.course_id).first()
-            if ucp:
-                enrolled = True
-                completed_course = bool(ucp.completed)
-            else:
-                completed_course = (total > 0 and completed == total)
-            if enrolled:
-                course_enrolled_count += 1
-            if completed_course:
-                course_completed_count += 1
-            courses_progress.append({
-                'code': course.code,
-                'name': course.name,
-                'progress': progress_pct,
-                'completed_modules': completed,
-                'total_modules': total,
-                'enrolled': enrolled,
-                'completed': completed_course
-            })
-        # Determine rating lock: unlocked if main course exists and all its modules completed
-        rating_unlocked = False
-        if main_course:
-            m_ids = [m.module_id for m in main_course.modules]
-            if m_ids:
-                completed_count = UserModule.query.filter(
-                    UserModule.user_id == current_user.User_id,
-                    UserModule.module_id.in_(m_ids),
-                    UserModule.is_completed.is_(True)
-                ).count()
-                rating_unlocked = (completed_count == len(m_ids) and len(m_ids) > 0)
-        # user_modules for dashboard stats: show enrolled modules for all visible courses
-        user_modules = total_user_modules
-    except Exception:
-        logging.exception('[USER DASHBOARD] Failed to build dashboard context')
-        courses_progress = []
-        user_modules = []
-        rating_unlocked = False
-        preferred_code = 'CSG'
-        # Added: default course stats on error
-        course_enrolled_count = 0
-        course_completed_count = 0
-
-    return render_template(
-        'user_dashboard.html',
-        user=current_user,
-        user_modules=user_modules,
-        rating_unlocked=rating_unlocked,
-        courses_progress=courses_progress,
-        grade_course_code=preferred_code,
-        # Added: pass course-level stats
-        course_enrolled_count=course_enrolled_count,
-        course_completed_count=course_completed_count
-    )
-
-@app.route('/enroll', methods=['GET'])
-@login_required
-def enroll_course():
-    # Enroll user into modules for their primary course (TNG for foreigner, CSG for citizen)
-    if not isinstance(current_user, User):
-        return redirect(url_for('login'))
-    user_cat = normalized_user_category(current_user)
-    preferred_code = 'TNG' if user_cat == 'foreigner' else 'CSG'
-    course = Course.query.filter(Course.code.ilike(preferred_code)).first()
-    if course is None:
-        # Fallback: take first course allowed for the category (case-insensitive)
-        course = Course.query.filter(
-            (db.func.lower(db.func.trim(Course.allowed_category)) == user_cat) |
-            (db.func.lower(db.func.trim(Course.allowed_category)) == 'both')
-        ).first()
-    if not course:
-        flash('No course available for your category yet.')
-        return redirect(url_for('user_dashboard'))
-    created = 0
-    for m in course.modules:
-        exists = UserModule.query.filter_by(user_id=current_user.User_id, module_id=m.module_id).first()
-        if not exists:
-            db.session.add(UserModule(user_id=current_user.User_id, module_id=m.module_id))
-            created += 1
-    if created:
-        try:
-            db.session.commit()
-            flash(f'Enrolled in {created} module(s) for {course.code}.')
-        except Exception:
-            db.session.rollback()
-            flash('Could not enroll at this time. Please try again later.')
-    else:
-        flash('You are already enrolled in this course.')
-    return redirect(url_for('user_dashboard'))
-
-@app.route('/profile', methods=['GET', 'POST'])
-@login_required
-def profile():
-    if not isinstance(current_user, User):
-        return redirect(url_for('login'))
-    if request.method == 'POST':
-        try:
-            # Basic fields
-            current_user.full_name = request.form.get('full_name') or current_user.full_name
-            new_email = request.form.get('email')
-            if new_email and new_email != current_user.email:
-                # Simple uniqueness check
-                if User.query.filter(User.email == new_email, User.User_id != current_user.User_id).first():
-                    flash('Email already in use by another account.')
-                else:
-                    current_user.email = new_email
-            current_user.address = request.form.get('address') or current_user.address
-            current_user.postcode = request.form.get('postcode') or current_user.postcode
-            current_user.state = request.form.get('state') or current_user.state
-            current_user.working_experience = request.form.get('working_experience') or current_user.working_experience
-            # Dates and numbers
-            rec = request.form.get('recruitment_date')
-            if rec:
-                try:
-                    current_user.recruitment_date = datetime.strptime(rec, '%Y-%m-%d').date()
-                except Exception:
-                    pass
-            # rating_star removed from schema; ignore any rating_star form input
-            current_user.visa_number = request.form.get('visa_number') or current_user.visa_number
-            visa_exp = request.form.get('visa_expiry_date')
-            if visa_exp:
-                try:
-                    current_user.visa_expiry_date = datetime.strptime(visa_exp, '%Y-%m-%d').date()
-                except Exception:
-                    pass
-            current_user.current_workplace = request.form.get('current_workplace') or current_user.current_workplace
-            # Agency (optional integer)
-            ag = request.form.get('agency_id')
-            try:
-                if ag:
-                    current_user.agency_id = int(ag)
-            except Exception:
-                pass
-            # Emergency
-            # Emergency contact fields (match model names)
-            current_user.emergency_contact_phone = request.form.get('emergency_contact_phone') or current_user.emergency_contact_phone
-            current_user.emergency_contact_name = request.form.get('emergency_contact_name') or current_user.emergency_contact_name
-            current_user.emergency_contact_relationship = request.form.get('emergency_contact_relationship') or current_user.emergency_contact_relationship
-            # File upload
-            if 'profile_pic' in request.files:
-                f = request.files['profile_pic']
-                if f and f.filename:
-                    filename = secure_filename(f.filename)
-                    save_dir = app.config.get('UPLOAD_FOLDER', os.path.join('static', 'profile_pics'))
-                    os.makedirs(save_dir, exist_ok=True)
-                    f.save(os.path.join(save_dir, filename))
-                    current_user.Profile_picture = filename
-            db.session.commit()
-            flash('Profile updated successfully.')
-        except Exception:
-            db.session.rollback()
-            logging.exception('[PROFILE] Update failed')
-            flash('Could not update profile. Please try again.')
-        return redirect(url_for('profile'))
-    return render_template('profile.html', user=current_user, malaysian_states=MALAYSIAN_STATES)
-
-@app.route('/courses')
-@login_required
-def courses():
-    if not isinstance(current_user, User):
-        return redirect(url_for('login'))
-    user_cat = normalized_user_category(current_user)
-    preferred_code = 'TNG' if user_cat == 'foreigner' else 'CSG'
-    # Prefer the primary course for the user by code; also include any courses allowed for both
-    main_course = Course.query.filter(Course.code.ilike(preferred_code)).first()
-
-    courses = []
-    if main_course:
-        courses.append(main_course)
-    # Add courses with allowed_category='both' (case-insensitive)
-    both_courses = Course.query.filter(db.func.lower(db.func.trim(Course.allowed_category)) == 'both').all()
-    for c in both_courses:
-        if not any(getattr(x, 'course_id', None) == getattr(c, 'course_id', None) for x in courses):
-            courses.append(c)
-    # If no main course exists, include courses explicitly allowed for the user's category (case-insensitive)
-    if not main_course:
-        extra_allowed = Course.query.filter(db.func.lower(db.func.trim(Course.allowed_category)) == user_cat).all()
-        for c in extra_allowed:
-            if not any(getattr(x, 'course_id', None) == getattr(c, 'course_id', None) for x in courses):
-                courses.append(c)
-
-    course_progress = []
-    for c in courses:
-        m_ids = [m.module_id for m in c.modules]
-        total = len(m_ids)
-        if total:
-            completed = UserModule.query.filter(
-                UserModule.user_id == current_user.User_id,
-                UserModule.module_id.in_(m_ids),
-                UserModule.is_completed.is_(True)
-            ).count()
-            avg_score_val = db.session.query(db.func.avg(UserModule.score)).filter(
-                UserModule.user_id == current_user.User_id,
-                UserModule.module_id.in_(m_ids),
-                UserModule.is_completed.is_(True)
-            ).scalar()
-        else:
-            completed = 0
-            avg_score_val = 0.0
-        percent = int(round((completed / total * 100.0), 0)) if total else 0
-        overall_percentage = int(round(float(avg_score_val or 0.0), 0))
-        course_progress.append({
-            'name': c.name,
-            'code': c.code,
-            'allowed_category': c.allowed_category,
-            'percent': percent,
-            'overall_percentage': overall_percentage
-        })
-    return render_template('courses.html', course_progress=course_progress)
-
-@app.route('/my_certificates')
-@login_required
-def my_certificates():
-    if not isinstance(current_user, User):
-        return redirect(url_for('login'))
-    certs = Certificate.query.filter_by(user_id=current_user.User_id).order_by(Certificate.issue_date.desc()).all()
-    return render_template('my_certificates.html', certificates=certs)
-
-@app.route('/agency')
-@login_required
-def agency():
-    # Show only the current user's agency for regular users/agency accounts; admins see all
-    try:
-        if isinstance(current_user, Admin):
-            ags = Agency.query.order_by(Agency.agency_name.asc()).all()
-        elif isinstance(current_user, AgencyAccount):
-            ag = db.session.get(Agency, getattr(current_user, 'agency_id', None))
-            ags = [ag] if ag else []
-        elif isinstance(current_user, User):
-            ag = db.session.get(Agency, getattr(current_user, 'agency_id', None))
-            ags = [ag] if ag else []
-        else:
-            ags = []
-    except Exception:
-        logging.exception('[AGENCY] Failed to load agency list')
-        ags = []
-    return render_template('agency.html', agencies=ags)
-
-# --- Agency portal routes ---
-@app.route('/agency_portal')
-@login_required
-def agency_portal():
-    # Only agency accounts can access
-    if not isinstance(current_user, AgencyAccount):
-        return redirect(url_for('login'))
-    ag = db.session.get(Agency, current_user.agency_id)
-    if not ag:
-        flash('Agency not found for this account.')
-        return render_template('agency_portal.html', agency=None, users=[], module_counts={})
-    try:
-        users = User.query.filter_by(agency_id=ag.agency_id).order_by(User.full_name.asc()).all()
-    except Exception:
-        logging.exception('[AGENCY PORTAL] Failed to load users list')
-        users = []
-    # Aggregate module completion count and average score per user
-    module_counts = {}
-    try:
-        if users:
-            user_ids = [u.User_id for u in users]
-            rows = (
-                db.session.query(
-                    UserModule.user_id,
-                    db.func.count(UserModule.id).label('completed'),
-                    db.func.avg(UserModule.score).label('avg_score')
-                )
-                .filter(
-                    UserModule.user_id.in_(user_ids),
-                    UserModule.is_completed.is_(True)
-                )
-                .group_by(UserModule.user_id)
-                .all()
-            )
-            stats_map = {uid: {'completed': int(comp or 0), 'avg_score': float(avg or 0.0)} for uid, comp, avg in rows}
-            for u in users:
-                module_counts[u.User_id] = stats_map.get(u.User_id, {'completed': 0, 'avg_score': 0.0})
-    except Exception:
-        logging.exception('[AGENCY PORTAL] Failed to compute module stats')
-        module_counts = {u.User_id: {'completed': 0, 'avg_score': 0.0} for u in users}
-    return render_template('agency_portal.html', agency=ag, users=users, module_counts=module_counts)
-
-@app.route('/agency/create_user', methods=['POST'])
-@login_required
-def agency_create_user():
-    # Only agency accounts can create users
-    if not isinstance(current_user, AgencyAccount):
-        return redirect(url_for('login'))
-    ag = db.session.get(Agency, current_user.agency_id)
-    if not ag:
-        flash('Agency not found.')
-        return redirect(url_for('agency_portal'))
-    full_name = (request.form.get('full_name') or '').strip()
-    email = (request.form.get('email') or '').strip().lower()
-    password = request.form.get('password') or ''
-    user_category = (request.form.get('user_category') or 'citizen').strip().lower()
-    if not full_name or not email or not password:
-        flash('All fields are required.')
-        return redirect(url_for('agency_portal'))
-    if user_category not in ('citizen', 'foreigner'):
-        user_category = 'citizen'
-    # Prevent duplicate emails across users
-    if User.query.filter_by(email=email).first():
-        flash('Email already registered.')
-        return redirect(url_for('agency_portal'))
-    u = User(full_name=full_name, email=email, user_category=user_category, agency_id=ag.agency_id)
-    u.set_password(password)
-    try:
-        db.session.add(u)
-        db.session.commit()
-        flash('User created successfully.')
-    except Exception:
-        db.session.rollback()
-        logging.exception('[AGENCY PORTAL] Create user failed')
-        flash('Could not create user. Please try again later.')
-    return redirect(url_for('agency_portal'))
-
-@app.route('/admin/agency/<int:agency_id>/create_account', methods=['POST'])
-@login_required
-def admin_create_agency_account(agency_id: int):
-    # Only admin can create agency accounts
+def monitor_progress():
     if not isinstance(current_user, Admin):
         return redirect(url_for('login'))
-    ag = db.session.get(Agency, agency_id)
-    if not ag:
-        flash('Agency not found.', 'warning')
-        return redirect(url_for('admin_agencies'))
-    if not ag.email:
-        flash('Agency email is required to create a login.', 'warning')
-        return redirect(url_for('admin_agencies'))
-    # Ensure uniqueness of email
-    if AgencyAccount.query.filter_by(email=ag.email).first():
-        flash('An account with this email already exists.', 'info')
-        return redirect(url_for('admin_agencies'))
-    acct = AgencyAccount(agency_id=ag.agency_id, email=ag.email)
-    acct.set_password('Agency#' + str(ag.agency_id))
-    db.session.add(acct)
-    db.session.commit()
-    flash('Agency login created. Temporary password set.', 'success')
-    return redirect(url_for('admin_agencies'))
-
-@app.route('/admin_course_management')
-@login_required
-def admin_course_management():
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
+    from types import SimpleNamespace as _SN
+    q = (request.args.get('q') or '').strip().lower()
+    agency_id = request.args.get('agency_id')
+    course_id = request.args.get('course_id')
+    status_filter = (request.args.get('status') or '').strip().lower()
     try:
-        courses = Course.query.order_by(Course.code.asc()).all()
-        course_modules = {}
-        for c in courses:
-            course_modules[c.course_id] = _series_sort(list(c.modules))
-    except Exception:
-        logging.exception('[ADMIN COURSE MGMT] Failed to load courses/modules')
-        courses = []
-        course_modules = {}
-    return render_template('admin_course_management.html', courses=courses, course_modules=course_modules)
-
-@app.route('/admin_users')
-@login_required
-def admin_users():
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
-    q = (request.args.get('q') or '').strip()
-    role = (request.args.get('role') or 'all').strip().lower()  # all|user|trainer|admin
-    status = (request.args.get('status') or 'all').strip().lower()  # for trainers
+        min_progress = float(request.args.get('min_progress')) if request.args.get('min_progress') not in (None, '',) else None
+    except ValueError:
+        min_progress = None
     try:
-        agency_id = int(request.args.get('agency_id')) if request.args.get('agency_id') else None
-    except Exception:
-        agency_id = None
-
-    users = []; trainers = []; admins = []
-    try:
-        if role in ('all', 'user'):
-            uq = User.query
-            if agency_id:
-                uq = uq.filter(User.agency_id == agency_id)
-            if q:
-                like = f"%{q}%"; from sqlalchemy import or_
-                uq = uq.filter(or_(User.full_name.ilike(like), User.email.ilike(like), db.func.coalesce(User.number_series, '').ilike(like)))
-            users = uq.order_by(User.full_name.asc()).all()
-    except Exception:
-        logging.exception('[ADMIN USERS] Users load failed')
-        users = []
-    try:
-        if role in ('all', 'trainer'):
-            tq = Trainer.query
-            if status in ('active', 'inactive'):
-                want = (status == 'active')
-                tq = tq.filter(Trainer.active_status.is_(want))
-            if q:
-                like = f"%{q}%"; from sqlalchemy import or_
-                tq = tq.filter(or_(Trainer.name.ilike(like), Trainer.email.ilike(like), db.func.coalesce(Trainer.number_series, '').ilike(like), db.func.coalesce(Trainer.contact_number, '').ilike(like), db.func.coalesce(Trainer.course, '').ilike(like)))
-            trainers = tq.order_by(Trainer.name.asc()).all()
-    except Exception:
-        logging.exception('[ADMIN USERS] Trainers load failed')
-        trainers = []
-    try:
-        if role in ('all', 'admin'):
-            aq = Admin.query
-            if q:
-                like = f"%{q}%"; from sqlalchemy import or_
-                aq = aq.filter(or_(Admin.username.ilike(like), Admin.email.ilike(like)))
-            admins = aq.order_by(Admin.username.asc()).all()
-    except Exception:
-        logging.exception('[ADMIN USERS] Admins load failed')
-        admins = []
-
-    merged_accounts = []
-    for u in users:
-        merged_accounts.append({'type': 'user','id': u.User_id,'number_series': u.number_series,'name': u.full_name,'email': u.email,'agency': getattr(u.agency, 'agency_name', None),'recruitment_date': u.recruitment_date,'active_status': True,'contact_number': None,'course': None})
-    for t in trainers:
-        merged_accounts.append({'type': 'trainer','id': t.trainer_id,'number_series': t.number_series,'name': t.name,'email': t.email,'agency': None,'recruitment_date': None,'active_status': t.active_status,'contact_number': t.contact_number,'course': t.course,'availability': getattr(t, 'availability', None)})
-    for a in admins:
-        merged_accounts.append({'type': 'admin','id': a.admin_id,'number_series': None,'name': a.username,'email': a.email,'agency': None,'recruitment_date': None,'active_status': True,'contact_number': None,'course': None,'availability': None})
-    merged_accounts.sort(key=lambda x: (x['name'] or '').lower())
-
+        max_progress = float(request.args.get('max_progress')) if request.args.get('max_progress') not in (None, '',) else None
+    except ValueError:
+        max_progress = None
     try:
         agencies = Agency.query.order_by(Agency.agency_name.asc()).all()
     except Exception:
         agencies = []
-
-    filters = {'q': q, 'role': role, 'status': status, 'agency_id': agency_id}
-    return render_template('admin_users.html', merged_accounts=merged_accounts, agencies=agencies, filters=filters)
-
-@app.route('/admin_certificates')
-@login_required
-def admin_certificates():
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
     try:
-        certs = Certificate.query.order_by(Certificate.issue_date.desc()).all()
+        courses_q = Course.query
+        if course_id:
+            try:
+                courses_q = courses_q.filter(Course.course_id == int(course_id))
+            except ValueError:
+                pass
+        courses = courses_q.order_by(Course.name.asc()).all()
     except Exception:
-        logging.exception('[ADMIN CERTIFICATES] Load failed')
-        certs = []
+        courses = []
     try:
-        template_path = os.path.join(app.root_path, 'static', 'cert_templates', 'Training_cert.pdf')
-        cert_template_url = url_for('static', filename='cert_templates/Training_cert.pdf') if os.path.exists(template_path) else None
+        users_q = User.query
+        if agency_id:
+            try:
+                users_q = users_q.filter(User.agency_id == int(agency_id))
+            except ValueError:
+                pass
+        users = users_q.all()
     except Exception:
-        cert_template_url = None
-    return render_template('admin_certificates.html', certificates=certs, cert_template_url=cert_template_url)
-
-@app.route('/admin/certificates/upload_template', methods=['POST'])
-@login_required
-def upload_cert_template():
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
+        users = []
+    rows = []
     try:
-        f = request.files.get('cert_template')
-        if not f or not getattr(f, 'filename', ''):
-            flash('No file selected.', 'warning')
-            return redirect(url_for('admin_certificates'))
-        target_dir = os.path.join(app.root_path, 'static', 'cert_templates')
-        os.makedirs(target_dir, exist_ok=True)
-        filename = 'Training_cert.pdf' if f.filename.lower().endswith('.pdf') else secure_filename(f.filename)
-        f.save(os.path.join(target_dir, filename))
-        flash('Certificate template uploaded.', 'success')
+        for u in users:
+            agency_name = getattr(getattr(u, 'agency', None), 'agency_name', '')
+            for c in courses:
+                mods = c.modules
+                total_modules = len(mods)
+                if total_modules == 0:
+                    progress_pct = 0.0
+                    completed_modules = 0
+                    avg_score = None
+                else:
+                    module_ids = [m.module_id for m in mods]
+                    user_module_q = UserModule.query.filter(
+                        UserModule.user_id == u.User_id,
+                        UserModule.module_id.in_(module_ids)
+                    )
+                    completed_modules = user_module_q.filter(UserModule.is_completed.is_(True)).count()
+                    scores = [um.score for um in user_module_q.filter(UserModule.is_completed.is_(True)).all() if um.score is not None]
+                    avg_score = round(sum(scores)/len(scores), 1) if scores else None
+                    progress_pct = round((completed_modules / total_modules) * 100.0, 1) if total_modules else 0.0
+                status = 'Completed' if total_modules and progress_pct >= 100.0 else 'In Progress'
+                if q:
+                    hay = ' '.join([
+                        (u.full_name or '').lower(),
+                        (u.email or '').lower(),
+                        agency_name.lower(),
+                        c.name.lower(),
+                        c.code.lower()
+                    ])
+                    if q not in hay:
+                        continue
+                if status_filter in ('in_progress', 'completed') and status.lower().replace(' ', '_') != status_filter:
+                    continue
+                if min_progress is not None and progress_pct < min_progress:
+                    continue
+                if max_progress is not None and progress_pct > max_progress:
+                    continue
+                rows.append({
+                    'user_name': u.full_name,
+                    'course_name': c.name,
+                    'course_code': c.code,
+                    'agency_name': agency_name,
+                    'completed_modules': completed_modules,
+                    'total_modules': total_modules,
+                    'progress_pct': progress_pct,
+                    'avg_score': avg_score,
+                    'status': status,
+                })
     except Exception:
-        logging.exception('[ADMIN CERTIFICATES] Upload failed')
-        flash('Failed to upload template.', 'danger')
-    return redirect(url_for('admin_certificates'))
-
-@app.route('/admin/certificates/delete_bulk', methods=['POST'])
-@login_required
-def delete_certificates_bulk():
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
+        logging.exception('[MONITOR PROGRESS] Failed building rows')
+        rows = []
     try:
-        ids = request.form.getlist('cert_ids')
-        ids_int = [int(x) for x in ids if str(x).strip().isdigit()]
-        if ids_int:
-            Certificate.query.filter(Certificate.certificate_id.in_(ids_int)).delete(synchronize_session=False)
-            db.session.commit()
-            flash(f'Deleted {len(ids_int)} certificate(s).', 'success')
+        rows.sort(key=lambda r: (-r['progress_pct'], r['user_name'].lower()))
+    except Exception:
+        pass
+    filters = _SN(q=q, agency_id=(int(agency_id) if agency_id and agency_id.isdigit() else None), course_id=(int(course_id) if course_id and course_id.isdigit() else None), status=status_filter, min_progress=min_progress, max_progress=max_progress)
+    return render_template('monitor_progress.html', course_progress_rows=rows, agencies=agencies, courses=courses, filters=filters)
+
+@app.route('/modules/<course_code>')
+@login_required
+def course_modules(course_code):
+    """Render modules for a given course code.
+    Supports two data models:
+      1. New model where modules are linked via course_id
+      2. Legacy model where module.module_type stores the course code
+    Also provides synthetic course when Course row missing but legacy modules exist.
+    """
+    code = (course_code or '').strip().upper()
+    if not code:
+        from flask import abort
+        return abort(404)
+    try:
+        course = Course.query.filter(db.func.lower(db.func.trim(Course.code)) == code.lower()).first()
+    except Exception:
+        course = None
+    try:
+        if course:
+            modules_q = Module.query.filter(or_(Module.course_id == course.course_id, db.func.lower(db.func.trim(Module.module_type)) == course.code.lower()))
         else:
-            flash('No certificates selected.', 'info')
+            # Legacy-only fallback: no course row yet
+            modules_q = Module.query.filter(db.func.lower(db.func.trim(Module.module_type)) == code.lower())
+        modules = modules_q.all()
     except Exception:
-        db.session.rollback()
-        logging.exception('[ADMIN CERTIFICATES] Bulk delete failed')
-        flash('Failed to delete selected certificates.', 'danger')
-    return redirect(url_for('admin_certificates'))
-
-@app.route('/admin_agencies')
-@login_required
-def admin_agencies():
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
+        logging.exception('[COURSE MODULES] DB error loading modules for %s', code)
+        modules = []
+    if not modules and not course:
+        from flask import abort
+        return abort(404)
+    # Build user progress map
+    user_progress_rows = []
+    if isinstance(current_user, User):
+        try:
+            mod_ids = [m.module_id for m in modules]
+            if mod_ids:
+                user_progress_rows = UserModule.query.filter(UserModule.user_id == current_user.User_id, UserModule.module_id.in_(mod_ids)).all()
+        except Exception:
+            logging.exception('[COURSE MODULES] Failed loading user progress')
+            user_progress_rows = []
+    user_progress = {um.module_id: um for um in user_progress_rows}
+    # Sort modules (uses helper that handles natural series ordering)
     try:
-        ags = Agency.query.order_by(Agency.agency_name.asc()).all()
+        modules_sorted = _series_sort(modules)
     except Exception:
-        logging.exception('[ADMIN AGENCIES] Load failed')
-        ags = []
-    return render_template('admin_agencies.html', agencies=ags)
-
-@app.route('/admin/agency/add', methods=['POST'])
-@login_required
-def add_agency():
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
+        modules_sorted = modules
+    # Unlock logic: first always unlocked; subsequent unlocked if previous completed
+    prev_completed = True  # first module unlocked even if no previous
+    for idx, m in enumerate(modules_sorted):
+        um = user_progress.get(m.module_id)
+        unlocked = (idx == 0) or prev_completed
+        # Attach transient attribute for template
+        try:
+            setattr(m, 'unlocked', bool(unlocked))
+        except Exception:
+            pass
+        prev_completed = bool(um and um.is_completed)
+    # Compute overall percentage (average of completed module scores)
+    overall_percentage = None
     try:
-        a = Agency(
-            agency_name=(request.form.get('agency_name') or '').strip(),
-            PIC=(request.form.get('PIC') or '').strip(),
-            contact_number=(request.form.get('contact_number') or '').strip(),
-            email=(request.form.get('email') or '').strip(),
-            address=(request.form.get('address') or '').strip(),
-            Reg_of_Company=(request.form.get('Reg_of_Company') or '').strip(),
-        )
-        if not a.agency_name:
-            flash('Agency name is required.', 'warning')
-            return redirect(url_for('admin_agencies'))
-        db.session.add(a)
+        completed_scores = [ (user_progress.get(m.module_id).score) for m in modules_sorted if user_progress.get(m.module_id) and user_progress.get(m.module_id).is_completed and user_progress.get(m.module_id).score is not None ]
+        if completed_scores:
+            overall_percentage = round(sum(completed_scores)/len(completed_scores), 1)
+    except Exception:
+        overall_percentage = None
+    course_name = course.name if course else f"{code} Course"
+    return render_template('course_modules.html', course_name=course_name, modules=modules_sorted, overall_percentage=overall_percentage, user_progress=user_progress)
+
+@app.route('/api/check_module_disclaimer/<int:module_id>')
+@login_required
+def api_check_module_disclaimer(module_id):
+    try:
+        m = Module.query.get(module_id)
+        if not m:
+            return jsonify(success=False, message='Module not found'), 404
+        # Non-user roles bypass disclaimer gating (treat as agreed)
+        if not isinstance(current_user, User):
+            return jsonify(success=True, has_agreed=True)
+        agreed = current_user.has_agreed_to_module_disclaimer(module_id)
+        return jsonify(success=True, has_agreed=agreed)
+    except Exception as e:
+        logging.exception('[DISCLAIMER CHECK] Failed')
+        return jsonify(success=False, message='Server error'), 500
+
+@app.route('/api/agree_module_disclaimer/<int:module_id>', methods=['POST'])
+@login_required
+def api_agree_module_disclaimer(module_id):
+    try:
+        m = Module.query.get(module_id)
+        if not m:
+            return jsonify(success=False, message='Module not found'), 404
+        if not isinstance(current_user, User):
+            return jsonify(success=False, message='Only users can agree to disclaimers'), 403
+        if current_user.has_agreed_to_module_disclaimer(module_id):
+            return jsonify(success=True, already=True)
+        current_user.agree_to_module_disclaimer(module_id)
+        return jsonify(success=True, agreed=True)
+    except Exception:
+        logging.exception('[DISCLAIMER AGREE] Failed')
+        return jsonify(success=False, message='Server error'), 500
+
+@app.route('/module/<int:module_id>/quiz')
+@login_required
+def module_quiz(module_id):
+    """Render the quiz player for a module."""
+    m = Module.query.get(module_id)
+    if not m:
+        from flask import abort
+        return abort(404)
+    # Optional course context (new model) or infer from module_type
+    course = None
+    try:
+        if m.course_id:
+            course = Course.query.get(m.course_id)
+        if not course and m.module_type:
+            course = Course.query.filter(Course.code.ilike(m.module_type)).first()
+    except Exception:
+        course = None
+    # Fetch/create user progress row (do not mark completed here)
+    user_module = None
+    try:
+        if isinstance(current_user, User):
+            user_module = UserModule.query.filter_by(user_id=current_user.User_id, module_id=m.module_id).first()
+    except Exception:
+        user_module = None
+    return render_template('quiz_take.html', module=m, course=course, user_module=user_module)
+
+# --- QUIZ API HELPERS ---
+import json as _json
+
+
+def _parse_quiz_json(raw):
+    """Robustly parse/normalize stored quiz JSON.
+    Accepts:
+      - JSON string (list or dict)
+      - Python list or dict (if DB column is JSON type)
+      - bytes/bytearray
+    Normalized output: list[ { 'text': str, 'answers': [ {'text':str, 'isCorrect':bool}, ... ] } ]
+    """
+    # Empty/None => no quiz
+    if raw is None or raw == '':
+        return []
+
+    data = raw
+    # Decode bytes and try JSON
+    if isinstance(raw, (bytes, bytearray)):
+        try:
+            data = _json.loads(raw.decode('utf-8'))
+        except Exception:
+            return []
+    elif isinstance(raw, str):
+        # If it's a string, try to parse JSON; if it fails, consider no quiz
+        try:
+            data = _json.loads(raw)
+        except Exception:
+            return []
+
+    normalized = []
+
+    # Helper to normalize an answer entry to dict
+    def norm_answer(a):
+        if isinstance(a, dict):
+            text = str(a.get('text', '')).strip()
+            is_correct = bool(a.get('isCorrect') or a.get('correct') or a.get('is_correct') or False)
+            return {'text': text, 'isCorrect': is_correct}
+        # if answer is a string or other primitive, assume incorrect
+        return {'text': str(a).strip(), 'isCorrect': False}
+
+    # If it's already a list of questions
+    if isinstance(data, list):
+        for item in data:
+            if not item:
+                continue
+            q_text = ''
+            answers = []
+            if isinstance(item, dict):
+                q_text = str(item.get('text') or item.get('question') or '').strip()
+                raw_answers = item.get('answers') or item.get('choices') or item.get('options') or []
+                if isinstance(raw_answers, list):
+                    answers = [norm_answer(a) for a in raw_answers if str(a).strip() != '']
+            elif isinstance(item, str):
+                q_text = item.strip()
+                answers = []
+            if q_text and answers:
+                normalized.append({'text': q_text, 'answers': answers})
+        return normalized
+
+    # Legacy flat dict parser (e.g., keys q1, q1_a1, q1_a1_correct)
+    if isinstance(data, dict):
+        # Newer nested structure: { "questions": [ { question, answers, correct }, ... ] }
+        try:
+            questions_list = None
+            if isinstance(data.get('questions'), list):
+                questions_list = data.get('questions')
+            elif isinstance(data.get('quiz'), list):
+                questions_list = data.get('quiz')
+            elif isinstance(data.get('items'), list):
+                questions_list = data.get('items')
+            if questions_list is not None:
+                for q in questions_list:
+                    if not isinstance(q, dict):
+                        # Allow simple strings as questions (no answers)
+                        if isinstance(q, str) and q.strip():
+                            # skip since no answers provided
+                            continue
+                        else:
+                            continue
+                    q_text = str(q.get('text') or q.get('question') or '').strip()
+                    raw_answers = q.get('answers') or q.get('choices') or q.get('options') or []
+                    # Normalize answers, which may be strings
+                    ans = []
+                    if isinstance(raw_answers, list):
+                        ans = [norm_answer(a) for a in raw_answers if str(a).strip() != '']
+                    # Mark correct answer by index if provided
+                    correct_val = q.get('correct')
+                    if correct_val is None:
+                        correct_val = q.get('correctIndex') if q.get('correctIndex') is not None else q.get('correct_index')
+                    cidx = None
+                    # Accept ints or numeric strings; support 1-based and 0-based
+                    try:
+                        if isinstance(correct_val, str) and correct_val.strip().isdigit():
+                            correct_val = int(correct_val.strip())
+                        if isinstance(correct_val, (int, float)):
+                            ci = int(correct_val)
+                            if ans:
+                                if 1 <= ci <= len(ans):
+                                    cidx = ci - 1
+                                elif 0 <= ci < len(ans):
+                                    cidx = ci
+                    except Exception:
+                        cidx = None
+                    if ans and cidx is not None and 0 <= cidx < len(ans):
+                        # Reset all flags then set the correct one
+                        for i in range(len(ans)):
+                            ans[i]['isCorrect'] = (i == cidx)
+                    if q_text and ans:
+                        normalized.append({'text': q_text, 'answers': ans})
+                return normalized
+        except Exception:
+            # Fall through to legacy flat dict parser below
+            pass
+
+        grouped = {}
+        for k, v in data.items():
+            kstr = str(k)
+            # q1 -> question text
+            m = re.match(r'^\s*q(\d+)\s*$', kstr, re.I)
+            if m:
+                idx = int(m.group(1))
+                grouped.setdefault(idx, {})['text'] = str(v).strip() if v is not None else ''
+                continue
+            # q1_a1 or q1_answer1 -> answer text
+            m = re.match(r'^\s*q(\d+)[\._-]*a(?:nswer)?(\d+)\s*$', kstr, re.I)
+            if m:
+                qi = int(m.group(1)); ai = int(m.group(2))
+                grp = grouped.setdefault(qi, {})
+                ans_list = grp.setdefault('answers', {})
+                ans_list[ai] = {'text': str(v).strip() if v is not None else '', 'isCorrect': ans_list.get(ai, {}).get('isCorrect', False)}
+                continue
+            # q1_a1_correct or q1_a1_isCorrect
+            m = re.match(r'^\s*q(\d+)[\._-]*a(\d+)[\._-]*(correct|iscorrect|is_correct|true)\s*$', kstr, re.I)
+            if m:
+                qi = int(m.group(1)); ai = int(m.group(2))
+                grp = grouped.setdefault(qi, {})
+                ans_list = grp.setdefault('answers', {})
+                entry = ans_list.setdefault(ai, {})
+                try:
+                    sval = str(v).strip().lower() if v is not None else 'true'
+                except Exception:
+                    sval = 'true'
+                entry['isCorrect'] = sval in ('1', 'true', 'yes', 'y', 'on')
+                continue
+
+        for qk in sorted(grouped.keys()):
+            g = grouped[qk]
+            q_text = str(g.get('text', '')).strip()
+            answers_map = g.get('answers', {})
+            answers = []
+            for aidx in sorted(answers_map.keys()):
+                a = answers_map[aidx]
+                text = str(a.get('text', '')).strip()
+                is_correct = bool(a.get('isCorrect', False))
+                if text:
+                    answers.append({'text': text, 'isCorrect': is_correct})
+            if q_text and answers:
+                normalized.append({'text': q_text, 'answers': answers})
+        return normalized
+
+    # Unknown structure
+    return []
+
+@app.route('/api/load_quiz/<int:module_id>')
+@login_required
+def api_load_quiz(module_id):
+    m = Module.query.get(module_id)
+    if not m:
+        return jsonify({'success': False, 'message': 'Module not found'}), 404
+
+    raw = getattr(m, 'quiz_json', None)
+    # Log raw DB value and its type to help debugging
+    try:
+        preview = raw if isinstance(raw, (str, int, float, bool, list, dict, type(None))) else '[non-primitive]'
+    except Exception:
+        preview = '[unserializable]'
+    logging.debug('[API LOAD QUIZ] module_id=%s raw_type=%s raw_value=%s', module_id, type(raw).__name__, preview)
+
+    quiz = _parse_quiz_json(raw)
+    logging.debug('[API LOAD QUIZ] parsed_count=%d', len(quiz))
+
+    payload = {'success': True, 'quiz': quiz}
+    if app.debug:
+        # include raw only in debug mode
+        payload['raw'] = preview
+    return jsonify(payload)
+
+@app.route('/api/save_quiz_answers/<int:module_id>', methods=['POST'])
+@login_required
+def api_save_quiz_answers(module_id):
+    try:
+        # Only regular users persist quiz answers
+        if not isinstance(current_user, User):
+            return jsonify(success=False, message='Only users can save answers'), 403
+        m = Module.query.get(module_id)
+        if not m:
+            return jsonify(success=False, message='Module not found'), 404
+        payload = request.get_json(silent=True) or {}
+        answers = payload.get('answers')
+        if not isinstance(answers, list):
+            return jsonify(success=False, message='Invalid answers payload'), 400
+        # Ensure a UserModule row exists
+        um = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
+        if not um:
+            um = UserModule(user_id=current_user.User_id, module_id=module_id, is_completed=False)
+            db.session.add(um)
+        # Persist as JSON text
+        try:
+            um.quiz_answers = json.dumps(answers)
+        except Exception:
+            return jsonify(success=False, message='Failed to serialize answers'), 400
         db.session.commit()
-        flash('Agency added.', 'success')
+        return jsonify(success=True)
     except Exception:
+        logging.exception('[API SAVE QUIZ ANSWERS] Failed')
         db.session.rollback()
-        logging.exception('[ADMIN AGENCIES] Add failed')
-        flash('Failed to add agency.', 'danger')
-    return redirect(url_for('admin_agencies'))
+        return jsonify(success=False, message='Server error'), 500
 
-@app.route('/admin/agency/<int:agency_id>/edit', methods=['POST'])
+
+@app.route('/api/user_quiz_answers/<int:module_id>')
 @login_required
-def edit_agency(agency_id: int):
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
+def api_get_user_quiz_answers(module_id):
     try:
-        ag = db.session.get(Agency, agency_id)
-        if not ag:
-            flash('Agency not found.', 'warning')
-            return redirect(url_for('admin_agencies'))
-        ag.agency_name = (request.form.get('agency_name') or ag.agency_name).strip()
-        ag.PIC = (request.form.get('PIC') or ag.PIC).strip()
-        ag.contact_number = (request.form.get('contact_number') or ag.contact_number).strip()
-        ag.email = (request.form.get('email') or ag.email).strip()
-        ag.address = (request.form.get('address') or ag.address).strip()
-        ag.Reg_of_Company = (request.form.get('Reg_of_Company') or ag.Reg_of_Company).strip()
-        db.session.commit()
-        flash('Agency updated.', 'success')
+        if not isinstance(current_user, User):
+            return jsonify([])
+        um = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
+        if not um or not um.quiz_answers:
+            return jsonify([])
+        try:
+            data = json.loads(um.quiz_answers)
+            if isinstance(data, list):
+                return jsonify(data)
+        except Exception:
+            pass
+        return jsonify([])
     except Exception:
-        db.session.rollback()
-        logging.exception('[ADMIN AGENCIES] Edit failed')
-        flash('Failed to update agency.', 'danger')
-    return redirect(url_for('admin_agencies'))
+        logging.exception('[API GET QUIZ ANSWERS] Failed')
+        return jsonify([])
 
-# -------------------------------------------------------------------------------
-# Allow running this file directly: `python app.py`
+
+@app.route('/api/submit_quiz/<int:module_id>', methods=['POST'])
+@login_required
+def api_submit_quiz(module_id):
+    try:
+        if not isinstance(current_user, User):
+            return jsonify(success=False, message='Only users can submit quizzes'), 403
+        m = Module.query.get(module_id)
+        if not m:
+            return jsonify(success=False, message='Module not found'), 404
+        quiz = _parse_quiz_json(getattr(m, 'quiz_json', None))
+        if not quiz:
+            return jsonify(success=False, message='No quiz available for this module'), 404
+        payload = request.get_json(silent=True) or {}
+        answers = payload.get('answers') or []
+        is_reattempt = bool(payload.get('is_reattempt'))
+        # Compute correct indices for each question
+        correct_indices = []
+        for q in quiz:
+            idx = None
+            ans_list = q.get('answers') or []
+            for i, a in enumerate(ans_list):
+                if isinstance(a, dict) and a.get('isCorrect'):
+                    idx = i
+                    break
+            correct_indices.append(idx)
+        total = len(correct_indices)
+        # Compare up to min length
+        correct = 0
+        for i in range(min(len(answers), total)):
+            try:
+                sel = answers[i]
+                if isinstance(sel, str) and sel.isdigit():
+                    sel = int(sel)
+                if isinstance(sel, (int, float)):
+                    if correct_indices[i] is not None and int(sel) == int(correct_indices[i]):
+                        correct += 1
+            except Exception:
+                continue
+        score_pct = int(round((correct / total) * 100)) if total else 0
+        # Upsert UserModule row and persist
+        um = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
+        if not um:
+            um = UserModule(user_id=current_user.User_id, module_id=module_id)
+            db.session.add(um)
+        # Increment reattempt count if explicitly flagged
+        if is_reattempt:
+            try:
+                um.reattempt_count = (um.reattempt_count or 0) + 1
+            except Exception:
+                um.reattempt_count = 1
+        # Save answers, completion, score (keep best score)
+        try:
+            um.quiz_answers = json.dumps(answers)
+        except Exception:
+            pass
+        um.is_completed = True
+        um.completion_date = datetime.now(UTC)
+        if um.score is None or score_pct > int(um.score):
+            um.score = score_pct
+        db.session.commit()
+        # Grade letter derived from per-module reattempt_count
+        grade_letter = um.get_grade_letter() if hasattr(um, 'get_grade_letter') else 'A'
+        return jsonify(success=True, score=score_pct, total=total, correct=correct, grade_letter=grade_letter, reattempt_count=(um.reattempt_count or 0))
+    except Exception:
+        logging.exception('[API SUBMIT QUIZ] Failed')
+        db.session.rollback()
+        return jsonify(success=False, message='Server error'), 500
+
+@app.route('/upload_content', methods=['GET', 'POST'])
+@login_required
+def upload_content():
+    """Trainer-facing content upload endpoint. Renders a form to upload slides, add YouTube URL, or save a quiz.
+    POST will handle basic validation and persist files to UPLOAD_CONTENT_FOLDER and update Module fields.
+    """
+    # Only trainers (or admins) should access this; existing project uses 'Trainer' role check elsewhere
+    try:
+        # Gather modules available to the trainer (simple approach: show all modules)
+        modules = Module.query.order_by(Module.module_name).all()
+    except Exception:
+        modules = []
+
+    if request.method == 'GET':
+        # Render upload form
+        return render_template('upload_content.html', modules=[m.to_dict() for m in modules])
+
+    # POST - process submitted content
+    module_id = request.form.get('module_id') or request.form.get('module')
+    content_type = request.form.get('content_type')
+    if not module_id:
+        flash('Please select a module.', 'danger')
+        return redirect(url_for('upload_content'))
+
+    module = Module.query.filter_by(module_id=module_id).first()
+    if not module:
+        flash('Selected module not found.', 'danger')
+        return redirect(url_for('upload_content'))
+
+    # Handle slide upload
+    if content_type == 'slide' or 'slide_file' in request.files:
+        slide = request.files.get('slide_file')
+        if slide and slide.filename:
+            filename = secure_filename(slide.filename)
+            # Ensure extension allowed
+            if not is_slide_file(filename):
+                flash('Slide must be a PDF or PPTX file.', 'danger')
+                return redirect(url_for('upload_content'))
+            # Avoid collisions by prefixing timestamp
+            name, ext = os.path.splitext(filename)
+            safe_name = f"{int(datetime.utcnow().timestamp())}_{name}{ext}"
+            # Save into the configured uploads folder under the app root to match serving logic
+            dest_dir = os.path.join(app.root_path, UPLOAD_CONTENT_FOLDER)
+            os.makedirs(dest_dir, exist_ok=True)
+            dest = os.path.join(dest_dir, safe_name)
+            try:
+                slide.save(dest)
+                # Save relative path/filename to module.slide_url
+                module.slide_url = safe_name
+                db.session.commit()
+                flash('Slide uploaded successfully.', 'success')
+            except Exception as e:
+                db.session.rollback()
+                logging.exception('Failed to save slide file')
+                flash('Failed to save slide file.', 'danger')
+                return redirect(url_for('upload_content'))
+        else:
+            flash('No slide file selected.', 'warning')
+
+    # Handle YouTube URL
+    if content_type == 'video' or request.form.get('youtube_url'):
+        youtube_url = request.form.get('youtube_url')
+        if youtube_url:
+            # Basic extract/validation
+            vid = extract_youtube_id(youtube_url)
+            if not vid:
+                flash('Invalid YouTube URL provided.', 'danger')
+                return redirect(url_for('upload_content'))
+            module.youtube_url = youtube_url.strip()
+            try:
+                db.session.commit()
+                flash('YouTube URL saved.', 'success')
+            except Exception:
+                db.session.rollback()
+                flash('Failed to save YouTube URL.', 'danger')
+                return redirect(url_for('upload_content'))
+
+    # Handle Quiz content
+    if content_type == 'quiz' or any(k.startswith('quiz_question_') for k in request.form.keys()):
+        # Build quiz JSON from form fields
+        quiz = {'questions': []}
+        try:
+            # Determine how many questions were supplied (max 5)
+            for qn in range(1, 6):
+                qtext = request.form.get(f'quiz_question_{qn}')
+                if not qtext:
+                    continue
+                answers = []
+                for an in range(1, 6):
+                    a = request.form.get(f'answer_{qn}_{an}')
+                    if a:
+                        answers.append(a)
+                correct = request.form.get(f'correct_answer_{qn}')
+                try:
+                    correct_idx = int(correct) - 1 if correct else None
+                except Exception:
+                    correct_idx = None
+                quiz['questions'].append({
+                    'question': qtext,
+                    'answers': answers,
+                    'correct_index': correct_idx
+                })
+            module.quiz_json = json.dumps(quiz)
+            db.session.commit()
+            flash('Quiz saved to module.', 'success')
+        except Exception:
+            db.session.rollback()
+            logging.exception('Failed to save quiz')
+            flash('Failed to save quiz content.', 'danger')
+            return redirect(url_for('upload_content'))
+
+    # After processing, redirect back to trainer portal
+    return redirect(url_for('trainer_portal'))
+
+# Provide a convenient direct-run entrypoint so running `app.py` in an IDE or
+# from the command line starts the development server. The project already
+# includes `run_server.py`, but many IDEs run the file directly which used to
+# only initialize and exit. This block mirrors `run_server.py`'s sensible defaults.
 if __name__ == '__main__':
-    try:
-        port = int(os.environ.get('PORT', 5000))
-    except Exception:
-        port = 5000
-    debug = os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1', 'yes', 'on')
-    host = os.environ.get('HOST', '0.0.0.0')
-    print(f"[SERVER] Starting Flask development server on http://{host}:{port} (debug={debug})")
-    app.run(host=host, port=port, debug=debug, threaded=True)
+    import argparse
+    parser = argparse.ArgumentParser(description='Run the Training System Flask App (direct from app.py)')
+    parser.add_argument('--port', type=int, default=None, help='Port to run on')
+    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    parser.add_argument('--host', default=None, help='Host to bind to')
+    args = parser.parse_args()
+
+    port = args.port or int(os.environ.get('PORT', 5000))
+    debug = args.debug or os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1', 'yes', 'on')
+    host = args.host or os.environ.get('FLASK_RUN_HOST', '127.0.0.1')
+
+    print('=' * 60)
+    print('🚀 TRAINING SYSTEM - FLASK APPLICATION (app.py direct runner)')
+    print('=' * 60)
+    print(f'🌐 URL: http://{host}:{port}/')
+    print(f'🔧 Debug Mode: {debug}')
+    print(f'📁 Working Directory: {os.getcwd()}')
+    print('=' * 60)
+
+    # Start the Flask dev server
+    app.run(host=host, port=port, debug=debug, threaded=True, use_reloader=debug)
+

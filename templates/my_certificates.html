@@ -15,64 +15,75 @@
         {% if certificates %}
             <div class="row">
                 {% for certificate in certificates %}
+                    {% set is_approved = (certificate.status == 'approved') %}
+                    {% set header_class = 'bg-success text-white' if is_approved else 'bg-warning text-dark' %}
                     <div class="col-md-6 mb-3">
                         <div class="card">
-                            <div class="card-header bg-success text-white">
-                                <h5 class="mb-0">
-                                    <i class="fas fa-award"></i> Certificate of Completion
-                                </h5>
+                            <div class="card-header {{ header_class }}">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-award"></i>
+                                        {% if is_approved %}Certificate of Completion{% else %}Certificate Request{% endif %}
+                                    </h5>
+                                    <span class="badge {% if is_approved %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                        {% if is_approved %}Approved{% else %}Pending{% endif %}
+                                    </span>
+                                </div>
                             </div>
                             <div class="card-body">
-                                <!-- Modified image section: Only show if image exists -->
-                                {% if certificate.module.quiz_image and certificate.module.quiz_image|trim %}
+                                {# Optional image preview if present #}
+                                {% if certificate.module and certificate.module.quiz_image and certificate.module.quiz_image|trim %}
                                 <div class="mb-3 text-center" style="border:2px dashed #ccc; min-height:190px; display:flex; align-items:center; justify-content:center; background:#f8f9fa;">
                                     <img src="{{ url_for('static', filename='uploads/' ~ certificate.module.quiz_image) }}" alt="Quiz Image" class="img-fluid rounded" style="max-height:180px;">
                                 </div>
                                 {% endif %}
 
-                                {# <h6 class="card-title">{{ certificate.module.module_name }}</h6> #}
-                                <p class="card-text">
-                                    {# Display full module type name based on value #}
-                                    {% set module_type_map = {
-                                        'TNG': 'NEPAL SECURITY GUARD TRAINING (TNG)',
-                                        'CSG': 'CERTIFIED SECURITY GUARD (CSG)',
-                                    } %}
-                                    <strong>{{ module_type_map.get(certificate.module_type, certificate.module_type) }}</strong><br>
-                                    <strong>Issue Date:</strong> {{ certificate.issue_date.strftime('%B %d, %Y') }}<br>
-                                    <strong>Star Rating:</strong>
-                                    {% set percent = certificate.score if certificate.score is not none else 0 %}
-                                    {% if percent < 20 %}
-                                        {% set stars = 1 %}
-                                    {% elif percent < 40 %}
-                                        {% set stars = 2 %}
-                                    {% elif percent < 60 %}
-                                        {% set stars = 3 %}
-                                    {% elif percent < 70 %}
-                                        {% set stars = 4 %}
-                                    {% else %}
-                                        {% set stars = 5 %}
+                                {# Course info #}
+                                {% set module_type_map = {
+                                    'TNG': 'NEPAL SECURITY GUARD TRAINING (TNG)',
+                                    'CSG': 'CERTIFIED SECURITY GUARD (CSG)'
+                                } %}
+                                <p class="card-text mb-2">
+                                    <strong>{{ module_type_map.get(certificate.module_type, certificate.module_type) }}</strong>
+                                </p>
+
+                                <p class="card-text mb-2">
+                                    <strong>Issue Date:</strong> {{ certificate.issue_date.strftime('%B %d, %Y') }}
+                                    {% if is_approved and certificate.approved_at %}
+                                        <br><strong>Approved At:</strong> {{ certificate.approved_at.strftime('%Y-%m-%d %H:%M') }}
                                     {% endif %}
-                                    <span>
-                                        {% for i in range(stars) %}
-                                            <span style="color: gold; font-size: 1.2em;">&#9733;</span>
-                                        {% endfor %}
-                                        {% for i in range(5 - stars) %}
-                                            <span style="color: #ccc; font-size: 1.2em;">&#9733;</span>
-                                        {% endfor %}
-                                    </span>
-                                    {# Show overall percentage and grade beneath #}
-                                    <br>
-                                    <strong>Overall Percentage:</strong> {{ percent }}%<br>
+                                    {% if is_approved and certificate.approved_by %}
+                                        <br><strong>Approved By:</strong> {{ certificate.approved_by.full_name }}
+                                    {% endif %}
+                                </p>
+
+                                {# Overall percentage and course grade rounded up to 2 decimals #}
+                                {% set raw_percent = certificate.score if certificate.score is not none else 0 %}
+                                {% set pct_up2 = (raw_percent|float)|round(2, 'ceil') %}
+                                <p class="card-text mb-3">
+                                    <strong>Overall Percentage:</strong> {{ "%.2f"|format(pct_up2) }}%<br>
                                     {% set course_grade = certificate.user.get_overall_grade_for_course(certificate.module_type) %}
                                     <strong>Course Grade:</strong> {{ course_grade }}
                                 </p>
-                                {% set raw_cert_url = certificate.certificate_url if certificate.certificate_url else 'certificate_' ~ certificate.user_id ~ '_' ~ certificate.module_type ~ '.pdf' %}
-                                {% set clean_cert_url = raw_cert_url.replace('static/certificates/', '').replace('static\\certificates\\', '').replace('static\\certificates/', '').replace('static/certificates\\', '').replace('static/', '').replace('static\\', '').replace('certificates/', '').replace('certificates\\', '') %}
-                                {% set clean_cert_url = clean_cert_url.replace('\\', '/') %}
-                                {% set cert_url = url_for('static', filename='certificates/' ~ clean_cert_url) %}
-                                <a href="{{ cert_url }}" class="btn btn-primary" target="_blank">
-                                    <i class="fas fa-download"></i> Download Certificate
-                                </a>
+
+                                {# Actions: Download when URL exists; else Generate if approved; else Awaiting Approval #}
+                                {% if is_approved and certificate.certificate_url %}
+                                    {% set raw_cert_url = certificate.certificate_url %}
+                                    {% set clean_cert_url = raw_cert_url.replace('static/certificates/', '').replace('static\\certificates\\', '').replace('static\\certificates/', '').replace('static/certificates\\', '').replace('static/', '').replace('static\\', '').replace('certificates/', '').replace('certificates\\', '') %}
+                                    {% set clean_cert_url = clean_cert_url.replace('\\', '/') %}
+                                    {% set cert_url = url_for('static', filename='certificates/' ~ clean_cert_url) %}
+                                    <a href="{{ cert_url }}" class="btn btn-primary" target="_blank">
+                                        <i class="fas fa-download"></i> Download Certificate
+                                    </a>
+                                {% elif is_approved and not certificate.certificate_url %}
+                                    <a href="{{ url_for('generate_and_download_certificate', certificate_id=certificate.certificate_id) }}" class="btn btn-success">
+                                        <i class="fas fa-file-pdf"></i> Generate &amp; Download
+                                    </a>
+                                {% else %}
+                                    <button class="btn btn-secondary" disabled title="Awaiting authority approval">
+                                        <i class="fas fa-clock"></i> Awaiting Approval
+                                    </button>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -81,7 +92,7 @@
         {% else %}
             <div class="alert alert-info">
                 <h5><i class="fas fa-info-circle"></i> No Certificates Yet</h5>
-                <p>You haven't earned any certificates yet. Complete modules with a passing score (>50%) to earn certificates.</p>
+                <p>You haven't earned any certificates yet. Complete modules with a passing score (>50%) to earn certificates, then submit for approval.</p>
                 <a href="{{ safe_url_for('user_dashboard') }}" class="btn btn-primary">
                     <i class="fas fa-arrow-left"></i> Back to Dashboard
                 </a>

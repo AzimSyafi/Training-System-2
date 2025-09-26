@@ -3,8 +3,22 @@
 {% block content %}
 <div class="container">
     <div class="p-4">
-        <h2><i class="fas fa-certificate"></i> Certificate Management</h2>
+        <h2 class="mb-3 d-flex align-items-center gap-3">
+            <span><i class="fas fa-certificate"></i> Certificate Management</span>
+            <small class="text-muted">{{ (certificates|length) if certificates else 0 }} result{{ '' if certificates and (certificates|length)==1 else 's' }}</small>
+        </h2>
 
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">{{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <!-- Upload Certificate Template -->
         <div class="card mb-4">
             <div class="card-body">
                 <h5>Upload Certificate Template</h5>
@@ -22,6 +36,60 @@
             </div>
         </div>
 
+        <!-- Filters (moved below upload section) -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <form method="get" action="{{ url_for('admin_certificates') }}" class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label" for="cf_q">Search</label>
+                        <input id="cf_q" type="text" class="form-control" name="q" placeholder="User, Agency, Course, Module" value="{{ (filters.q if filters else request.args.get('q')) or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="cf_agency">Agency</label>
+                        {% set selected_ag = filters.agency_id if filters else request.args.get('agency_id') %}
+                        <select id="cf_agency" class="form-select" name="agency_id">
+                            <option value="" {% if not selected_ag %}selected{% endif %}>All agencies</option>
+                            {% for a in (agencies or []) %}
+                                <option value="{{ a.agency_id }}" {% if selected_ag and (selected_ag|int == a.agency_id) %}selected{% endif %}>{{ a.agency_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="cf_course">Course</label>
+                        {% set selected_course = filters.course_id if filters else request.args.get('course_id') %}
+                        <select id="cf_course" class="form-select" name="course_id">
+                            <option value="" {% if not selected_course %}selected{% endif %}>All courses</option>
+                            {% for c in (courses or []) %}
+                                <option value="{{ c.course_id }}" {% if selected_course and (selected_course|int == c.course_id) %}selected{% endif %}>{{ c.name }} ({{ c.code }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="cf_date_from">Issue date range</label>
+                        <div class="input-group">
+                            <input id="cf_date_from" type="date" class="form-control" name="date_from" value="{{ (filters.date_from if filters else request.args.get('date_from')) or '' }}" aria-label="Issue date from">
+                            <span class="input-group-text">-</span>
+                            <input id="cf_date_to" type="date" class="form-control" name="date_to" value="{{ (filters.date_to if filters else request.args.get('date_to')) or '' }}" aria-label="Issue date to">
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="cf_min_score">Score % range</label>
+                        <div class="input-group">
+                            {% set min_s = (filters.min_score if filters is defined else request.args.get('min_score')) %}
+                            {% set max_s = (filters.max_score if filters is defined else request.args.get('max_score')) %}
+                            <input id="cf_min_score" type="number" class="form-control" name="min_score" min="0" max="100" step="1" placeholder="Min" value="{{ min_s if min_s is not none else '' }}" aria-label="Min score percent">
+                            <span class="input-group-text">-</span>
+                            <input id="cf_max_score" type="number" class="form-control" name="max_score" min="0" max="100" step="1" placeholder="Max" value="{{ max_s if max_s is not none else '' }}" aria-label="Max score percent">
+                        </div>
+                    </div>
+                    <div class="col-12 d-flex gap-2 mt-1">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Apply</button>
+                        <a href="{{ url_for('admin_certificates') }}" class="btn btn-outline-secondary">Reset</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         {% if certificates %}
             <div class="card">
                 <div class="card-body">
@@ -30,7 +98,7 @@
                         <table class="table table-striped">
                             <thead>
                                 <tr>
-                                    <th><input type="checkbox" id="select-all"></th>
+                                    <th><input type="checkbox" id="select-all" aria-label="Select all certificates"></th>
                                     <th>Certificate ID</th>
                                     <th>User</th>
                                     <th>Module Type</th>
@@ -42,7 +110,7 @@
                             <tbody>
                                 {% for certificate in certificates %}
                                 <tr>
-                                    <td><input type="checkbox" name="cert_ids" value="{{ certificate.certificate_id }}"></td>
+                                    <td><input type="checkbox" name="cert_ids" value="{{ certificate.certificate_id }}" aria-label="Select certificate {{ certificate.certificate_id }}"></td>
                                     <td>{{ certificate.certificate_id }}</td>
                                     <td>{{ certificate.user.full_name }}</td>
                                     <td>{{ certificate.module_type }}</td>

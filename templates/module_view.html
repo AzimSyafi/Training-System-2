@@ -102,7 +102,7 @@
                             <select class="form-select" id="moduleSelect" name="module_id" required>
                               <option value="" disabled selected>Select a module</option>
                               {% for m in modules %}
-                                <option value="{{ m.id }}">{{ m.module_name }}</option>
+                                <option value="{{ m.module_id }}">{{ m.module_name }}</option>
                               {% endfor %}
                             </select>
                           </div>
@@ -388,7 +388,8 @@
 
                   fetch(`/api/load_quiz/${moduleId}`)
                     .then(res => res.json())
-                    .then(quiz => {
+                    .then(payload => {
+                      const quiz = Array.isArray(payload) ? payload : (Array.isArray(payload.quiz) ? payload.quiz : []);
                       if (!quiz || !Array.isArray(quiz) || quiz.length === 0) {
                         quizFormContainer.innerHTML = '<div class="alert alert-info">No quiz available for this module.</div>';
                         return;

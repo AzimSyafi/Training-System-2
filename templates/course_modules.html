@@ -121,7 +121,7 @@
                 <div class="alert alert-success mb-3 p-2 text-sm">Quiz completed. You can review or reattempt in the Quiz Player.</div>
               {% endif %}
               <p class="text-gray-600 mb-3">Test your understanding of the video content with this interactive quiz.</p>
-              <a href="{{ url_for('module_quiz', module_id=module.module_id) }}" class="btn btn-primary btn-lg">
+              <a href="/module/{{ module.module_id }}/quiz" class="btn btn-primary btn-lg">
                 <i class="fas fa-play me-1"></i> Open Quiz Player
               </a>
             </div>

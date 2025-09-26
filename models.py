@@ -168,13 +168,24 @@ class User(UserMixin, db.Model):
     visa_number = db.Column(db.String(50))
     ic_number = db.Column(db.String(50), nullable=True)  # Required for citizens
     passport_number = db.Column(db.String(50), nullable=True)  # Required for foreigners
+    # New: country of citizenship (for foreigners at signup)
+    country = db.Column(db.String(100), nullable=True)
     # New column to track module disclaimer agreements (JSON format: {"module_id": timestamp})
     module_disclaimer_agreements = db.Column(db.Text, default='{}')
+    # New: role field for authority approvals (default agency)
+    role = db.Column(db.String(50), nullable=False, default='agency')
 
     # Relationship
-    certificates = db.relationship('Certificate', backref='user', lazy=True)
+    certificates = db.relationship(
+        'Certificate',
+        backref='user',
+        lazy=True,
+        foreign_keys='Certificate.user_id'
+    )
     user_modules = db.relationship('UserModule', backref='user', lazy=True)
     work_histories = db.relationship('WorkHistory', back_populates='user', lazy=True)
+    # Approvals made by this user
+    approvals_made = db.relationship('Certificate', backref='approved_by', lazy=True, foreign_keys='Certificate.approved_by_id')
 
     @property
     def profile_pic_url(self):
@@ -386,6 +397,10 @@ class Certificate(db.Model):
     issue_date = db.Column(db.Date, nullable=False)
     score = db.Column(db.Float, default=0.0)
     certificate_url = db.Column(db.String(255))
+    # New approval fields
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    approved_by_id = db.Column(db.Integer, db.ForeignKey('user.User_id'), nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
 
     def generateCertificate(self):
         # Generate certificate URL/path
@@ -427,6 +442,25 @@ class Trainer(UserMixin, db.Model):
         if self.password_hash:
             return check_password_hash(self.password_hash, password)
         return False
+
+    # Template-friendly properties for sidebar/header
+    @property
+    def username(self):
+        # Use display name for trainers
+        return self.name or self.email
+
+    @property
+    def profile_pic(self):
+        # Base template checks truthiness only; return stored filename if any
+        return self.profile_image
+
+    @property
+    def profile_pic_url(self):
+        # Mirror User.profile_pic_url behavior for consistency
+        from flask import url_for
+        if self.profile_image:
+            return url_for('serve_upload', filename=self.profile_image)
+        return None
 
 class UserModule(db.Model):
     __tablename__ = 'user_module'
@@ -525,6 +559,14 @@ class Registration:
             agency_id=user_data['agency_id'],
             is_finalized=False
         )
+        # Optional initial IDs and country at signup
+        if 'ic_number' in user_data:
+            user.ic_number = user_data.get('ic_number')
+        if 'passport_number' in user_data:
+            user.passport_number = user_data.get('passport_number')
+        if 'country' in user_data:
+            user.country = user_data.get('country')
+
         user.set_password(user_data['password'])
 
         # Define these variables outside try-except so they're always available
@@ -565,8 +607,16 @@ class WorkHistory(db.Model):
     position_title = db.Column(db.String(255))
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
+    # New fields to align with requested work_experiences schema
+    recruitment_date = db.Column(db.Date)
+    visa_number = db.Column(db.String(50))
+    visa_expiry_date = db.Column(db.Date)
 
     user = db.relationship('User', back_populates='work_histories')
+
+    @property
+    def position(self):
+        return self.position_title
 
     def to_dict(self):
         return {
@@ -575,5 +625,22 @@ class WorkHistory(db.Model):
             'company_name': self.company_name,
             'position_title': self.position_title,
             'start_date': self.start_date.isoformat() if self.start_date else None,
-            'end_date': self.end_date.isoformat() if self.end_date else None
+            'end_date': self.end_date.isoformat() if self.end_date else None,
+            'recruitment_date': self.recruitment_date.isoformat() if self.recruitment_date else None,
+            'visa_number': self.visa_number,
+            'visa_expiry_date': self.visa_expiry_date.isoformat() if self.visa_expiry_date else None
         }
+
+class ApprovalAudit(db.Model):
+    __tablename__ = 'approval_audit'
+
+    id = db.Column(db.Integer, primary_key=True)
+    certificate_id = db.Column(db.Integer, db.ForeignKey('certificate.certificate_id'), nullable=False)
+    approved_by_id = db.Column(db.Integer, db.ForeignKey('user.User_id'), nullable=False)
+    approved_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    status_before = db.Column(db.String(20), nullable=False)
+    status_after = db.Column(db.String(20), nullable=False)
+    note = db.Column(db.String(255))
+
+    certificate = db.relationship('Certificate', backref='approval_audits')
+    approver = db.relationship('User', foreign_keys=[approved_by_id])

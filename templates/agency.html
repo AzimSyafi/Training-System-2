@@ -1,34 +1,44 @@
 {% extends "base.html" %}
+
 {% block content %}
-<div class="max-w-2xl mx-auto p-4">
-  <h2 class="text-2xl font-bold mb-6 text-blue-900">Agency Contact Details</h2>
-  {% for agency in agencies %}
-  <div class="bg-white rounded-xl shadow p-6 flex flex-col gap-6 mb-4">
-    <div>
-      <div class="text-gray-500 text-sm">Agency Name</div>
-      <div class="font-semibold text-lg">{{ agency.agency_name or 'Default Security Agency' }}</div>
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-building"></i> Agency Information</h2>
+        <div>
+            <a href="{{ safe_url_for('user_dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
     </div>
-    <div>
-      <div class="text-gray-500 text-sm">Contact Person</div>
-      <div class="font-semibold text-lg">{{ agency.PIC or 'John Doe' }}</div>
+
+    <div class="p-4">
+        {% if agency %}
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-building"></i> {{ agency.agency_name }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Contact Information</h6>
+                            <p><strong>Contact Number:</strong> {{ agency.contact_number or 'Not provided' }}</p>
+                            <p><strong>Email:</strong> {{ agency.email or 'Not provided' }}</p>
+                            <p><strong>Person In Charge:</strong> {{ agency.PIC or 'Not provided' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Company Details</h6>
+                            <p><strong>Registration:</strong> {{ agency.Reg_of_Company or 'Not provided' }}</p>
+                            <p><strong>Address:</strong> {{ agency.address or 'Not provided' }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-warning">
+                <h5><i class="fas fa-exclamation-triangle"></i> No Agency Information</h5>
+                <p>No agency information is available for your account.</p>
+            </div>
+        {% endif %}
     </div>
-    <div>
-      <div class="text-gray-500 text-sm">Phone</div>
-      <div class="font-semibold text-lg">{{ agency.contact_number or '+1234567890' }}</div>
-    </div>
-    <div>
-      <div class="text-gray-500 text-sm">Email</div>
-      <div class="font-semibold text-lg">{{ agency.email or 'contact@defaultagency.com' }}</div>
-    </div>
-    <div>
-      <div class="text-gray-500 text-sm">Address</div>
-      <div class="font-semibold text-lg">{{ agency.address or '123 Security Street, Safety City' }}</div>
-    </div>
-    <div>
-      <div class="text-gray-500 text-sm">Registration No.</div>
-      <div class="font-semibold text-lg">{{ agency.Reg_of_Company or 'REG123456' }}</div>
-    </div>
-  </div>
-  {% endfor %}
 </div>
 {% endblock %}

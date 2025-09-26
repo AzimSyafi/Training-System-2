@@ -142,7 +142,7 @@
       if (saveInFlight) return;
       if (!Array.isArray(answers) || answers.length === 0) return;
       saveInFlight = true; setStatusSaving();
-      const res = await fetch(`/api/save_quiz_answers/${moduleId}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({answers}) });
+      const res = await fetch(`/api/save_quiz_answers/${moduleId}`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify({answers}) });
       const data = await res.json().catch(()=>({}));
       if (res.ok && data && data.success){ setStatusSaved(); } else { statusLabel.textContent = 'Save failed'; }
     }catch{ statusLabel.textContent = 'Save error'; }
@@ -231,7 +231,12 @@
     const payload = {answers: answers, is_reattempt: isReattempt};
     btnSubmit.disabled = true; btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting...';
     try{
-      const r = await fetch(`/api/submit_quiz/${moduleId}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      const r = await fetch(`/api/submit_quiz/${moduleId}`, {method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify(payload)});
+      const ctype = (r.headers.get('content-type') || '').toLowerCase();
+      if (!ctype.includes('application/json')){
+        const text = await r.text();
+        throw new Error(`Unexpected response (status ${r.status}). First bytes: ${text.slice(0,120)}`);
+      }
       const data = await r.json();
       if(!data.success){
         alert(data.message || 'Submission failed'); btnSubmit.disabled = false; btnSubmit.innerHTML = '<i class="fas fa-check me-1"></i>Submit'; return;
@@ -327,28 +332,76 @@
   });
 
   async function fetchQuiz(){
+    console.log('Fetching quiz for module:', moduleId); // Debug log
+
+    // Check if moduleId is valid
+    if (!moduleId || moduleId === 0) {
+      console.error('Invalid module ID:', moduleId);
+      noQuiz.classList.remove('d-none');
+      noQuiz.innerHTML = '<div class="alert alert-warning">Invalid module ID. Please navigate back and try again.</div>';
+      document.getElementById('quiz-container').classList.add('d-none');
+      countdownEl.textContent='--';
+      return;
+    }
+
     try{
-      const data = await fetch(`/api/load_quiz/${moduleId}`).then(r=>r.json());
-      if(!Array.isArray(data) || data.length === 0){
-        noQuiz.classList.remove('d-none'); document.getElementById('quiz-container').classList.add('d-none'); countdownEl.textContent='--'; return;
+      const response = await fetch(`/api/load_quiz/${moduleId}`, { credentials:'same-origin' });
+      console.log('Quiz API response status:', response.status); // Debug log
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      quiz = data; answers = new Array(quiz.length).fill(null);
+
+      const payload = await response.json();
+      const data = Array.isArray(payload) ? payload : (Array.isArray(payload.quiz) ? payload.quiz : []);
+      console.log('Quiz data received:', data); // Debug log
+
+      if(!Array.isArray(data) || data.length === 0){
+        console.log('No quiz data found, showing no-quiz message'); // Debug log
+        noQuiz.classList.remove('d-none');
+        noQuiz.innerHTML = '<div class="alert alert-info">No quiz questions are available for this module yet. Please check back later or contact your administrator.</div>';
+        document.getElementById('quiz-container').classList.add('d-none');
+        countdownEl.textContent='--';
+        return;
+      }
+
+      console.log('Quiz loaded successfully, questions:', data.length); // Debug log
+      quiz = data;
+      answers = new Array(quiz.length).fill(null);
+
       try{ // Load saved answers
-        const saved = await fetch(`/api/user_quiz_answers/${moduleId}`).then(r=>r.json()).catch(()=>[]);
-        if (Array.isArray(saved) && saved.length){ for(let i=0;i<Math.min(saved.length, answers.length);i++){ const v = saved[i]; answers[i] = (typeof v==='number')? v : answers[i]; } setStatusSaved(); }
+        const saved = await fetch(`/api/user_quiz_answers/${moduleId}`, { credentials:'same-origin' }).then(r=>r.json()).catch(()=>[]);
+        if (Array.isArray(saved) && saved.length){
+          for(let i=0;i<Math.min(saved.length, answers.length);i++){
+            const v = saved[i];
+            answers[i] = (typeof v==='number')? v : answers[i];
+          }
+          setStatusSaved();
+        }
       }catch{}
+
       updateUI();
+
       if(isCompleted){
         // Show review mode
-        const a = await fetch(`/api/user_quiz_answers/${moduleId}`).then(r=>r.json()).catch(()=>[]);
-        if(Array.isArray(a)){ answers = a; renderReview(); document.getElementById('quiz-container').classList.add('d-none'); countdownEl.textContent='--'; }
+        const a = await fetch(`/api/user_quiz_answers/${moduleId}`, { credentials:'same-origin' }).then(r=>r.json()).catch(()=>[]);
+        if(Array.isArray(a)){
+          answers = a;
+          renderReview();
+          document.getElementById('quiz-container').classList.add('d-none');
+          countdownEl.textContent='--';
+        }
       } else {
         statusLabel.textContent = 'In progress';
         // Ensure progress bar visible during active quiz
         if (progressWrap) progressWrap.classList.remove('d-none');
       }
-    }catch{
-      noQuiz.classList.remove('d-none'); noQuiz.textContent = 'Could not load quiz at this time.'; document.getElementById('quiz-container').classList.add('d-none'); countdownEl.textContent='--';
+    }catch(error){
+      console.error('Error fetching quiz:', error); // Debug log
+      noQuiz.classList.remove('d-none');
+      noQuiz.innerHTML = `<div class="alert alert-danger">Could not load quiz at this time. Error: ${error.message}<br><small>Check the browser console for more details.</small></div>`;
+      document.getElementById('quiz-container').classList.add('d-none');
+      countdownEl.textContent='--';
     }
   }
 
