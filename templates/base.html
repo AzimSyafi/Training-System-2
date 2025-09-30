@@ -177,6 +177,21 @@
         .profile-menu button:hover, .profile-menu a:hover { background: var(--nav-tabs-link-hover-bg, #f1f5f9); }
         .profile-menu .logout { color:#ef4444; }
         body.dark-mode .profile-menu { background:var(--card-bg); color:var(--text-color); }
+        /* Make profile/logout menu solid white on the trainer portal (override dark-mode transparency) */
+        body.trainer-page .profile-menu,
+        html.darkmode body.trainer-page .profile-menu,
+        body.dark-mode.trainer-page .profile-menu {
+            background: #ffffff !important;
+            color: #111827 !important;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.12) !important;
+        }
+        body.trainer-page .profile-menu button, body.trainer-page .profile-menu a { color: inherit; }
+        body.trainer-page .profile-menu button:hover, body.trainer-page .profile-menu a:hover { background: #f1f5f9 !important; }
+        /* Force logout text/icon to red even where trainer-page overrides color */
+        .profile-menu .logout { color: #ef4444 !important; }
+        body.trainer-page .profile-menu .logout { color: #ef4444 !important; }
+        /* Ensure the icon inside logout is explicitly red (for some icon/font setups) */
+        .profile-menu .logout i, body.trainer-page .profile-menu .logout i { color: #ef4444 !important; }
         @media (max-width:768px){
             .profile-menu { left:50% !important; top:auto !important; bottom: env(safe-area-inset-bottom, 16px); transform:translate(-50%,4px); width: min(260px,90vw); }
             .profile-menu.open { transform:translate(-50%,0); }
@@ -256,7 +271,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     {% block styles %}{% endblock %}
 </head>
-<body class="{% if request.endpoint in ['index','login','signup','onboarding','module_quiz'] %}no-sidebar{% endif %}{% if request.endpoint == 'agency_portal' %} agency-page{% endif %}">
+<body class="{% if request.endpoint in ['index','login','signup','onboarding','module_quiz'] %}no-sidebar{% endif %}{% if request.endpoint == 'agency_portal' %} agency-page{% endif %}{% if request.endpoint == 'trainer_portal' %} trainer-page{% endif %}">
     {% if request.endpoint not in ['index','login','signup','onboarding'] %}
     <div class="sidebar" id="sidebar" aria-label="Main Sidebar">
         <button id="sidebar-toggle" aria-expanded="true" aria-controls="sidebar" type="button">
@@ -299,14 +314,14 @@
         {% if current_user.is_authenticated %}
         <div class="profile-block" id="profileBlock">
             <button class="profile-trigger" id="profileTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="profileMenu">
-                <div class="profile-avatar">
+                <span class="profile-avatar">
                     {% if current_user.profile_pic %}
                         <img src="{{ current_user.profile_pic_url }}" alt="User avatar">
                     {% else %}
                         {{ current_user.username[0]|upper }}
                     {% endif %}
-                </div>
-                <div class="profile-text"><span class="user-name link-text">{{ current_user.username }}</span></div>
+                </span>
+                <span class="profile-text"><span class="user-name link-text">{{ current_user.username }}</span></span>
             </button>
         </div>
         {% endif %}

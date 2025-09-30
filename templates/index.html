@@ -1,146 +1,377 @@
-{% extends "base.html" %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Security Personnel Training System</title>
 
-{% block content %}
-<style>
-  html, body {
-    height: 100%;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-  }
-  body {
-    min-height: 100vh;
-  }
-  .main-content {
-    flex: 1;
-  }
-  .footer {
-    width: 100%;
-    margin-top: auto;
-    left: 0;
-    right: 0;
-    box-shadow: 0 -2px 16px rgba(0,0,0,0.07);
-    background: linear-gradient(90deg, #f8fafc 0%, #e3e7ed 100%);
-  }
-  @media (max-width: 768px) {
-    .footer .container {
-      flex-direction: column !important;
-      text-align: center !important;
-      gap: 1rem;
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome for icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    :root{
+      --blue-700: #0b58d6;
+      --blue-600: #1977ff;
+      --blue-500: #2a8cff;
+      --green-500: #28a745;
+      --yellow-500: #f0ad4e;
+      --bg-gradient-start: #0f3c7a;
+      --bg-gradient-end: #2b8cff;
+      --card-shadow: 0 6px 18px rgba(18,38,63,0.08);
+      --radius: 12px;
+      --max-width: 1200px;
     }
-  }
-</style>
 
-<div class="main-content">
-  <!-- Centered Landing Page Content -->
-  <div class="d-flex flex-column justify-content-center align-items-center h-100">
-    <!-- Hero Section -->
-    <div class="jumbotron bg-primary text-white text-center py-5 mb-4 rounded w-100">
-        <div class="container">
-            <h1 class="display-4"><i class="fas fa-shield-alt"></i> Security Personnel Training System</h1>
-            <p class="lead">Comprehensive training platform for security professionals</p>
-            <hr class="my-4">
-            <p>Complete modules, earn certificates, and advance your security career</p>
-            {% if not current_user.is_authenticated %}
-                <a class="btn btn-light btn-lg me-3" href="{{ url_for('signup') }}" role="button">
-                    <i class="fas fa-user-plus"></i> Get Started
-                </a>
-                <a class="btn btn-outline-light btn-lg" href="{{ url_for('login') }}" role="button">
-                    <i class="fas fa-sign-in-alt"></i> Login
-                </a>
-            {% endif %}
-        </div>
-    </div>
+    html,body{
+      height:100%;
+      margin:0;
+      font-family: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color:#0f1724;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      background: #f7f9fc;
+    }
 
-    <!-- Features Section -->
-    <div class="row mb-5 w-100 justify-content-center">
-        <div class="col-md-4">
-            <div class="card h-100 text-center">
-                <div class="card-body">
-                    <i class="fas fa-book-open fa-3x text-primary mb-3"></i>
-                    <h5 class="card-title">Interactive Modules</h5>
-                    <p class="card-text">Comprehensive training modules covering all aspects of security work</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card h-100 text-center">
-                <div class="card-body">
-                    <i class="fas fa-certificate fa-3x text-success mb-3"></i>
-                    <h5 class="card-title">Certification</h5>
-                    <p class="card-text">Earn recognized certificates upon successful completion</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card h-100 text-center">
-                <div class="card-body">
-                    <i class="fas fa-chart-line fa-3x text-warning mb-3"></i>
-                    <h5 class="card-title">Progress Tracking</h5>
-                    <p class="card-text">Monitor your learning progress and performance</p>
-                </div>
-            </div>
-        </div>
-    </div>
+    .container{
+      width:90%;
+      max-width:var(--max-width);
+      margin:0 auto;
+    }
 
-    <!-- Training Process -->
-    <div class="w-100">
-        <h2 class="text-center mb-4">Training Process</h2>
-        <div class="row justify-content-center">
-            <div class="col-md-2 text-center">
-                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                    <i class="fas fa-user-plus"></i>
-                </div>
-                <p class="mt-2">Sign Up</p>
-            </div>
-            <div class="col-md-2 text-center">
-                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                    <i class="fas fa-graduation-cap"></i>
-                </div>
-                <p class="mt-2">Enroll</p>
-            </div>
-            <div class="col-md-2 text-center">
-                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                    <i class="fas fa-book"></i>
-                </div>
-                <p class="mt-2">Study</p>
-            </div>
-            <div class="col-md-2 text-center">
-                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                    <i class="fas fa-tasks"></i>
-                </div>
-                <p class="mt-2">Assessment</p>
-            </div>
-            <div class="col-md-2 text-center">
-                <div class="bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                    <i class="fas fa-certificate"></i>
-                </div>
-                <p class="mt-2">Certificate</p>
-            </div>
-            <div class="col-md-2 text-center">
-                <div class="bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                    <i class="fas fa-trophy"></i>
-                </div>
-                <p class="mt-2">Complete</p>
-            </div>
-        </div>
-    </div>
-  </div>
-</div>
+    /* HERO */
+    .hero{
+      background: linear-gradient(120deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+      color: #fff;
+      padding: 64px 0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      border-bottom-left-radius: var(--radius);
+      border-bottom-right-radius: var(--radius);
+    }
 
-<footer class="footer bg-light border-top py-4 position-relative">
-  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center">
-    <div class="mb-2 mb-md-0 text-center text-md-start">
-      <span class="fw-bold" style="font-size: 1.1rem; color: #222;">&copy; 2025 SHAPADU SECURITY SDN BHD</span>
-      <span class="text-muted ms-2" style="font-size: 0.95rem;">All rights reserved.</span>
+    .hero-inner{
+      width:100%;
+      max-width:960px;
+      padding: 32px;
+    }
+
+    .hero-title{
+      font-size: clamp(1.8rem, 4vw, 3.2rem);
+      font-weight:700;
+      margin:0 0 12px;
+      letter-spacing: -0.5px;
+    }
+
+    .hero-sub{
+      font-size: clamp(1rem, 2vw, 1.15rem);
+      color: rgba(255,255,255,0.92);
+      margin:0 0 22px;
+      font-weight:500;
+    }
+
+    .hero-cta{
+      display:flex;
+      gap:12px;
+      justify-content:center;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+
+    /* Buttons */
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      padding:12px 20px;
+      border-radius:10px;
+      text-decoration:none;
+      font-weight:600;
+      transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+      box-shadow: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn:active{ transform: translateY(1px); }
+
+    .btn-get{
+      background: #fff;
+      color: var(--blue-700);
+      padding:12px 22px;
+      box-shadow: 0 8px 20px rgba(11,88,214,0.12);
+    }
+
+    .btn-get:hover{
+      transform: translateY(-4px) scale(1.01);
+      box-shadow: 0 18px 36px rgba(11,88,214,0.12);
+    }
+
+    .btn-login{
+      background: linear-gradient(180deg, var(--blue-600), var(--blue-700));
+      color:#fff;
+      padding:12px 22px;
+      box-shadow: 0 8px 20px rgba(17,49,114,0.18);
+    }
+
+    .btn-login:hover{
+      transform: translateY(-4px) scale(1.01);
+      box-shadow: 0 18px 36px rgba(11,88,214,0.18);
+    }
+
+    /* Features */
+    .features{
+      margin:36px 0;
+      display:grid;
+      grid-template-columns: repeat(3,1fr);
+      gap:18px;
+    }
+
+    .card{
+      background:#fff;
+      padding:22px;
+      border-radius:12px;
+      box-shadow: var(--card-shadow);
+      text-align:center;
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+
+    .card:hover{
+      transform: translateY(-8px);
+      box-shadow: 0 22px 40px rgba(15,23,36,0.06);
+    }
+
+    .card-icon{
+      display:inline-flex;
+      width:66px;
+      height:66px;
+      border-radius:14px;
+      align-items:center;
+      justify-content:center;
+      font-size:28px;
+      margin-bottom:14px;
+      color:#fff;
+      transition: transform .18s ease;
+    }
+
+    .card-title{
+      font-weight:700;
+      margin:6px 0;
+    }
+
+    .card-text{
+      color:#475569;
+      font-size:0.95rem;
+      margin:0;
+    }
+
+    .icon-blue{ background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)), var(--blue-500);}
+    .icon-green{ background: var(--green-500); }
+    .icon-yellow{ background: var(--yellow-500); }
+
+    /* Training Steps */
+    .process{
+      margin:36px 0 56px;
+      background: transparent;
+    }
+
+    .process-grid{
+      display:flex;
+      flex-wrap:wrap;
+      gap:14px;
+      justify-content:center;
+      align-items:stretch;
+    }
+
+    .step{
+      flex: 1 1 140px;
+      max-width:150px;
+      background:#fff;
+      border-radius:12px;
+      padding:14px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:8px;
+      box-shadow: var(--card-shadow);
+      transition: transform .18s ease, box-shadow .18s ease;
+      cursor:default;
+    }
+
+    .step:hover{
+      transform: translateY(-6px) scale(1.05);
+      box-shadow: 0 18px 36px rgba(8,22,48,0.06);
+    }
+
+    .step-circle{
+      width:56px;
+      height:56px;
+      border-radius:50%;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      font-size:20px;
+      color:#fff;
+    }
+
+    .step-label{
+      font-weight:600;
+      font-size:0.95rem;
+      text-align:center;
+      color:#0f1724;
+    }
+
+    .step-sub{
+      font-size:0.86rem;
+      color:#64748b;
+    }
+
+    /* Footer */
+    footer.site-footer{
+      padding:18px 0;
+      text-align:center;
+      color:#475569;
+      font-size:0.95rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px){
+      .features{ grid-template-columns: repeat(2,1fr); }
+      .card-icon{ width:56px; height:56px; font-size:24px; }
+    }
+
+    @media (max-width: 640px){
+      .hero{ padding:40px 0; }
+      .hero-inner{ padding: 16px; }
+      .features{ grid-template-columns: 1fr; }
+      .btn{ width:100%; justify-content:center; }
+      .btn-get, .btn-login { max-width:320px; }
+      .step{ flex: 1 1 46%; max-width:46%; }
+    }
+
+    @media (max-width:420px){
+      .step{ flex: 1 1 100%; max-width:100%; }
+    }
+
+    /* Small icon subtle hover scale */
+    .card-icon, .step-circle, .btn i{
+      transition: transform .18s ease;
+    }
+    .card:hover .card-icon, .step:hover .step-circle{
+      transform: scale(1.08);
+    }
+
+  </style>
+</head>
+<body>
+
+  <main>
+    <section class="hero" role="banner">
+      <div class="container hero-inner">
+        <h1 class="hero-title"><i class="fa-solid fa-shield-halved" style="margin-right:10px;"></i> Security Personnel Training System</h1>
+        <p class="hero-sub">Comprehensive training platform for security professionals — complete modules, earn certificates, and grow your career.</p>
+
+        <div class="hero-cta" aria-hidden="false">
+          <a class="btn btn-get" href="/signup" role="button" aria-label="Get Started">
+            <i class="fa-solid fa-user-plus" style="color: var(--blue-700);"></i>
+            Get Started
+          </a>
+          <a class="btn btn-login" href="/login" role="button" aria-label="Login">
+            <i class="fa-solid fa-right-to-bracket"></i>
+            Login
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="container" aria-labelledby="features-heading" style="padding-top:28px;">
+      <h2 id="features-heading" style="text-align:center; margin:0 0 18px; font-weight:700;">Features</h2>
+
+      <div class="features" role="list">
+        <div class="card" role="listitem">
+          <div class="card-icon icon-blue"><i class="fa-solid fa-book-open"></i></div>
+          <div class="card-title">Interactive Modules</div>
+          <p class="card-text">Comprehensive training modules covering practical scenarios and theory.</p>
+        </div>
+
+        <div class="card" role="listitem">
+          <div class="card-icon icon-green"><i class="fa-solid fa-medal"></i></div>
+          <div class="card-title">Certification</div>
+          <p class="card-text">Earn recognized certificates upon successful completion.</p>
+        </div>
+
+        <div class="card" role="listitem">
+          <div class="card-icon icon-yellow"><i class="fa-solid fa-chart-line"></i></div>
+          <div class="card-title">Progress Tracking</div>
+          <p class="card-text">Monitor your learning progress and performance over time.</p>
+        </div>
+      </div>
+
+      <div class="process" aria-labelledby="process-heading">
+        <h2 id="process-heading" style="text-align:center; font-weight:700; margin-top:28px;">Training Process</h2>
+
+        <div class="process-grid" style="margin-top:14px;">
+          <div class="step" title="Sign Up">
+            <div class="step-circle" style="background: var(--blue-500);"><i class="fa-solid fa-user-plus"></i></div>
+            <div class="step-label">Sign Up</div>
+            <div class="step-sub">Create an account</div>
+          </div>
+
+          <div class="step" title="Enroll">
+            <div class="step-circle" style="background: var(--blue-400, #3aa0ff);"><i class="fa-solid fa-graduation-cap"></i></div>
+            <div class="step-label">Enroll</div>
+            <div class="step-sub">Join a course</div>
+          </div>
+
+          <div class="step" title="Study">
+            <div class="step-circle" style="background: var(--blue-600);"><i class="fa-solid fa-book"></i></div>
+            <div class="step-label">Study</div>
+            <div class="step-sub">Complete modules</div>
+          </div>
+
+          <div class="step" title="Assessment">
+            <div class="step-circle" style="background: #6c5ce7;"><i class="fa-solid fa-list-check"></i></div>
+            <div class="step-label">Assessment</div>
+            <div class="step-sub">Pass tests</div>
+          </div>
+
+          <div class="step" title="Certificate">
+            <div class="step-circle" style="background: var(--green-500);"><i class="fa-solid fa-certificate"></i></div>
+            <div class="step-label">Certificate</div>
+            <div class="step-sub">Get certified</div>
+          </div>
+
+          <div class="step" title="Complete">
+            <div class="step-circle" style="background: var(--green-500);"><i class="fa-solid fa-trophy"></i></div>
+            <div class="step-label">Complete</div>
+            <div class="step-sub">Advance your career</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container" style="display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap;">
+      <strong style="font-size:1rem;">© 2025 SHAPADU SECURITY SDN BHD</strong>
+      <span style="color:#94a3b8;">All rights reserved.</span>
     </div>
-    <div class="d-flex flex-column flex-md-row align-items-center gap-2 gap-md-3 text-center text-md-end">
-      <span class="ms-md-3">
-        <a href="#" class="me-2" style="color: #495057;"><i class="bi bi-facebook"></i></a>
-        <a href="#" class="me-2" style="color: #495057;"><i class="bi bi-twitter"></i></a>
-        <a href="#" style="color: #495057;"><i class="bi bi-linkedin"></i></a>
-      </span>
-    </div>
-  </div>
-</footer>
-{% endblock %}
+  </footer>
+
+  <script>
+    // Small JS to enhance keyboard accessibility for CTA links (optional)
+    document.querySelectorAll('.btn').forEach(b => {
+      b.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          b.click();
+        }
+      });
+    });
+  </script>
+</body>
+</html>

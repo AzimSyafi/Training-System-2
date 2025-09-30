@@ -2,146 +2,164 @@
 
 {% block content %}
 <style>
+  :root {
+    --primary-color: #0d6efd;
+    --dark-bg: #071428; /* page background */
+    --panel-bg: #ffffff; /* login panel background */
+    --light-text: #f8f9fa;
+    --dark-text: #212529;
+    --body-font: 'Inter', sans-serif;
+  }
+
   html, body {
     height: 100%;
     margin: 0;
+    font-family: var(--body-font);
+    background: var(--dark-bg); /* dark page background */
+    color: var(--light-text);
   }
 
-  /* Make wrapper take full height and push footer to bottom */
-  .page-wrapper {
+  .login-split-screen {
     display: flex;
-    flex-direction: column;
     min-height: 100vh;
+    align-items: stretch;
   }
 
-  .main-content {
-    flex: 1; /* Fills remaining space, pushing footer down */
+  /* Left Side - Branding stays dark */
+  .login-brand-panel {
+    flex-basis: 50%;
+    background-image: linear-gradient(rgba(7,20,40,0.85), rgba(7,20,40,0.85)), url('https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=2070&auto=format&fit=crop');
+    background-size: cover;
+    background-position: center;
+    color: var(--light-text);
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 2rem;
   }
 
-  /* Footer */
-  .footer {
+  .login-brand-panel .brand-logo { font-size: 2rem; font-weight: 700; margin-bottom: 1rem; letter-spacing: 1px; }
+  .login-brand-panel .brand-tagline { font-size: 1.25rem; font-weight: 400; max-width: 400px; }
+
+  /* Right Side - keep form panel white and elevated */
+  .login-form-panel {
+    flex-basis: 50%;
+    background-color: var(--panel-bg); /* white login area */
+    color: var(--dark-text); /* dark text for readability */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 3rem;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: -20px 0 60px rgba(2,6,23,0.5); /* separation from dark background */
+  }
+
+  .login-form-wrapper {
+    max-width: 420px;
     width: 100%;
-    background: linear-gradient(90deg, #f8fafc 0%, #e3e7ed 100%);
-    box-shadow: 0 -2px 16px rgba(0,0,0,0.07);
+    margin: 0 auto;
+    background: transparent;
   }
 
-  @media (max-width: 768px) {
-    .footer .container {
-      flex-direction: column !important;
-      text-align: center !important;
-      gap: 1rem;
-    }
+  /* Form Element Styling */
+  .form-control {
+    padding: 0.85rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid #ced4da;
+    background: #fff;
+    color: var(--dark-text);
   }
 
-  /* Background shapes */
-  .blurred-shape {
+  .form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.25rem rgba(13,110,253,0.12);
+  }
+
+  .btn-primary {
+    padding: 0.85rem 1rem;
+    font-weight: 500;
+    border-radius: 0.5rem;
+  }
+
+  #togglePassword {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-color: #ced4da;
+    background: #fff;
+  }
+
+  .login-footer-note {
     position: absolute;
-    border-radius: 50%;
-    filter: blur(60px);
-    opacity: 0.3;
-    z-index: 0;
-  }
-  .shape-orange {
-    width: 300px;
-    height: 300px;
-    background: #fd7e14;
-    bottom: -100px;
-    left: -100px;
-  }
-  .shape-blue {
-    width: 200px;
-    height: 200px;
-    background: #0d6efd;
-    top: -80px;
-    right: -80px;
+    bottom: 1.5rem;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: #6c757d;
+    font-size: 0.875rem;
   }
 
-  .login-page-root {
-    z-index: 1;
+  /* Responsive */
+  @media (max-width: 768px) {
+    .login-split-screen { flex-direction: column; min-height: 100vh; }
+    .login-brand-panel { height: 220px; flex-basis: auto; }
+    .login-form-panel { flex-basis: auto; padding: 2rem 1.5rem; }
+    .login-footer-note { position: static; padding-top: 1.25rem; }
   }
 </style>
 
-<div class="page-wrapper">
-  <!-- Main content -->
-  <div class="main-content">
-    <!-- Top Navbar -->
-    <nav class="navbar navbar-light bg-light shadow-sm">
-      <div class="container d-flex justify-content-between align-items-center">
-        <a class="navbar-brand fw-bold" href="/">TRAINING SYSTEM</a>
-        <div>
-          <a href="{{ url_for('login') }}" class="btn btn-outline-primary me-2">Login</a>
-          <a href="{{ url_for('signup') }}" class="btn btn-outline-primary">Sign Up</a>
-        </div>
-      </div>
-    </nav>
+<div class="login-split-screen">
 
-    <!-- Background Shapes -->
-    <div class="blurred-shape shape-orange"></div>
-    <div class="blurred-shape shape-blue"></div>
+  <div class="login-brand-panel">
+    <div class="brand-logo">SHAPADU SECURITY</div>
+    <p class="brand-tagline">Security Personnel Training Platform</p>
+  </div>
 
-    <!-- Centered Form -->
-    <div class="flex-grow-1 d-flex align-items-center justify-content-center px-3 position-relative card-section" style="flex-direction: column; z-index:1;">
-      <div class="w-100 text-center mb-3">
-        <h1 class="fw-bold" style="color: black; font-size: 2.5rem;">Log in here</h1>
-        <p class="mt-2">
+  <div class="login-form-panel">
+    <div class="login-form-wrapper">
+
+      <div class="text-center mb-4">
+        <h1 class="fw-bold" style="font-size: 2.25rem;">Log In</h1>
+        <p class="text-muted mt-2">
           Don't have an account?
-          <a href="{{ url_for('signup') }}" style="color: #0d6efd; text-decoration: underline; font-size: 1.25rem; font-weight: 500;">Sign up here</a>
+          <a href="{{ url_for('signup') }}" class="fw-bold text-decoration-none">Sign up here</a>
         </p>
       </div>
-      <div class="card shadow-lg p-4 rounded-4" style="max-width: 400px; width: 100%;">
-        <div class="card-header text-center bg-white border-0">
-          <h3 class="mb-0"><i class="fas fa-sign-in-alt"></i> Login to Security Training</h3>
+
+      <form method="POST">
+        <div class="mb-3">
+          <label for="email" class="form-label">Email Address</label>
+          <input type="email" class="form-control" id="email" name="email" required placeholder="you@example.com">
         </div>
-        <div class="card-body">
-          <form method="POST">
-            <div class="mb-3">
-              <label for="email" class="form-label">Email Address</label>
-              <input type="email" class="form-control" id="email" name="email" required>
-            </div>
-            <div class="mb-3">
-              <label for="password" class="form-label">Password</label>
-              <div class="input-group">
-                <input type="password" class="form-control" id="password" name="password" required>
-                <button class="btn btn-outline-secondary" type="button" id="togglePassword" tabindex="-1">
-                  <i class="fas fa-eye"></i>
-                </button>
-              </div>
-            </div>
-            <button type="submit" class="btn btn-primary w-100">
-              <i class="fas fa-sign-in-alt"></i> Login
+        <div class="mb-4">
+          <label for="password" class="form-label">Password</label>
+          <div class="input-group">
+            <input type="password" class="form-control" id="password" name="password" required placeholder="Enter your password">
+            <button class="btn btn-outline-secondary" type="button" id="togglePassword" tabindex="-1">
+              <i class="fas fa-eye"></i>
             </button>
-          </form>
-        </div>
-        <div class="card-footer text-center bg-white border-0">
-          <div class="mt-3">
-            <a href="{{ url_for('index') }}" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Back to Home</a>
           </div>
         </div>
+        <button type="submit" class="btn btn-primary w-100 fs-5">
+          <i class="fas fa-sign-in-alt me-2"></i>Login
+        </button>
+      </form>
+
+      <div class="text-center mt-4">
+          <a href="{{ url_for('index') }}" class="btn btn-light border"><i class="fas fa-arrow-left me-2"></i>Back to Home</a>
       </div>
+    </div>
+    <div class="login-footer-note">
+      &copy; 2025 SHAPADU SECURITY SDN BHD. All rights reserved.
     </div>
   </div>
 
-  <!-- Footer -->
-  <footer class="footer border-top py-4">
-    <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center">
-      <div class="mb-2 mb-md-0 text-center text-md-start">
-        <span class="fw-bold" style="font-size: 1.1rem; color: #222;">&copy; 2025 SHAPADU SECURITY SDN BHD</span>
-        <span class="text-muted ms-2" style="font-size: 0.95rem;">All rights reserved.</span>
-      </div>
-      <div class="d-flex flex-column flex-md-row align-items-center gap-2 gap-md-3 text-center text-md-end">
-        <span class="ms-md-3">
-          <a href="#" class="me-2" style="color: #495057;"><i class="bi bi-facebook"></i></a>
-          <a href="#" class="me-2" style="color: #495057;"><i class="bi bi-twitter"></i></a>
-          <a href="#" style="color: #495057;"><i class="bi bi-linkedin"></i></a>
-        </span>
-      </div>
-    </div>
-  </footer>
 </div>
 
 <script>
+  
   document.addEventListener('DOMContentLoaded', function() {
     const togglePassword = document.getElementById('togglePassword');
     const passwordInput = document.getElementById('password');
