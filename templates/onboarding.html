@@ -88,15 +88,15 @@
             {% endif %}
           {% endwith %}
 
-          <form method="POST" action="{{ url_for('onboarding', step=step) }}" enctype="multipart/form-data">
+          <form method="POST" action="{{ url_for('onboarding', id=id, step=step) }}" enctype="multipart/form-data">
             <input type="hidden" name="step" value="{{ step }}">
 
             {% if s == 1 %}
               <h5 class="mb-3">Personal Details</h5>
               <div class="row g-3">
                 <div class="col-12">
-                  <label class="form-label">Full Name</label>
-                  <input class="form-control" type="text" name="full_name" value="{{ user.full_name or '' }}">
+                  <label for="full_name_onboard" class="form-label">Full Name</label>
+                  <input id="full_name_onboard" class="form-control" type="text" name="full_name" value="{{ user.full_name or '' }}">
                 </div>
                 <div class="col-12">
                   <label class="form-label">Citizenship</label>
@@ -110,16 +110,16 @@
                   </div>
                 </div>
                 <div class="col-12" id="ic_field" style="display:none;">
-                  <label class="form-label">IC Number</label>
-                  <input class="form-control" type="text" name="ic_number" id="ic_number" value="{{ user.ic_number or '' }}" placeholder="123456-78-9012">
+                  <label for="ic_number" class="form-label">IC Number</label>
+                  <input aria-label="IC Number" class="form-control" type="text" name="ic_number" id="ic_number" value="{{ user.ic_number or '' }}" placeholder="123456-78-9012">
                 </div>
                 <div class="col-12" id="passport_field" style="display:none;">
-                  <label class="form-label">Passport Number</label>
-                  <input class="form-control" type="text" name="passport_number" id="passport_number" value="{{ user.passport_number or '' }}" placeholder="A12345678">
+                  <label for="passport_number" class="form-label">Passport Number</label>
+                  <input aria-label="Passport Number" class="form-control" type="text" name="passport_number" id="passport_number" value="{{ user.passport_number or '' }}" placeholder="A12345678">
                 </div>
                 <div class="col-12">
-                  <label class="form-label">Profile Picture</label>
-                  <input class="form-control" type="file" name="profile_pic" accept="image/*" id="onboard-profile-input">
+                  <label for="onboard-profile-input" class="form-label">Profile Picture</label>
+                  <input id="onboard-profile-input" class="form-control" type="file" name="profile_pic" accept="image/*">
                   <div class="form-text">PNG, JPG, JPEG, GIF, or WEBP. Preview shown in passport photo size (35×45 mm ratio).</div>
                   <div class="mt-3">
                     <div class="passport-photo-frame">
@@ -135,20 +135,20 @@
               <h5 class="mb-3">Contact Details</h5>
               <div class="row g-3">
                 <div class="col-md-6">
-                  <label class="form-label">Phone Number</label>
-                  <input class="form-control" type="text" name="emergency_contact_phone" value="{{ user.emergency_contact_phone or '' }}" placeholder="0123456789">
+                  <label for="emergency_contact_phone" class="form-label">Phone Number</label>
+                  <input id="emergency_contact_phone" class="form-control" type="text" name="emergency_contact_phone" value="{{ user.emergency_contact_phone or '' }}" placeholder="0123456789">
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Postcode</label>
-                  <input class="form-control" type="text" name="postcode" value="{{ user.postcode or '' }}">
+                  <label for="postcode_onboard" class="form-label">Postcode</label>
+                  <input id="postcode_onboard" class="form-control" type="text" name="postcode" value="{{ user.postcode or '' }}">
                 </div>
                 <div class="col-12">
-                  <label class="form-label">Address</label>
-                  <textarea class="form-control" rows="2" name="address">{{ user.address or '' }}</textarea>
+                  <label for="address_onboard" class="form-label">Address</label>
+                  <textarea id="address_onboard" class="form-control" rows="2" name="address">{{ user.address or '' }}</textarea>
                 </div>
                 <div class="col-12">
-                  <label class="form-label">State</label>
-                  <select class="form-control" name="state">
+                  <label for="state_onboard" class="form-label">State</label>
+                  <select id="state_onboard" class="form-control" name="state">
                     <option value="">Select State</option>
                     {% for state in malaysian_states %}
                       <option value="{{ state }}" {% if user.state == state %}selected{% endif %}>{{ state }}</option>
@@ -160,12 +160,12 @@
               <h5 class="mb-3">Work Details</h5>
               <div class="row g-3">
                 <div class="col-md-6">
-                  <label class="form-label">Current Workplace</label>
-                  <input class="form-control" type="text" name="current_workplace" value="{{ user.current_workplace or '' }}">
+                  <label for="current_workplace_onboard" class="form-label">Current Workplace</label>
+                  <input id="current_workplace_onboard" class="form-control" type="text" name="current_workplace" value="{{ user.current_workplace or '' }}">
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Recruitment Date</label>
-                  <input class="form-control" type="date" name="recruitment_date" value="{{ user.recruitment_date.strftime('%Y-%m-%d') if user.recruitment_date else '' }}">
+                  <label for="recruitment_date_onboard" class="form-label">Recruitment Date</label>
+                  <input id="recruitment_date_onboard" class="form-control" type="date" name="recruitment_date" value="{{ user.recruitment_date.strftime('%Y-%m-%d') if user.recruitment_date else '' }}">
                 </div>
               </div>
 
@@ -178,31 +178,31 @@
                       <div class="row g-3 align-items-end">
                         <div class="col-md-6">
                           <label class="form-label">Place / Company</label>
-                          <input type="text" class="form-control" name="exp_company" value="{{ wh.company_name }}" placeholder="Company name">
+                          <input aria-label="Place / Company" type="text" class="form-control" name="exp_company" value="{{ wh.company_name }}" placeholder="Company name">
                         </div>
                         <div class="col-md-6">
                           <label class="form-label">Position</label>
-                          <input type="text" class="form-control" name="exp_position" value="{{ wh.position_title or '' }}" placeholder="e.g., Security Guard">
+                          <input aria-label="Position" type="text" class="form-control" name="exp_position" value="{{ wh.position_title or '' }}" placeholder="e.g., Security Guard">
                         </div>
                         <div class="col-md-4">
                           <label class="form-label">Recruitment Date</label>
-                          <input type="date" class="form-control" name="exp_recruitment" value="{{ wh.recruitment_date.strftime('%Y-%m-%d') if wh.recruitment_date else (wh.start_date.strftime('%Y-%m-%d') if wh.start_date else '') }}">
+                          <input aria-label="Experience recruitment date" type="date" class="form-control" name="exp_recruitment" value="{{ wh.recruitment_date.strftime('%Y-%m-%d') if wh.recruitment_date else (wh.start_date.strftime('%Y-%m-%d') if wh.start_date else '') }}">
                         </div>
                         <div class="col-md-4">
                           <label class="form-label">Start Date</label>
-                          <input type="date" class="form-control" name="exp_start" value="{{ wh.start_date.strftime('%Y-%m-%d') if wh.start_date else '' }}">
+                          <input aria-label="Experience start date" type="date" class="form-control" name="exp_start" value="{{ wh.start_date.strftime('%Y-%m-%d') if wh.start_date else '' }}">
                         </div>
                         <div class="col-md-4">
                           <label class="form-label">End Date</label>
-                          <input type="date" class="form-control" name="exp_end" value="{{ wh.end_date.strftime('%Y-%m-%d') if wh.end_date else '' }}">
+                          <input aria-label="Experience end date" type="date" class="form-control" name="exp_end" value="{{ wh.end_date.strftime('%Y-%m-%d') if wh.end_date else '' }}">
                         </div>
                         <div class="col-md-6">
                           <label class="form-label">Visa Number</label>
-                          <input type="text" class="form-control" name="exp_visa_number" value="{{ wh.visa_number or '' }}">
+                          <input aria-label="Visa Number" type="text" class="form-control" name="exp_visa_number" value="{{ wh.visa_number or '' }}">
                         </div>
                         <div class="col-md-6">
                           <label class="form-label">Visa Expiry Date</label>
-                          <input type="date" class="form-control" name="exp_visa_expiry" value="{{ wh.visa_expiry_date.strftime('%Y-%m-%d') if wh.visa_expiry_date else '' }}">
+                          <input aria-label="Visa expiry date" type="date" class="form-control" name="exp_visa_expiry" value="{{ wh.visa_expiry_date.strftime('%Y-%m-%d') if wh.visa_expiry_date else '' }}">
                         </div>
                         <div class="col-12 d-flex justify-content-end">
                           <button type="button" class="btn btn-outline-danger btn-sm remove-exp">Remove</button>
@@ -215,31 +215,31 @@
                     <div class="row g-3 align-items-end">
                       <div class="col-md-6">
                         <label class="form-label">Place / Company</label>
-                        <input type="text" class="form-control" name="exp_company" placeholder="Company name">
+                        <input aria-label="Place / Company" type="text" class="form-control" name="exp_company" placeholder="Company name">
                       </div>
                       <div class="col-md-6">
                         <label class="form-label">Position</label>
-                        <input type="text" class="form-control" name="exp_position" placeholder="e.g., Security Guard">
+                        <input aria-label="Position" type="text" class="form-control" name="exp_position" placeholder="e.g., Security Guard">
                       </div>
                       <div class="col-md-4">
                         <label class="form-label">Recruitment Date</label>
-                        <input type="date" class="form-control" name="exp_recruitment">
+                        <input aria-label="Experience recruitment date" type="date" class="form-control" name="exp_recruitment">
                       </div>
                       <div class="col-md-4">
                         <label class="form-label">Start Date</label>
-                        <input type="date" class="form-control" name="exp_start">
+                        <input aria-label="Experience start date" type="date" class="form-control" name="exp_start">
                       </div>
                       <div class="col-md-4">
                         <label class="form-label">End Date</label>
-                        <input type="date" class="form-control" name="exp_end">
+                        <input aria-label="Experience end date" type="date" class="form-control" name="exp_end">
                       </div>
                       <div class="col-md-6">
                         <label class="form-label">Visa Number</label>
-                        <input type="text" class="form-control" name="exp_visa_number">
+                        <input aria-label="Visa Number" type="text" class="form-control" name="exp_visa_number">
                       </div>
                       <div class="col-md-6">
                         <label class="form-label">Visa Expiry Date</label>
-                        <input type="date" class="form-control" name="exp_visa_expiry">
+                        <input aria-label="Visa expiry date" type="date" class="form-control" name="exp_visa_expiry">
                       </div>
                       <div class="col-12 d-flex justify-content-end">
                         <button type="button" class="btn btn-outline-danger btn-sm remove-exp">Remove</button>
@@ -251,43 +251,26 @@
               <div class="mt-3">
                 <button id="add-experience" type="button" class="btn btn-outline-primary btn-sm">Add experience</button>
               </div>
-            {% elif s == 4 and (user.user_category | default('citizen') | lower) == 'foreigner' %}
-              <h5 class="mb-3">Immigration</h5>
+            {% elif s == 4 %}
+              <h5 class="mb-3">Emergency Contact</h5>
               <div class="row g-3">
                 <div class="col-md-6">
-                  <label class="form-label">Visa Number</label>
-                  <input class="form-control" type="text" name="visa_number" value="{{ user.visa_number or '' }}">
+                  <label for="emergency_contact_name_onboard" class="form-label">Emergency Contact Name</label>
+                  <input id="emergency_contact_name_onboard" class="form-control" type="text" name="emergency_contact_name" value="{{ user.emergency_contact_name or '' }}">
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Visa Expiry Date</label>
-                  <input class="form-control" type="date" name="visa_expiry_date" value="{{ user.visa_expiry_date.strftime('%Y-%m-%d') if user.visa_expiry_date else '' }}">
+                  <label for="emergency_contact_relationship_onboard" class="form-label">Relationship</label>
+                  <input id="emergency_contact_relationship_onboard" class="form-control" type="text" name="emergency_contact_relationship" value="{{ user.emergency_contact_relationship or '' }}">
                 </div>
-              </div>
-            {% endif %}
-
-            {% set last_step = 5 if (user.user_category | default('citizen') | lower) == 'foreigner' else 4 %}
-            {% if s == last_step %}
-              <div class="mt-3">
-                <h5 class="mb-3">Emergency</h5>
-                <div class="row g-3">
-                  <div class="col-12">
-                    <label class="form-label">Emergency Relationship</label>
-                    <input class="form-control" type="text" name="emergency_contact_relationship" value="{{ user.emergency_contact_relationship or '' }}" placeholder="Spouse, Parent">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label">Emergency Contact Name</label>
-                    <input class="form-control" type="text" name="emergency_contact_name" value="{{ user.emergency_contact_name or '' }}" placeholder="John Doe">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label">Emergency Contact Phone Number</label>
-                    <input class="form-control" type="text" name="emergency_contact_phone" value="{{ user.emergency_contact_phone or '' }}" placeholder="0123456789">
-                  </div>
+                <div class="col-md-6">
+                  <label for="emergency_contact_phone" class="form-label">Emergency Contact Phone</label>
+                  <input id="emergency_contact_phone" class="form-control" type="text" name="emergency_contact_phone" value="{{ user.emergency_contact_phone or '' }}">
                 </div>
               </div>
             {% endif %}
 
             <div class="d-flex justify-content-between align-items-center mt-4">
-              <a class="btn btn-outline-secondary" href="{{ url_for('cancel_onboarding') }}">Back to Sign Up</a>
+              <a class="btn btn-outline-secondary" href="{{ url_for('signup') }}">Back to Sign Up</a>
               <div class="d-flex gap-2">
                 <button class="btn btn-light" type="submit" name="skip" value="1">Skip for now</button>
                 <button class="btn btn-primary" type="submit">{{ 'Save & Finish' if s == total else 'Save & Continue' }}</button>
@@ -402,10 +385,9 @@
         if (placeholder) placeholder.style.display = 'block';
         return;
       }
-      const url = URL.createObjectURL(f);
-      preview.src = url;
-      preview.style.display = 'block';
-      if (placeholder) placeholder.style.display = 'none';
+      preview.src = URL.createObjectURL(f);
+       preview.style.display = 'block';
+       if (placeholder) placeholder.style.display = 'none';
     });
   }
   window.addEventListener('DOMContentLoaded', function(){

@@ -46,7 +46,7 @@ def ensure_user_role_column():
 
 
 def ensure_default_agency(agency_id: int = 1) -> Agency:
-    ag = Agency.query.get(agency_id)
+    ag = db.session.get(Agency, agency_id)
     if ag:
         return ag
     try:
@@ -64,7 +64,7 @@ def ensure_default_agency(agency_id: int = 1) -> Agency:
         print(f"[INFO] Created default agency with ID {agency_id}")
     except IntegrityError:
         db.session.rollback()
-        ag = Agency.query.get(agency_id)
+        ag = db.session.get(Agency, agency_id)
     return ag
 
 
@@ -127,4 +127,3 @@ if __name__ == '__main__':
     except Exception:
         pass
     print("\nAfter login, open /authority to access the portal.")
-

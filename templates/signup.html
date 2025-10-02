@@ -27,6 +27,7 @@
     flex-direction: row;
   }
 
+  /* left panel: background fixed to viewport */
   .left-panel {
     flex: 1.05;
     min-width: 420px;
@@ -44,16 +45,24 @@
     padding: 32px 40px;
   }
 
-  /* Centered brand title with subline stacked under it */
+  /* brand: fixed so it stays locked to the static image/viewport area */
   .brand {
-    height: 100%;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 520px;               /* confines brand area to left side (matches .right-panel width) */
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
     gap: 8px;
+    pointer-events: none;
+    z-index: 2;
+    padding: 32px 40px;
   }
+
   .brand .title {
     font-weight: 800;
     letter-spacing: 1px;
@@ -61,7 +70,7 @@
     font-size: 2.25rem;
     line-height: 1;
   }
-  /* Tagline unbold */
+
   .brand .brand-tagline {
     font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
     font-size: 2.25rem;
@@ -148,11 +157,17 @@
   }
 
   @media (max-width: 1000px) {
-    .split-root { flex-direction: column; }
-    .left-panel, .right-panel { min-width: unset; width: 100%; padding: 28px 24px; }
-    /* disable fixed background on small devices for smoother behavior */
-    .left-panel { background-attachment: scroll; }
-    .brand { height: auto; padding: 28px 0; gap: 6px; }
+    /* revert brand and background behavior on small devices */
+    .brand {
+      position: relative;
+      inset: auto;
+      height: auto;
+      padding: 28px 0;
+      pointer-events: auto;
+      transform: none;
+      z-index: 1;
+    }
+    .left-panel { background-attachment: scroll; } /* disable fixed background on small screens */
     .brand .title { font-size: 1.8rem; }
     .brand .brand-tagline { font-size: 1.2rem; }
   }
@@ -240,7 +255,6 @@
             <option>Indonesia</option>
             <option>Iran</option>
             <option>Iraq</option>
-            <option>Israel</option>
             <option>Japan</option>
             <option>Jordan</option>
             <option>Kazakhstan</option>

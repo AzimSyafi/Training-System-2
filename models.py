@@ -46,7 +46,7 @@ class Admin(UserMixin, db.Model):
         return module
 
     def updateModule(self, module_id, module_data):
-        module = Module.query.get(module_id)
+        module = db.session.get(Module, module_id)
         if module:
             for key, value in module_data.items():
                 setattr(module, key, value)
@@ -54,7 +54,7 @@ class Admin(UserMixin, db.Model):
         return module
 
     def deleteModule(self, module_id):
-        module = Module.query.get(module_id)
+        module = db.session.get(Module, module_id)
         if module:
             db.session.delete(module)
             db.session.commit()

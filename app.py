@@ -197,6 +197,36 @@ def normalized_user_category(user: User) -> str:
         return 'foreigner'
     return 'citizen'
 
+# Safe date parsing helper used for form date fields
+def safe_parse_date(value, fmt='%Y-%m-%d'):
+    """Parse a date string into a datetime.date safely.
+    Returns a date object on success, None for empty/invalid values.
+    Accepts already-date/datetime objects and returns date.
+    """
+    if value is None:
+        return None
+    # Accept actual date/datetime objects
+    try:
+        import datetime as _dt
+        if isinstance(value, _dt.date) and not isinstance(value, _dt.datetime):
+            return value
+        if isinstance(value, _dt.datetime):
+            return value.date()
+    except Exception:
+        pass
+    # Normalize empty strings
+    try:
+        v = str(value).strip()
+    except Exception:
+        return None
+    if v == '':
+        return None
+    # Try parsing
+    try:
+        return datetime.strptime(v, fmt).date()
+    except Exception:
+        return None
+
 def _series_sort(modules):
     """Sort modules by series_number naturally, handling prefixes like CSG001/TNG002 or mixed.
     Falls back to by module_id when series_number missing."""
@@ -1007,7 +1037,7 @@ def signup():
             return render_template('signup.html', agencies=agencies)
         try:
             # Ensure agency exists
-            agency_obj = Agency.query.get(agency_id_int)
+            agency_obj = db.session.get(Agency, agency_id_int)
             if not agency_obj:
                 flash('Selected agency does not exist.', 'danger')
                 return render_template('signup.html', agencies=agencies)
@@ -1035,7 +1065,7 @@ def signup():
             session['user_type'] = 'user'
             session['user_id'] = new_user.get_id()
             flash('Account created successfully! Complete your profile to finalize registration.', 'success')
-            return redirect(url_for('user_dashboard'))
+            return redirect(url_for('onboarding', id=new_user.User_id))
         except ValueError as ve:
             flash(str(ve), 'danger')
         except Exception as e:
@@ -1248,7 +1278,7 @@ except KeyError:
     @login_required
     def agency():
         try:
-            ag = Agency.query.get(getattr(current_user, 'agency_id', None)) if hasattr(current_user, 'agency_id') else None
+            ag = db.session.get(Agency, getattr(current_user, 'agency_id', None)) if hasattr(current_user, 'agency_id') else None
         except Exception:
             ag = None
         return render_template('agency.html', agency=ag) if os.path.exists(os.path.join(app.template_folder or 'templates','agency.html')) else jsonify({'agency': getattr(ag,'agency_name', None)})
@@ -1586,7 +1616,10 @@ def add_agency():
 def edit_agency(agency_id):
     if not _require_admin():
         return redirect(url_for('login'))
-    ag = Agency.query.get_or_404(agency_id)
+    ag = db.session.get(Agency, agency_id)
+    if not ag:
+        from flask import abort
+        return abort(404)
     try:
         for field in ['agency_name','PIC','contact_number','email','address','Reg_of_Company']:
             if field in request.form:
@@ -1604,7 +1637,10 @@ def edit_agency(agency_id):
 def admin_create_agency_account(agency_id):
     if not _require_admin():
         return redirect(url_for('login'))
-    ag = Agency.query.get_or_404(agency_id)
+    ag = db.session.get(Agency, agency_id)
+    if not ag:
+        from flask import abort
+        return abort(404)
     if ag.account:
         flash('Agency already has an account','warning')
         return redirect(safe_url_for('admin_agencies'))
@@ -1661,7 +1697,7 @@ def delete_user():
         return jsonify(success=False, message='Forbidden')
     user_id = request.form.get('user_id')
     try:
-        u = User.query.get(int(user_id)) if user_id else None
+        u = db.session.get(User, int(user_id)) if user_id else None
         if not u:
             return jsonify(success=False, message='User not found')
         db.session.delete(u)
@@ -1679,7 +1715,7 @@ def delete_trainer():
         return jsonify(success=False, message='Forbidden')
     trainer_id = request.form.get('trainer_id')
     try:
-        t = Trainer.query.get(int(trainer_id)) if trainer_id else None
+        t = db.session.get(Trainer, int(trainer_id)) if trainer_id else None
         if not t:
             return jsonify(success=False, message='Trainer not found')
         db.session.delete(t)
@@ -1745,7 +1781,10 @@ def create_course():
 def update_course(course_id):
     if not isinstance(current_user, Admin):
         return redirect(url_for('login'))
-    course = Course.query.get_or_404(course_id)
+    course = db.session.get(Course, course_id)
+    if not course:
+        from flask import abort
+        return abort(404)
     try:
         course.name = request.form.get('name', course.name).strip()
         course.allowed_category = request.form.get('allowed_category', course.allowed_category)
@@ -1762,7 +1801,10 @@ def update_course(course_id):
 def delete_course(course_id):
     if not isinstance(current_user, Admin):
         return redirect(url_for('login'))
-    c = Course.query.get_or_404(course_id)
+    c = db.session.get(Course, course_id)
+    if not c:
+        from flask import abort
+        return abort(404)
     try:
         Module.query.filter_by(course_id=c.course_id).delete()
         db.session.delete(c)
@@ -1779,7 +1821,10 @@ def delete_course(course_id):
 def add_course_module(course_id):
     if not isinstance(current_user, Admin):
         return redirect(url_for('login'))
-    course = Course.query.get_or_404(course_id)
+    course = db.session.get(Course, course_id)
+    if not course:
+        from flask import abort
+        return abort(404)
     module_name = request.form.get('module_name','').strip()
     series_number = request.form.get('series_number','').strip() or None
     if not module_name:
@@ -1801,7 +1846,10 @@ def add_course_module(course_id):
 def delete_course_module(module_id):
     if not isinstance(current_user, Admin):
         return redirect(url_for('login'))
-    m = Module.query.get_or_404(module_id)
+    m = db.session.get(Module, module_id)
+    if not m:
+        from flask import abort
+        return abort(404)
     try:
         db.session.delete(m)
         db.session.commit()
@@ -1817,7 +1865,10 @@ def delete_course_module(module_id):
 def update_course_module(module_id):
     if not isinstance(current_user, Admin):
         return redirect(url_for('login'))
-    m = Module.query.get_or_404(module_id)
+    m = db.session.get(Module, module_id)
+    if not m:
+        from flask import abort
+        return abort(404)
     try:
         m.module_name = request.form.get('module_name', m.module_name).strip()
         m.series_number = request.form.get('series_number', m.series_number)
@@ -1834,7 +1885,10 @@ def update_course_module(module_id):
 def manage_module_content(module_id):
     if not isinstance(current_user, Admin):
         return redirect(url_for('login'))
-    m = Module.query.get_or_404(module_id)
+    m = db.session.get(Module, module_id)
+    if not m:
+        from flask import abort
+        return abort(404)
     ctype = request.form.get('content_type')
     try:
         if ctype == 'slide':
@@ -2101,7 +2155,8 @@ def course_modules(course_code):
 @login_required
 def api_check_module_disclaimer(module_id):
     try:
-        m = Module.query.get(module_id)
+        # Use session.get to avoid deprecated Query.get
+        m = db.session.get(Module, module_id)
         if not m:
             return jsonify(success=False, message='Module not found'), 404
         # Non-user roles bypass disclaimer gating (treat as agreed)
@@ -2117,7 +2172,8 @@ def api_check_module_disclaimer(module_id):
 @login_required
 def api_agree_module_disclaimer(module_id):
     try:
-        m = Module.query.get(module_id)
+        # Use session.get for consistency
+        m = db.session.get(Module, module_id)
         if not m:
             return jsonify(success=False, message='Module not found'), 404
         if not isinstance(current_user, User):
@@ -2134,7 +2190,7 @@ def api_agree_module_disclaimer(module_id):
 @login_required
 def module_quiz(module_id):
     """Render the quiz player for a module."""
-    m = Module.query.get(module_id)
+    m = db.session.get(Module, module_id)
     if not m:
         from flask import abort
         return abort(404)
@@ -2142,7 +2198,7 @@ def module_quiz(module_id):
     course = None
     try:
         if m.course_id:
-            course = Course.query.get(m.course_id)
+            course = db.session.get(Course, m.course_id)
         if not course and m.module_type:
             course = Course.query.filter(Course.code.ilike(m.module_type)).first()
     except Exception:
@@ -2323,7 +2379,7 @@ def _parse_quiz_json(raw):
 @app.route('/api/load_quiz/<int:module_id>')
 @login_required
 def api_load_quiz(module_id):
-    m = Module.query.get(module_id)
+    m = db.session.get(Module, module_id)
     if not m:
         return jsonify({'success': False, 'message': 'Module not found'}), 404
 
@@ -2351,7 +2407,7 @@ def api_save_quiz_answers(module_id):
         # Only regular users persist quiz answers
         if not isinstance(current_user, User):
             return jsonify(success=False, message='Only users can save answers'), 403
-        m = Module.query.get(module_id)
+        m = db.session.get(Module, module_id)
         if not m:
             return jsonify(success=False, message='Module not found'), 404
         payload = request.get_json(silent=True) or {}
@@ -2403,7 +2459,7 @@ def api_submit_quiz(module_id):
     try:
         if not isinstance(current_user, User):
             return jsonify(success=False, message='Only users can submit quizzes'), 403
-        m = Module.query.get(module_id)
+        m = db.session.get(Module, module_id)
         if not m:
             return jsonify(success=False, message='Module not found'), 404
         quiz = _parse_quiz_json(getattr(m, 'quiz_json', None))
@@ -2489,7 +2545,7 @@ def upload_content():
         flash('Please select a module.', 'danger')
         return redirect(url_for('upload_content'))
 
-    module = Module.query.filter_by(module_id=module_id).first()
+    module = db.session.get(Module, module_id)
     if not module:
         flash('Selected module not found.', 'danger')
         return redirect(url_for('upload_content'))
@@ -2579,10 +2635,52 @@ def upload_content():
     # After processing, redirect back to trainer portal
     return redirect(url_for('trainer_portal'))
 
-# Provide a convenient direct-run entrypoint so running `app.py` in an IDE or
-# from the command line starts the development server. The project already
-# includes `run_server.py`, but many IDEs run the file directly which used to
-# only initialize and exit. This block mirrors `run_server.py`'s sensible defaults.
+@app.route('/onboarding/<int:id>', methods=['GET', 'POST'])
+def onboarding(id):
+    step = request.args.get('step', 1, type=int)
+    total_steps = 4
+    # Load onboarding user record via session.get
+    user = db.session.get(User, id)
+    if not user:
+        from flask import abort
+        return abort(404)
+    malaysian_states = [
+        "Johor", "Kedah", "Kelantan", "Melaka", "Negeri Sembilan", "Pahang", "Penang", "Perak", "Perlis", "Sabah", "Sarawak", "Selangor", "Terengganu", "Kuala Lumpur", "Labuan", "Putrajaya"
+    ]
+    if request.method == 'POST':
+        # Step 1: Personal Details
+        if step == 1:
+            user.full_name = request.form.get('full_name', user.full_name)
+            user.user_category = request.form.get('user_category', user.user_category)
+            user.ic_number = request.form.get('ic_number', user.ic_number)
+            user.passport_number = request.form.get('passport_number', user.passport_number)
+            user.state = request.form.get('state', user.state)
+        # Step 2: Contact Details
+        elif step == 2:
+            user.emergency_contact_phone = request.form.get('emergency_contact_phone', user.emergency_contact_phone)
+            user.postcode = request.form.get('postcode', user.postcode)
+            user.address = request.form.get('address', user.address)
+            user.state = request.form.get('state', user.state)
+        # Step 3: Work Details
+        elif step == 3:
+            user.current_workplace = request.form.get('current_workplace', user.current_workplace)
+            # Parse recruitment_date safely using helper
+            recruitment_val = request.form.get('recruitment_date')
+            user.recruitment_date = safe_parse_date(recruitment_val)
+            # Work histories handled separately if needed
+        # Step 4: Emergency Contact
+        elif step == 4:
+            user.emergency_contact_name = request.form.get('emergency_contact_name', user.emergency_contact_name)
+            user.emergency_contact_relationship = request.form.get('emergency_contact_relationship', user.emergency_contact_relationship)
+            user.emergency_contact_phone = request.form.get('emergency_contact_phone', user.emergency_contact_phone)
+        # Use the module-level `db` imported at top of file
+        db.session.commit()
+        if 'skip' in request.form:
+            return redirect(url_for('user_dashboard'))
+        next_step = step + 1 if step < total_steps else total_steps
+        return redirect(url_for('onboarding', id=id, step=next_step))
+    return render_template('onboarding.html', id=id, step=step, total_steps=total_steps, user=user, malaysian_states=malaysian_states)
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Run the Training System Flask App (direct from app.py)')
@@ -2601,6 +2699,7 @@ if __name__ == '__main__':
     print(f'🌐 URL: http://{host}:{port}/')
     print(f'🔧 Debug Mode: {debug}')
     print(f'📁 Working Directory: {os.getcwd()}')
+    print(f'📅 Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
     print('=' * 60)
 
     # Start the Flask dev server

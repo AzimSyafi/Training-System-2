@@ -3,16 +3,13 @@ from datetime import datetime
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.units import inch
 from io import BytesIO
-from models import User, Certificate, Module, UserModule  # Assuming you have a User and Certificate model
+from models import User, Certificate, Module
 from app import db  # Assuming you use SQLAlchemy
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfbase import pdfmetrics
 
 def generate_certificate(user_id, course_type, overall_percentage, cert_id=None):
     # Fetch user info from database
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user:
         raise ValueError("User not found")
     name = user.full_name or f"User {user_id}"

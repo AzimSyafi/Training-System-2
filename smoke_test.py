@@ -13,7 +13,7 @@ def seed_minimal_data():
     with app.app_context():
         db.create_all()
         # Ensure an agency exists for FK
-        if not Agency.query.get(1):
+        if not db.session.get(Agency, 1):
             a = Agency(agency_id=1, agency_name='Default Agency', contact_number='0000000000', address='', Reg_of_Company='', PIC='', email='')
             db.session.add(a)
             db.session.flush()
