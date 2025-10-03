@@ -236,20 +236,20 @@
         <span class="label">Edit Profile</span>
       </a>
 
+      {% if not is_authority %}
       <a href="{{ url_for('my_certificates') }}" class="qa-btn qa-emerald" aria-label="View Certificates">
         <span class="qa-icon"><i class="fas fa-award"></i></span>
         <span class="label">Certificates</span>
       </a>
 
-      {% if not is_authority %}
       <a href="{{ url_for('agency') }}" class="qa-btn qa-purple" aria-label="Agency">
         <span class="qa-icon"><i class="fas fa-building"></i></span>
         <span class="label">Agency</span>
       </a>
       {% else %}
-      <a href="{{ url_for('authority.authority_portal') }}" class="qa-btn qa-purple" aria-label="Authority Portal">
-        <span class="qa-icon"><i class="fas fa-shield"></i></span>
-        <span class="label">Authority Portal</span>
+      <a href="{{ url_for('authority.authority_portal') }}" class="qa-btn qa-purple" aria-label="Certificate Approval">
+        <span class="qa-icon"><i class="fas fa-certificate"></i></span>
+        <span class="label">Certificate Approval</span>
       </a>
       {% endif %}
     </div>

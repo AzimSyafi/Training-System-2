@@ -71,7 +71,7 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None)
     with open(output_path, "wb") as f:
         output_pdf.write(f)
 
-    # After generating the certificate, save it in the Certificate table (no star_rating column)
+    # After generating the certificate, save it in the Certificate table (star_rating column exists; not set here)
     if not cert:
         cert = Certificate(
             user_id=user_id,

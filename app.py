@@ -423,6 +423,32 @@ def _initialize_schema():
             db.session.commit()
             print(f"[SCHEMA GUARD] Created missing tables: {', '.join(missing)}")
 
+        # Ensure module.scoring_float exists
+        try:
+            if inspector.has_table('module'):
+                mod_columns = {c['name'] for c in inspector.get_columns('module')}
+                if 'scoring_float' not in mod_columns:
+                    dialect = (getattr(db.engine, 'dialect', None).name or '').lower()
+                    if dialect == 'postgresql':
+                        db.session.execute(text('ALTER TABLE module ADD COLUMN IF NOT EXISTS scoring_float DOUBLE PRECISION DEFAULT 0.0'))
+                        # Initialize existing rows to 0.0 where NULL
+                        db.session.execute(text('UPDATE module SET scoring_float = 0.0 WHERE scoring_float IS NULL'))
+                        db.session.commit()
+                        print('[SCHEMA GUARD] Added scoring_float to module')
+                    else:
+                        # Generic fallback (e.g., SQLite)
+                        try:
+                            db.session.execute(text('ALTER TABLE module ADD COLUMN scoring_float FLOAT'))
+                            db.session.execute(text('UPDATE module SET scoring_float = 0.0 WHERE scoring_float IS NULL'))
+                            db.session.commit()
+                            print('[SCHEMA GUARD] Added scoring_float to module (generic)')
+                        except Exception as e:
+                            db.session.rollback()
+                            print(f'[SCHEMA GUARD] Could not add scoring_float to module: {e}')
+        except Exception as e:
+            db.session.rollback()
+            print(f'[SCHEMA GUARD] Error ensuring module.scoring_float: {e}')
+
         # Check agency table schema if it exists
         if inspector.has_table('agency'):
             agency_columns = {c['name']: c for c in inspector.get_columns('agency')}
@@ -574,17 +600,32 @@ def _initialize_schema():
                         print(f'[SCHEMA GUARD] Could not ensure user.country: {e}')
                 # Ensure user.role column exists (for authority approvals and scoping)
                 if 'role' not in user_columns:
-                    try:
-                        db.session.execute(text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'agency'"))
-                        # Backfill NULLs to default just in case
-                        db.session.execute(text("UPDATE \"user\" SET role = 'agency' WHERE role IS NULL"))
-                        # Enforce NOT NULL
-                        db.session.execute(text('ALTER TABLE "user" ALTER COLUMN role SET NOT NULL'))
-                        db.session.commit()
-                        print('[SCHEMA GUARD] Added role to user with default and NOT NULL')
-                    except Exception as e:
-                        db.session.rollback()
-                        print(f'[SCHEMA GUARD] Could not ensure user.role: {e}')
+                    dialect = (getattr(db.engine, 'dialect', None).name or '').lower()
+                    with db.engine.begin() as conn:
+                        if dialect == 'postgresql':
+                            conn.execute(text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'agency'"))
+                            conn.execute(text("UPDATE \"user\" SET role = 'agency' WHERE role IS NULL"))
+                            try:
+                                conn.execute(text('ALTER TABLE "user" ALTER COLUMN role SET NOT NULL'))
+                            except Exception:
+                                pass
+                        else:
+                            # SQLite & others: no IF NOT EXISTS for ADD COLUMN in older versions
+                            try:
+                                conn.execute(text('ALTER TABLE user ADD COLUMN role VARCHAR(50)'))
+                            except Exception:
+                                # Column may already exist or SQL unsupported; ignore
+                                pass
+                            try:
+                                conn.execute(text("UPDATE user SET role = 'agency' WHERE role IS NULL"))
+                            except Exception:
+                                pass
+                    logging.info('[BOOT] Ensured user.role column exists')
+                # Ensure user.remarks exists before any queries using User model
+                if 'remarks' not in user_columns:
+                    db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS remarks TEXT'))
+                    db.session.commit()
+                    print('[SCHEMA GUARD] Added remarks to user')
         except Exception as e:
             db.session.rollback()
             print(f'[SCHEMA GUARD] Could not ensure user.is_finalized: {e}')
@@ -622,6 +663,15 @@ def _initialize_schema():
                     except Exception as e:
                         db.session.rollback()
                         print(f'[SCHEMA GUARD] Could not ensure certificate.approved_at: {e}')
+                # star_rating column for user ratings
+                if 'star_rating' not in cert_columns:
+                    try:
+                        db.session.execute(text('ALTER TABLE certificate ADD COLUMN IF NOT EXISTS star_rating INTEGER NULL'))
+                        db.session.commit()
+                        print('[SCHEMA GUARD] Added star_rating to certificate')
+                    except Exception as e:
+                        db.session.rollback()
+                        print(f'[SCHEMA GUARD] Could not ensure certificate.star_rating: {e}')
         except Exception as e:
             db.session.rollback()
             print(f'[SCHEMA GUARD] Could not ensure certificate columns: {e}')
@@ -705,7 +755,7 @@ def _ensure_minimal_columns_once():
                         else:
                             # SQLite & others: no IF NOT EXISTS for ADD COLUMN in older versions
                             try:
-                                conn.execute(text("ALTER TABLE user ADD COLUMN role VARCHAR(50)"))
+                                conn.execute(text('ALTER TABLE user ADD COLUMN role VARCHAR(50)'))
                             except Exception:
                                 # Column may already exist or SQL unsupported; ignore
                                 pass
@@ -714,123 +764,14 @@ def _ensure_minimal_columns_once():
                             except Exception:
                                 pass
                     logging.info('[BOOT] Ensured user.role column exists')
-            # --- Ensure certificate approval columns exist (defensive) ---
-            try:
-                if insp.has_table('certificate'):
-                    cert_cols = {c['name'] for c in insp.get_columns('certificate')}
-                    dialect = (getattr(db.engine, 'dialect', None).name or '').lower()
-                    with db.engine.begin() as conn:
-                        if 'status' not in cert_cols:
-                            if dialect == 'postgresql':
-                                conn.execute(text("ALTER TABLE certificate ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending'"))
-                                conn.execute(text("UPDATE certificate SET status = 'pending' WHERE status IS NULL"))
-                                try:
-                                    conn.execute(text('ALTER TABLE certificate ALTER COLUMN status SET NOT NULL'))
-                                except Exception:
-                                    pass
-                            else:
-                                try:
-                                    conn.execute(text("ALTER TABLE certificate ADD COLUMN status VARCHAR(20)"))
-                                except Exception:
-                                    pass
-                                try:
-                                    conn.execute(text("UPDATE certificate SET status = 'pending' WHERE status IS NULL"))
-                                except Exception:
-                                    pass
-                        if 'approved_by_id' not in cert_cols:
-                            try:
-                                conn.execute(text('ALTER TABLE certificate ADD COLUMN IF NOT EXISTS approved_by_id INTEGER'))
-                            except Exception:
-                                # Best-effort for non-PG
-                                try:
-                                    conn.execute(text('ALTER TABLE certificate ADD COLUMN approved_by_id INTEGER'))
-                                except Exception:
-                                    pass
-                        if 'approved_at' not in cert_cols:
-                            try:
-                                conn.execute(text('ALTER TABLE certificate ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP'))
-                            except Exception:
-                                # Best-effort for non-PG
-                                try:
-                                    conn.execute(text('ALTER TABLE certificate ADD COLUMN approved_at TIMESTAMP'))
-                                except Exception:
-                                    pass
-                    logging.info('[BOOT] Ensured certificate approval columns exist')
-            except Exception as e:
-                logging.warning(f"[BOOT] Could not ensure certificate columns: {e}")
-            # --- Hard-code a mock authority account (idempotent) ---
-            try:
-                # Ensure a default agency exists
-                ag = db.session.get(Agency, 1)
-                if not ag:
-                    ag = Agency(
-                        agency_id=1,
-                        agency_name='Default Agency 1',
-                        contact_number='0000000000',
-                        address='',
-                        Reg_of_Company='',
-                        PIC='',
-                        email='agency1@example.com'
-                    )
-                    db.session.add(ag)
+                # Ensure user.remarks exists before any queries using User model
+                if 'remarks' not in cols:
+                    db.session.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS remarks TEXT'))
                     db.session.commit()
-                # Credentials (override via env if desired)
-                email = os.environ.get('AUTHORITY_EMAIL', 'authority@example.com').strip().lower()
-                full_name = os.environ.get('AUTHORITY_NAME', 'Mock Authority')
-                password = os.environ.get('AUTHORITY_PASSWORD', 'Authority@123')
-                # Upsert user by email
-                existing = None
-                try:
-                    existing = User.query.filter(db.func.lower(db.func.trim(User.email)) == email).first()
-                except Exception:
-                    existing = User.query.filter_by(email=email).first()
-                if existing:
-                    existing.role = 'authority'
-                    try:
-                        existing.set_password(password)
-                    except Exception:
-                        pass
-                    try:
-                        existing.is_finalized = True
-                    except Exception:
-                        pass
-                    db.session.commit()
-                    print(f"[MOCK] Authority account ready (updated): {email}")
-                else:
-                    try:
-                        user_data = {
-                            'full_name': full_name,
-                            'email': email,
-                            'password': password,
-                            'user_category': 'citizen',
-                            'agency_id': ag.agency_id,
-                        }
-                        u = Registration.registerUser(user_data)
-                    except Exception:
-                        # Fallback minimal create if registration helper fails
-                        u = User(full_name=full_name, email=email, user_category='citizen', agency_id=ag.agency_id, is_finalized=True)
-                        try:
-                            u.set_password(password)
-                        except Exception:
-                            pass
-                        db.session.add(u)
-                        db.session.commit()
-                    # Elevate to authority and finalize
-                    try:
-                        u.role = 'authority'
-                    except Exception:
-                        pass
-                    try:
-                        u.is_finalized = True
-                    except Exception:
-                        pass
-                    db.session.commit()
-                    print(f"[MOCK] Authority account ready (created): {email}")
-            except Exception as e:
-                db.session.rollback()
-                logging.warning(f"[BOOT] Could not ensure mock authority account: {e}")
+                    print('[SCHEMA GUARD] Added remarks to user')
         except Exception as e:
-            logging.warning(f"[BOOT] Minimal schema ensure failed: {e}")
+            db.session.rollback()
+            print(f'[SCHEMA GUARD] Could not ensure user.role and remarks: {e}')
     finally:
         _minimal_schema_done = True
         if lock is not None:
@@ -1204,22 +1145,26 @@ except KeyError:
     @app.route('/courses')
     @login_required
     def courses():
-        # Use normalized category for robustness
-        cat = normalized_user_category(current_user)
         try:
-            # Fetch all courses to allow displaying locked ones too (improves transparency)
-            all_courses = Course.query.order_by(Course.name.asc()).all()
+            # DB-level filtering for the common allowed_category rule improves performance.
+            # Admins/trainers/authority accounts should see all courses.
+            if isinstance(current_user, Admin) or isinstance(current_user, Trainer) or getattr(current_user, 'role', None) == 'authority' or isinstance(current_user, AgencyAccount):
+                courses_q = Course.query
+            else:
+                cat = normalized_user_category(current_user)
+                courses_q = Course.query.filter(or_(Course.allowed_category == cat, Course.allowed_category == 'both'))
+            all_courses = courses_q.order_by(Course.name.asc()).all()
         except Exception:
             logging.exception('[COURSES] Failed loading courses')
             all_courses = []
+
+        # Final Python-level guard for complex rules that can't be expressed in SQL
+        visible_courses = [c for c in all_courses if getattr(c, 'is_visible_to', lambda u: True)(current_user)]
+
         course_progress = []
-        for c in all_courses:
+        for c in visible_courses:
             try:
                 allowed = c.allowed_category or 'both'
-                locked = not (
-                    allowed == 'both' or
-                    (allowed == cat)
-                )
                 modules = list(c.modules)
                 module_ids = [m.module_id for m in modules]
                 total_modules = len(modules)
@@ -1241,7 +1186,7 @@ except KeyError:
                     'name': c.name,
                     'code': c.code,
                     'allowed_category': allowed,
-                    'locked': locked,
+                    'locked': False,
                     'percent': percent,
                     'overall_percentage': overall_percentage
                 })
@@ -1460,17 +1405,34 @@ def admin_users():
         for u in users:
             if q and (q not in (u.full_name or '').lower() and q not in (u.email or '').lower() and q not in (u.number_series or '').lower()):
                 continue
-            if role_filter not in ('all','user'):
-                continue
-            merged_accounts.append({
-                'type': 'user',
-                'id': u.User_id,
-                'number_series': u.number_series,
-                'name': u.full_name,
-                'email': u.email,
-                'agency': getattr(getattr(u, 'agency', None), 'agency_name', ''),
-                'active_status': True,
-            })
+            # Determine user type based on role field
+            user_role = getattr(u, 'role', 'agency')
+            if user_role == 'authority':
+                # Authority users
+                if role_filter not in ('all', 'authority'):
+                    continue
+                merged_accounts.append({
+                    'type': 'authority',
+                    'id': u.User_id,
+                    'number_series': u.number_series,
+                    'name': u.full_name,
+                    'email': u.email,
+                    'agency': getattr(getattr(u, 'agency', None), 'agency_name', ''),
+                    'active_status': True,
+                })
+            else:
+                # Regular users
+                if role_filter not in ('all','user'):
+                    continue
+                merged_accounts.append({
+                    'type': 'user',
+                    'id': u.User_id,
+                    'number_series': u.number_series,
+                    'name': u.full_name,
+                    'email': u.email,
+                    'agency': getattr(getattr(u, 'agency', None), 'agency_name', ''),
+                    'active_status': True,
+                })
         trainers = Trainer.query.all()
         for t in trainers:
             if q and (q not in (t.name or '').lower() and q not in (t.email or '').lower() and q not in (t.number_series or '').lower()):
@@ -1969,13 +1931,13 @@ def recalculate_ratings():
             scores = [um.score for um in m.user_modules if um.score is not None]
             if scores:
                 try:
-                    m.scoring_float = sum(scores)/len(scores)
+                    m.scoring_float = sum(scores) / len(scores)
                     updated += 1
                 except Exception:
                     pass
         if updated:
             db.session.commit()
-        flash(f'Recalculated average scores for {updated} module(s).', 'success')
+        flash(f'Recalculated and saved average scores for {updated} module(s).', 'success')
     except Exception:
         db.session.rollback()
         logging.exception('[RECALCULATE RATINGS] Failed')
@@ -2521,6 +2483,83 @@ def api_submit_quiz(module_id):
         db.session.rollback()
         return jsonify(success=False, message='Server error'), 500
 
+# --- User profile update API (supports remarks) ---
+@app.route('/api/user/update', methods=['PATCH'])
+@login_required
+def api_user_update():
+    try:
+        if not isinstance(current_user, User):
+            return jsonify(success=False, error='Only users can update their profile'), 403
+        payload = request.get_json(silent=True) or {}
+        allowed = ('full_name','email','visa_number','visa_expiry_date','state','postcode','remarks','address')
+        changes = {}
+        for k in allowed:
+            if k in payload:
+                changes[k] = payload.get(k)
+        # Basic validation
+        if 'email' in changes:
+            email = (changes.get('email') or '').strip().lower()
+            if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+                return jsonify(success=False, error='Invalid email format'), 400
+            # Ensure uniqueness for other accounts
+            exists = User.query.filter(User.email == email, User.User_id != current_user.User_id).first()
+            if exists:
+                return jsonify(success=False, error='Email is already in use'), 400
+            current_user.email = email
+        if 'full_name' in changes and changes.get('full_name') is not None:
+            current_user.full_name = str(changes.get('full_name')).strip()
+        if 'visa_number' in changes:
+            current_user.visa_number = (changes.get('visa_number') or '').strip()
+        if 'visa_expiry_date' in changes:
+            # Accept YYYY-MM-DD or empty
+            dt = safe_parse_date(changes.get('visa_expiry_date'))
+            current_user.visa_expiry_date = dt
+        if 'state' in changes:
+            current_user.state = (changes.get('state') or '').strip()
+        if 'postcode' in changes:
+            current_user.postcode = (changes.get('postcode') or '').strip()
+        if 'address' in changes:
+            current_user.address = (changes.get('address') or '').strip()
+        if 'remarks' in changes:
+            # Free text; store as-is (trim length lightly)
+            txt = changes.get('remarks')
+            if isinstance(txt, str) and len(txt) > 5000:
+                txt = txt[:5000]
+            current_user.remarks = txt
+        db.session.commit()
+        return jsonify(success=True)
+    except Exception:
+        logging.exception('[API USER UPDATE] Failed')
+        db.session.rollback()
+        return jsonify(success=False, error='Server error'), 500
+
+# --- Certificate star rating API ---
+@app.route('/api/certificate/<int:certificate_id>/rate', methods=['POST'])
+@login_required
+def api_rate_certificate(certificate_id):
+    try:
+        cert = db.session.get(Certificate, certificate_id)
+        if not cert:
+            return jsonify(success=False, error='Certificate not found'), 404
+        # Only the owner user can rate their certificate
+        if not isinstance(current_user, User) or cert.user_id != current_user.User_id:
+            return jsonify(success=False, error='Forbidden'), 403
+        data = request.get_json(silent=True) or {}
+        rating = data.get('rating')
+        try:
+            rating = int(rating)
+        except Exception:
+            return jsonify(success=False, error='Invalid rating'), 400
+        if rating < 1 or rating > 5:
+            return jsonify(success=False, error='Rating must be between 1 and 5'), 400
+        cert.star_rating = rating
+        db.session.commit()
+        return jsonify(success=True, rating=rating)
+    except Exception:
+        logging.exception('[API RATE CERTIFICATE] Failed')
+        db.session.rollback()
+        return jsonify(success=False, error='Server error'), 500
+
 @app.route('/upload_content', methods=['GET', 'POST'])
 @login_required
 def upload_content():
@@ -2681,27 +2720,132 @@ def onboarding(id):
         return redirect(url_for('onboarding', id=id, step=next_step))
     return render_template('onboarding.html', id=id, step=step, total_steps=total_steps, user=user, malaysian_states=malaysian_states)
 
+# --- Debug/health endpoints to diagnose routing in dev ---
+@app.route('/__health')
+def __health():
+    try:
+        return jsonify(ok=True, app='training-system', time=datetime.utcnow().isoformat(), routes_count=len(list(app.url_map.iter_rules())))
+    except Exception:
+        return jsonify(ok=False), 500
+
+@app.route('/__routes')
+def __routes():
+    try:
+        rules = []
+        for r in app.url_map.iter_rules():
+            rules.append({
+                'rule': r.rule,
+                'methods': sorted(list(r.methods or [])),
+                'endpoint': r.endpoint,
+            })
+        # Sort for stable output
+        rules.sort(key=lambda x: x['rule'])
+        return jsonify(routes=rules, count=len(rules))
+    except Exception:
+        return jsonify(routes=[], count=0), 500
+
+@app.route('/__whoami')
+def __whoami():
+    try:
+        return jsonify(
+            server='training-system-2',
+            host=request.host,
+            path=request.path,
+            remote_addr=request.remote_addr,
+            time=datetime.utcnow().isoformat()
+        )
+    except Exception:
+        return jsonify(server='training-system-2'), 200
+
+@app.route('/index')
+def index_redirect():
+    return redirect(url_for('index'))
+
+@app.route('/index.html')
+def index_html_redirect():
+    return redirect(url_for('index'))
+
+@app.route('/home')
+def home_redirect():
+    return redirect(url_for('index'))
+
+@app.route('/favicon.ico')
+def favicon():
+    try:
+        # Prefer favicon in static/ if present
+        static_dir = app.static_folder or 'static'
+        for name in ('favicon.ico', 'favicon.png'):
+            candidate = os.path.join(static_dir, name)
+            if os.path.exists(candidate):
+                return send_from_directory(static_dir, name)
+        # No favicon available; return empty
+        return ('', 204)
+    except Exception:
+        return ('', 204)
+
+@app.errorhandler(404)
+def _handle_404(e):
+    try:
+        p = (request.path or '').strip()
+    except Exception:
+        p = ''
+    # API requests keep JSON 404
+    if p.startswith('/api/'):
+        return jsonify(success=False, error='Not found', path=p), 404
+    # For common root-like paths, render the home page directly
+    if p in ('', '/', '/index', '/index.html', '/home'):
+        try:
+            return render_template('index.html'), 200
+        except Exception:
+            # Fallback minimal text in case template missing
+            return 'Home', 200
+    # For other paths, show a simple not found page with a link home
+    return render_template('404.html') if os.path.exists(os.path.join(app.template_folder or 'templates','404.html')) else ("Not Found. Go to /", 404)
+
+# Final catch-all for non-API GETs to improve SPA-like navigation and avoid confusing 404s on root
+@app.route('/<path:any_path>', methods=['GET'])
+def _fallback_spa(any_path):
+    # Allow static and uploads to proceed to their own handlers
+    if any_path.startswith(('static/', 'uploads/', 'slides/')):
+        from flask import abort
+        return abort(404)
+    # APIs should not be handled here
+    if any_path.startswith('api/'):
+        from flask import abort
+        return abort(404)
+    # Render index for other GETs (acts like basic SPA fallback)
+    try:
+        return render_template('index.html'), 200
+    except Exception:
+        return 'Home', 200
+
+# Optional request logging for diagnostics (enable with LOG_REQUESTS=1)
+ENABLE_REQUEST_LOG = os.environ.get('LOG_REQUESTS', '0') in ('1', 'true', 'True', 'yes', 'on')
+
+@app.before_request
+def _log_request_line():
+    if ENABLE_REQUEST_LOG:
+        try:
+            print(f"[REQ] {request.method} {request.host}{request.full_path} from {request.remote_addr}")
+        except Exception:
+            pass
+
 if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser(description='Run the Training System Flask App (direct from app.py)')
-    parser.add_argument('--port', type=int, default=None, help='Port to run on')
-    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
-    parser.add_argument('--host', default=None, help='Host to bind to')
-    args = parser.parse_args()
-
-    port = args.port or int(os.environ.get('PORT', 5000))
-    debug = args.debug or os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1', 'yes', 'on')
-    host = args.host or os.environ.get('FLASK_RUN_HOST', '127.0.0.1')
-
-    print('=' * 60)
-    print('🚀 TRAINING SYSTEM - FLASK APPLICATION (app.py direct runner)')
-    print('=' * 60)
-    print(f'🌐 URL: http://{host}:{port}/')
-    print(f'🔧 Debug Mode: {debug}')
-    print(f'📁 Working Directory: {os.getcwd()}')
-    print(f'📅 Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
-    print('=' * 60)
-
-    # Start the Flask dev server
-    app.run(host=host, port=port, debug=debug, threaded=True, use_reloader=debug)
+    # Allow direct execution: python app.py
+    try:
+        host = os.environ.get('HOST', '0.0.0.0')
+        try:
+            port = int(os.environ.get('PORT', '5050'))
+        except Exception:
+            port = 5050
+        debug = os.environ.get('FLASK_DEBUG', '0') in ('1', 'true', 'True', 'yes', 'on')
+        print('=' * 60)
+        print('TRAINING SYSTEM - Flask server (app.py)')
+        print('=' * 60)
+        print(f'Listening on http://{host}:{port}  (debug={debug})')
+        print('Press Ctrl+C to stop')
+        print('=' * 60)
+        app.run(host=host, port=port, debug=debug, threaded=True, use_reloader=debug)
+    except KeyboardInterrupt:
+        pass
 

@@ -338,6 +338,12 @@ class Course(db.Model):
             'module_count': len(self.modules)
         }
 
+    def is_visible_to(self, user):
+        """Return True if this course should be shown to the given user."""
+        if self.allowed_category == 'both':
+            return True
+        return self.allowed_category == getattr(user, 'user_category', None)
+
 class Module(db.Model):
     __tablename__ = 'module'
 
@@ -345,7 +351,6 @@ class Module(db.Model):
     module_name = db.Column(db.String(255), nullable=False)
     module_type = db.Column(db.String(100), nullable=False)
     series_number = db.Column(db.String(50))
-    scoring_float = db.Column(db.Float, default=0.0)
     content = db.Column(db.Text)
     youtube_url = db.Column(db.String(255))  # New field for YouTube video URL
     quiz_json = db.Column(db.Text)  # New field for storing quiz as JSON
@@ -364,13 +369,8 @@ class Module(db.Model):
             'module_name': self.module_name,
             'module_type': self.module_type,
             'series_number': self.series_number,
-            'scoring_float': self.scoring_float,
             'content': self.content
         }
-
-    def editScoring(self, new_score):
-        self.scoring_float = new_score
-        db.session.commit()
 
     def to_dict(self):
         return {
@@ -378,7 +378,6 @@ class Module(db.Model):
             'module_name': self.module_name,
             'module_type': self.module_type,
             'series_number': self.series_number,
-            'scoring_float': self.scoring_float,
             'content': self.content,
             'youtube_url': self.youtube_url,
             'quiz_json': self.quiz_json,
@@ -396,6 +395,8 @@ class Certificate(db.Model):
     module_id = db.Column(db.Integer, db.ForeignKey('module.module_id'), nullable=False)
     issue_date = db.Column(db.Date, nullable=False)
     score = db.Column(db.Float, default=0.0)
+    # Re-added optional star rating (1-5)
+    star_rating = db.Column(db.Integer, nullable=True)
     certificate_url = db.Column(db.String(255))
     # New approval fields
     status = db.Column(db.String(20), nullable=False, default='pending')

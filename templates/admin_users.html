@@ -36,6 +36,7 @@
                         <select id="role" name="role" class="form-select">
                             <option value="all" {% if role_val=='all' %}selected{% endif %}>All</option>
                             <option value="user" {% if role_val=='user' %}selected{% endif %}>Users</option>
+                            <option value="authority" {% if role_val=='authority' %}selected{% endif %}>Authority</option>
                             <option value="trainer" {% if role_val=='trainer' %}selected{% endif %}>Trainers</option>
                             <option value="admin" {% if role_val=='admin' %}selected{% endif %}>Admins</option>
                         </select>
@@ -95,6 +96,12 @@
                                         {% else %}
                                             U-{{ acc.id }}
                                         {% endif %}
+                                    {% elif acc.type == 'authority' %}
+                                        {% if acc.number_series and acc.number_series|length == 10 and acc.number_series[:2] == 'SG' %}
+                                            AUTH-{{ acc.number_series[2:] }}
+                                        {% else %}
+                                            AUTH-{{ '%05d'|format(acc.id) }}
+                                        {% endif %}
                                     {% elif acc.type == 'trainer' %}
                                         {% if acc.number_series and acc.number_series|length == 10 and acc.number_series.startswith('TR') %}
                                             T-{{ acc.number_series[2:] }}
@@ -108,7 +115,7 @@
                                 <td>{% if acc.type == 'user' or acc.type == 'trainer' %}{{ acc.number_series or '' }}{% else %}&mdash;{% endif %}</td>
                                 <td>{{ acc.name }}</td>
                                 <td>{{ acc.email }}</td>
-                                <td>{% if acc.type == 'user' %}{{ acc.agency }}{% else %}&mdash;{% endif %}</td>
+                                <td>{% if acc.type == 'user' or acc.type == 'authority' %}{{ acc.agency }}{% else %}&mdash;{% endif %}</td>
                                 <td>
                                     {% if acc.type == 'trainer' %}
                                         <span class="badge {% if acc.active_status %}bg-success{% else %}bg-secondary{% endif %}" id="trainer-status-{{ acc.id }}">{% if acc.active_status %}Active{% else %}Inactive{% endif %}</span>
