@@ -282,6 +282,10 @@
                 <a class="nav-link {% if request.endpoint=='trainer_portal' and request.view_args.get('section') == 'dashboard' %}active{% endif %}" href="{{ url_for('trainer_portal', section='dashboard') }}"><i class="fas fa-gauge"></i><span class="link-text">Dashboard</span></a>
                 <a class="nav-link {% if request.endpoint=='trainer_portal' and request.view_args.get('section') == 'progress' %}active{% endif %}" href="{{ url_for('trainer_portal', section='progress') }}"><i class="fas fa-chart-line"></i><span class="link-text">Trainee Progress</span></a>
                 <a class="nav-link {% if request.endpoint=='trainer_portal' and request.view_args.get('section') == 'courses' %}active{% endif %}" href="{{ url_for('trainer_portal', section='courses') }}"><i class="fas fa-book"></i><span class="link-text">My Courses</span></a>
+            {% elif current_user.is_authenticated and current_user.__class__.__name__ == 'AgencyAccount' %}
+                <a class="nav-link {% if request.endpoint=='agency_portal' %}active{% endif %}" href="{{ url_for('agency_portal') }}"><i class="fas fa-gauge"></i><span class="link-text">Dashboard</span></a>
+                <a class="nav-link {% if request.endpoint=='agency_progress_monitor' %}active{% endif %}" href="{{ url_for('agency_progress_monitor') }}"><i class="fas fa-chart-line"></i><span class="link-text">Progress Monitor</span></a>
+                <a class="nav-link {% if request.endpoint=='agency' %}active{% endif %}" href="{{ url_for('agency') }}"><i class="fas fa-building"></i><span class="link-text">Agency</span></a>
             {% elif current_user.is_authenticated and current_user.__class__.__name__ != 'Admin' %}
                 <a class="nav-link {% if request.endpoint=='user_dashboard' %}active{% endif %}" href="{{ safe_url_for('user_dashboard') }}"><i class="fas fa-gauge"></i><span class="link-text">Dashboard</span></a>
                 {% if request.endpoint != 'agency_portal' %}

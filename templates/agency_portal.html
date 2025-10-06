@@ -105,31 +105,31 @@
                 <tr>
                   <th>Name</th>
                   <th>Email</th>
-                  <th>Category</th>
-                  <th>Completed</th>
-                  <th>Avg score</th>
+                  <th>Citizenship</th>
+                  <th>Number Series</th>
                 </tr>
               </thead>
               <tbody>
-                {% for u in users %}
-                {% set stats = module_counts.get(u.User_id, {}) %}
-                <tr>
-                  <td>
-                    {{ u.full_name }}
-                    {% if u.number_series %}
-                      <div class="text-muted small">{{ u.number_series }}</div>
-                    {% endif %}
-                  </td>
-                  <td>{{ u.email }}</td>
-                  <td>{{ (u.user_category or 'citizen')|capitalize }}</td>
-                  <td>{{ stats.get('completed', 0) }}</td>
-                  <td>{{ '%.1f'|format(stats.get('avg_score', 0.0)) }}</td>
-                </tr>
+                {% if agency_users and agency_users|length > 0 %}
+                  {% for user in agency_users %}
+                  <tr>
+                    <td>{{ user.full_name }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>{{ (user.user_category or 'citizen')|capitalize }}</td>
+                    <td>
+                      {% if user.number_series %}
+                        <span class="badge bg-secondary">{{ user.number_series }}</span>
+                      {% else %}
+                        <span class="text-muted">-</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
                 {% else %}
                 <tr>
-                  <td colspan="5" class="text-center text-muted">No users yet</td>
+                  <td colspan="4" class="text-center text-muted">No users found for this agency.</td>
                 </tr>
-                {% endfor %}
+                {% endif %}
               </tbody>
             </table>
           </div>

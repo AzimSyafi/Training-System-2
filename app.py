@@ -3,6 +3,7 @@ from flask_login import LoginManager, login_user, login_required, logout_user, c
 from werkzeug.utils import secure_filename
 from datetime import datetime, UTC  # removed unused date
 import os
+import time
 from models import db, Admin, User, Agency, Module, Certificate, Trainer, UserModule, Management, Registration, Course, WorkHistory, UserCourseProgress, AgencyAccount
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text, inspect as sa_inspect, or_  # added or_
@@ -263,6 +264,12 @@ def is_slide_file(filename):
     if not isinstance(filename, str):
         return False
     return filename.lower().endswith(('.pdf', '.pptx'))
+
+def allowed_file(filename):
+    """Check if a file has an allowed extension for profile pictures."""
+    if not isinstance(filename, str):
+        return False
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 # Register the filter with Jinja2
 app.jinja_env.filters['youtube_id'] = extract_youtube_id
@@ -1364,7 +1371,6 @@ def admin_dashboard():
         mgr = Management()
         dashboard = mgr.getDashboard()
     except Exception:
-        logging.exception('[ADMIN DASHBOARD] Failed to build dashboard context')
         dashboard = {
             'total_users': 0,
             'total_modules': 0,
@@ -1857,13 +1863,26 @@ def manage_module_content(module_id):
             slide_file = request.files.get('slide_file')
             slide_text = request.form.get('slide_text','')
             if slide_file and slide_file.filename:
-                fname = secure_filename(slide_file.filename)
-                # Save into the configured uploads folder under the app root to match serving logic
-                dest_dir = os.path.join(app.root_path, UPLOAD_CONTENT_FOLDER)
-                os.makedirs(dest_dir, exist_ok=True)
-                dest = os.path.join(dest_dir, fname)
-                slide_file.save(dest)
-                m.slide_url = fname
+                try:
+                    # Generate secure filename
+                    filename = secure_filename(slide_file.filename)
+                    timestamp = int(time.time())
+                    name, ext = os.path.splitext(filename)
+                    filename = f"{m.module_id}_{timestamp}{ext}"
+
+                    # Ensure upload directory exists
+                    upload_dir = UPLOAD_CONTENT_FOLDER
+                    os.makedirs(upload_dir, exist_ok=True)
+
+                    # Save file
+                    file_path = os.path.join(upload_dir, filename)
+                    slide_file.save(file_path)
+
+                    # Update module slide URL
+                    m.slide_url = filename
+                except Exception as e:
+                    flash(f'Error uploading profile picture: {str(e)}', 'danger')
+
         elif ctype == 'video':
             m.youtube_url = request.form.get('youtube_url','').strip()
         elif ctype == 'quiz':
@@ -1917,935 +1936,237 @@ def delete_certificates_bulk():
         db.session.rollback()
         logging.exception('[DELETE CERTS BULK] Failed')
         flash('Failed to delete certificates','danger')
-    return redirect(safe_url_for('admin_certificates'))
+    return redirect(url_for('admin_certificates'))
 
-@app.route('/recalculate_ratings')
-@login_required
-def recalculate_ratings():
-    if not isinstance(current_user, Admin):
-        return redirect(url_for('login'))
-    updated = 0
-    try:
-        modules = Module.query.all()
-        for m in modules:
-            scores = [um.score for um in m.user_modules if um.score is not None]
-            if scores:
-                try:
-                    m.scoring_float = sum(scores) / len(scores)
-                    updated += 1
-                except Exception:
-                    pass
-        if updated:
-            db.session.commit()
-        flash(f'Recalculated and saved average scores for {updated} module(s).', 'success')
-    except Exception:
-        db.session.rollback()
-        logging.exception('[RECALCULATE RATINGS] Failed')
-        flash('Failed to recalculate ratings.', 'danger')
-    return redirect(safe_url_for('admin_dashboard'))
 
-@app.route('/monitor_progress')
+@app.route('/agency_portal')
 @login_required
-def monitor_progress():
-    if not isinstance(current_user, Admin):
+def agency_portal():
+    from models import AgencyAccount
+    if not isinstance(current_user, AgencyAccount):
         return redirect(url_for('login'))
-    from types import SimpleNamespace as _SN
-    q = (request.args.get('q') or '').strip().lower()
-    agency_id = request.args.get('agency_id')
-    course_id = request.args.get('course_id')
-    status_filter = (request.args.get('status') or '').strip().lower()
+
     try:
-        min_progress = float(request.args.get('min_progress')) if request.args.get('min_progress') not in (None, '',) else None
-    except ValueError:
-        min_progress = None
+        agency = current_user.agency
+        if not agency:
+            flash('No agency associated with this account', 'warning')
+            return redirect(url_for('login'))
+
+        # Get all users for this agency
+        users = User.query.filter_by(agency_id=agency.agency_id).all()
+
+        # Calculate summary statistics
+        total_users = len(users)
+        active_users = sum(1 for u in users if getattr(u, 'is_finalized', False))
+
+        # Get certificate count for agency users
+        user_ids = [u.User_id for u in users]
+        certificates_issued = Certificate.query.filter(Certificate.user_id.in_(user_ids)).count() if user_ids else 0
+
+        # Calculate average progress
+        total_progress = 0
+        for user in users:
+            user_category = normalized_user_category(user)
+            courses = Course.query.filter(
+                or_(Course.allowed_category == user_category, Course.allowed_category == 'both')
+            ).all()
+
+            for course in courses:
+                course_modules = course.modules
+                if len(course_modules) > 0:
+                    completed = UserModule.query.filter(
+                        UserModule.user_id == user.User_id,
+                        UserModule.module_id.in_([m.module_id for m in course_modules]),
+                        UserModule.is_completed.is_(True)
+                    ).count()
+                    total_progress += (completed / len(course_modules)) * 100
+
+        avg_progress = round(total_progress / total_users, 1) if total_users > 0 else 0
+
+        return render_template(
+            'agency_portal.html',
+            agency=agency,
+            agency_users=users,  # Add this line for the template
+            total_users=total_users,
+            active_users=active_users,
+            certificates_issued=certificates_issued,
+            avg_progress=avg_progress
+        )
+    except Exception as e:
+        logging.exception('[AGENCY PORTAL] Error loading portal')
+        flash('Error loading agency portal', 'danger')
+        return redirect(url_for('login'))
+
+@app.route('/agency_progress_monitor')
+@login_required
+def agency_progress_monitor():
+    from models import AgencyAccount
+    if not isinstance(current_user, AgencyAccount):
+        return redirect(url_for('login'))
+
     try:
-        max_progress = float(request.args.get('max_progress')) if request.args.get('max_progress') not in (None, '',) else None
-    except ValueError:
-        max_progress = None
-    try:
-        agencies = Agency.query.order_by(Agency.agency_name.asc()).all()
-    except Exception:
-        agencies = []
-    try:
-        courses_q = Course.query
-        if course_id:
-            try:
-                courses_q = courses_q.filter(Course.course_id == int(course_id))
-            except ValueError:
-                pass
-        courses = courses_q.order_by(Course.name.asc()).all()
-    except Exception:
-        courses = []
-    try:
-        users_q = User.query
-        if agency_id:
-            try:
-                users_q = users_q.filter(User.agency_id == int(agency_id))
-            except ValueError:
-                pass
-        users = users_q.all()
-    except Exception:
-        users = []
-    rows = []
-    try:
-        for u in users:
-            agency_name = getattr(getattr(u, 'agency', None), 'agency_name', '')
-            for c in courses:
-                mods = c.modules
-                total_modules = len(mods)
-                if total_modules == 0:
-                    progress_pct = 0.0
-                    completed_modules = 0
-                    avg_score = None
-                else:
-                    module_ids = [m.module_id for m in mods]
-                    user_module_q = UserModule.query.filter(
-                        UserModule.user_id == u.User_id,
-                        UserModule.module_id.in_(module_ids)
-                    )
-                    completed_modules = user_module_q.filter(UserModule.is_completed.is_(True)).count()
-                    scores = [um.score for um in user_module_q.filter(UserModule.is_completed.is_(True)).all() if um.score is not None]
-                    avg_score = round(sum(scores)/len(scores), 1) if scores else None
-                    progress_pct = round((completed_modules / total_modules) * 100.0, 1) if total_modules else 0.0
-                status = 'Completed' if total_modules and progress_pct >= 100.0 else 'In Progress'
-                if q:
-                    hay = ' '.join([
-                        (u.full_name or '').lower(),
-                        (u.email or '').lower(),
-                        agency_name.lower(),
-                        c.name.lower(),
-                        c.code.lower()
-                    ])
-                    if q not in hay:
-                        continue
-                if status_filter in ('in_progress', 'completed') and status.lower().replace(' ', '_') != status_filter:
-                    continue
-                if min_progress is not None and progress_pct < min_progress:
-                    continue
-                if max_progress is not None and progress_pct > max_progress:
-                    continue
-                rows.append({
-                    'user_name': u.full_name,
-                    'course_name': c.name,
-                    'course_code': c.code,
-                    'agency_name': agency_name,
-                    'completed_modules': completed_modules,
+        agency = current_user.agency
+        if not agency:
+            flash('No agency associated with this account', 'warning')
+            return redirect(url_for('login'))
+
+        # Get all users for this agency
+        users = User.query.filter_by(agency_id=agency.agency_id).all()
+
+        # Build detailed progress data for each user PER COURSE
+        progress_rows = []
+
+        for user in users:
+            # Get all modules the user has access to based on their category
+            user_category = normalized_user_category(user)
+            courses = Course.query.filter(
+                or_(Course.allowed_category == user_category, Course.allowed_category == 'both')
+            ).all()
+
+            for course in courses:
+                course_modules = course.modules
+                if len(course_modules) == 0:
+                    continue  # Skip courses with no modules
+
+                total_modules = len(course_modules)
+                completed_modules = 0
+                total_score = 0
+                scored_modules = 0
+
+                module_ids = [m.module_id for m in course_modules]
+
+                # Get completed modules for this user in this course
+                completed_user_modules = UserModule.query.filter(
+                    UserModule.user_id == user.User_id,
+                    UserModule.module_id.in_(module_ids),
+                    UserModule.is_completed.is_(True)
+                ).all()
+
+                completed_modules = len(completed_user_modules)
+
+                for um in completed_user_modules:
+                    if um.score is not None:
+                        total_score += um.score
+                        scored_modules += 1
+
+                avg_score = round(total_score / scored_modules, 1) if scored_modules > 0 else None
+                progress_pct = round((completed_modules / total_modules * 100), 1) if total_modules > 0 else 0
+
+                status = 'Completed' if completed_modules == total_modules else 'In Progress'
+
+                progress_rows.append({
+                    'user_name': user.full_name,
+                    'user_number_series': user.number_series,
+                    'user_category': user.user_category,
+                    'course_name': course.name,
+                    'course_code': course.code,
                     'total_modules': total_modules,
+                    'completed_modules': completed_modules,
                     'progress_pct': progress_pct,
                     'avg_score': avg_score,
-                    'status': status,
+                    'status': status
                 })
-    except Exception:
-        logging.exception('[MONITOR PROGRESS] Failed building rows')
-        rows = []
-    try:
-        rows.sort(key=lambda r: (-r['progress_pct'], r['user_name'].lower()))
-    except Exception:
-        pass
-    filters = _SN(q=q, agency_id=(int(agency_id) if agency_id and agency_id.isdigit() else None), course_id=(int(course_id) if course_id and course_id.isdigit() else None), status=status_filter, min_progress=min_progress, max_progress=max_progress)
-    return render_template('monitor_progress.html', course_progress_rows=rows, agencies=agencies, courses=courses, filters=filters)
 
-@app.route('/modules/<course_code>')
-@login_required
-def course_modules(course_code):
-    """Render modules for a given course code.
-    Supports two data models:
-      1. New model where modules are linked via course_id
-      2. Legacy model where module.module_type stores the course code
-    Also provides synthetic course when Course row missing but legacy modules exist.
-    """
-    code = (course_code or '').strip().upper()
-    if not code:
-        from flask import abort
-        return abort(404)
-    try:
-        course = Course.query.filter(db.func.lower(db.func.trim(Course.code)) == code.lower()).first()
-    except Exception:
-        course = None
-    try:
-        if course:
-            modules_q = Module.query.filter(or_(Module.course_id == course.course_id, db.func.lower(db.func.trim(Module.module_type)) == course.code.lower()))
-        else:
-            # Legacy-only fallback: no course row yet
-            modules_q = Module.query.filter(db.func.lower(db.func.trim(Module.module_type)) == code.lower())
-        modules = modules_q.all()
-    except Exception:
-        logging.exception('[COURSE MODULES] DB error loading modules for %s', code)
-        modules = []
-    if not modules and not course:
-        from flask import abort
-        return abort(404)
-    # Build user progress map
-    user_progress_rows = []
-    if isinstance(current_user, User):
-        try:
-            mod_ids = [m.module_id for m in modules]
-            if mod_ids:
-                user_progress_rows = UserModule.query.filter(UserModule.user_id == current_user.User_id, UserModule.module_id.in_(mod_ids)).all()
-        except Exception:
-            logging.exception('[COURSE MODULES] Failed loading user progress')
-            user_progress_rows = []
-    user_progress = {um.module_id: um for um in user_progress_rows}
-    # Sort modules (uses helper that handles natural series ordering)
-    try:
-        modules_sorted = _series_sort(modules)
-    except Exception:
-        modules_sorted = modules
-    # Unlock logic: first always unlocked; subsequent unlocked if previous completed
-    prev_completed = True  # first module unlocked even if no previous
-    for idx, m in enumerate(modules_sorted):
-        um = user_progress.get(m.module_id)
-        unlocked = (idx == 0) or prev_completed
-        # Attach transient attribute for template
-        try:
-            setattr(m, 'unlocked', bool(unlocked))
-        except Exception:
-            pass
-        prev_completed = bool(um and um.is_completed)
-    # Compute overall percentage (average of completed module scores)
-    overall_percentage = None
-    try:
-        completed_scores = [ (user_progress.get(m.module_id).score) for m in modules_sorted if user_progress.get(m.module_id) and user_progress.get(m.module_id).is_completed and user_progress.get(m.module_id).score is not None ]
-        if completed_scores:
-            overall_percentage = round(sum(completed_scores)/len(completed_scores), 1)
-    except Exception:
-        overall_percentage = None
-    course_name = course.name if course else f"{code} Course"
-    return render_template('course_modules.html', course_name=course_name, modules=modules_sorted, overall_percentage=overall_percentage, user_progress=user_progress)
+        # Sort by user name, then by course code
+        progress_rows.sort(key=lambda x: (x['user_name'], x['course_code']))
 
-@app.route('/api/check_module_disclaimer/<int:module_id>')
-@login_required
-def api_check_module_disclaimer(module_id):
-    try:
-        # Use session.get to avoid deprecated Query.get
-        m = db.session.get(Module, module_id)
-        if not m:
-            return jsonify(success=False, message='Module not found'), 404
-        # Non-user roles bypass disclaimer gating (treat as agreed)
-        if not isinstance(current_user, User):
-            return jsonify(success=True, has_agreed=True)
-        agreed = current_user.has_agreed_to_module_disclaimer(module_id)
-        return jsonify(success=True, has_agreed=agreed)
-    except Exception as e:
-        logging.exception('[DISCLAIMER CHECK] Failed')
-        return jsonify(success=False, message='Server error'), 500
-
-@app.route('/api/agree_module_disclaimer/<int:module_id>', methods=['POST'])
-@login_required
-def api_agree_module_disclaimer(module_id):
-    try:
-        # Use session.get for consistency
-        m = db.session.get(Module, module_id)
-        if not m:
-            return jsonify(success=False, message='Module not found'), 404
-        if not isinstance(current_user, User):
-            return jsonify(success=False, message='Only users can agree to disclaimers'), 403
-        if current_user.has_agreed_to_module_disclaimer(module_id):
-            return jsonify(success=True, already=True)
-        current_user.agree_to_module_disclaimer(module_id)
-        return jsonify(success=True, agreed=True)
-    except Exception:
-        logging.exception('[DISCLAIMER AGREE] Failed')
-        return jsonify(success=False, message='Server error'), 500
-
-@app.route('/module/<int:module_id>/quiz')
-@login_required
-def module_quiz(module_id):
-    """Render the quiz player for a module."""
-    m = db.session.get(Module, module_id)
-    if not m:
-        from flask import abort
-        return abort(404)
-    # Optional course context (new model) or infer from module_type
-    course = None
-    try:
-        if m.course_id:
-            course = db.session.get(Course, m.course_id)
-        if not course and m.module_type:
-            course = Course.query.filter(Course.code.ilike(m.module_type)).first()
-    except Exception:
-        course = None
-    # Fetch/create user progress row (do not mark completed here)
-    user_module = None
-    try:
-        if isinstance(current_user, User):
-            user_module = UserModule.query.filter_by(user_id=current_user.User_id, module_id=m.module_id).first()
-    except Exception:
-        user_module = None
-    return render_template('quiz_take.html', module=m, course=course, user_module=user_module)
-
-# --- QUIZ API HELPERS ---
-import json as _json
-
-
-def _parse_quiz_json(raw):
-    """Robustly parse/normalize stored quiz JSON.
-    Accepts:
-      - JSON string (list or dict)
-      - Python list or dict (if DB column is JSON type)
-      - bytes/bytearray
-    Normalized output: list[ { 'text': str, 'answers': [ {'text':str, 'isCorrect':bool}, ... ] } ]
-    """
-    # Empty/None => no quiz
-    if raw is None or raw == '':
-        return []
-
-    data = raw
-    # Decode bytes and try JSON
-    if isinstance(raw, (bytes, bytearray)):
-        try:
-            data = _json.loads(raw.decode('utf-8'))
-        except Exception:
-            return []
-    elif isinstance(raw, str):
-        # If it's a string, try to parse JSON; if it fails, consider no quiz
-        try:
-            data = _json.loads(raw)
-        except Exception:
-            return []
-
-    normalized = []
-
-    # Helper to normalize an answer entry to dict
-    def norm_answer(a):
-        if isinstance(a, dict):
-            text = str(a.get('text', '')).strip()
-            is_correct = bool(a.get('isCorrect') or a.get('correct') or a.get('is_correct') or False)
-            return {'text': text, 'isCorrect': is_correct}
-        # if answer is a string or other primitive, assume incorrect
-        return {'text': str(a).strip(), 'isCorrect': False}
-
-    # If it's already a list of questions
-    if isinstance(data, list):
-        for item in data:
-            if not item:
-                continue
-            q_text = ''
-            answers = []
-            if isinstance(item, dict):
-                q_text = str(item.get('text') or item.get('question') or '').strip()
-                raw_answers = item.get('answers') or item.get('choices') or item.get('options') or []
-                if isinstance(raw_answers, list):
-                    answers = [norm_answer(a) for a in raw_answers if str(a).strip() != '']
-            elif isinstance(item, str):
-                q_text = item.strip()
-                answers = []
-            if q_text and answers:
-                normalized.append({'text': q_text, 'answers': answers})
-        return normalized
-
-    # Legacy flat dict parser (e.g., keys q1, q1_a1, q1_a1_correct)
-    if isinstance(data, dict):
-        # Newer nested structure: { "questions": [ { question, answers, correct }, ... ] }
-        try:
-            questions_list = None
-            if isinstance(data.get('questions'), list):
-                questions_list = data.get('questions')
-            elif isinstance(data.get('quiz'), list):
-                questions_list = data.get('quiz')
-            elif isinstance(data.get('items'), list):
-                questions_list = data.get('items')
-            if questions_list is not None:
-                for q in questions_list:
-                    if not isinstance(q, dict):
-                        # Allow simple strings as questions (no answers)
-                        if isinstance(q, str) and q.strip():
-                            # skip since no answers provided
-                            continue
-                        else:
-                            continue
-                    q_text = str(q.get('text') or q.get('question') or '').strip()
-                    raw_answers = q.get('answers') or q.get('choices') or q.get('options') or []
-                    # Normalize answers, which may be strings
-                    ans = []
-                    if isinstance(raw_answers, list):
-                        ans = [norm_answer(a) for a in raw_answers if str(a).strip() != '']
-                    # Mark correct answer by index if provided
-                    correct_val = q.get('correct')
-                    if correct_val is None:
-                        correct_val = q.get('correctIndex') if q.get('correctIndex') is not None else q.get('correct_index')
-                    cidx = None
-                    # Accept ints or numeric strings; support 1-based and 0-based
-                    try:
-                        if isinstance(correct_val, str) and correct_val.strip().isdigit():
-                            correct_val = int(correct_val.strip())
-                        if isinstance(correct_val, (int, float)):
-                            ci = int(correct_val)
-                            if ans:
-                                if 1 <= ci <= len(ans):
-                                    cidx = ci - 1
-                                elif 0 <= ci < len(ans):
-                                    cidx = ci
-                    except Exception:
-                        cidx = None
-                    if ans and cidx is not None and 0 <= cidx < len(ans):
-                        # Reset all flags then set the correct one
-                        for i in range(len(ans)):
-                            ans[i]['isCorrect'] = (i == cidx)
-                    if q_text and ans:
-                        normalized.append({'text': q_text, 'answers': ans})
-                return normalized
-        except Exception:
-            # Fall through to legacy flat dict parser below
-            pass
-
-        grouped = {}
-        for k, v in data.items():
-            kstr = str(k)
-            # q1 -> question text
-            m = re.match(r'^\s*q(\d+)\s*$', kstr, re.I)
-            if m:
-                idx = int(m.group(1))
-                grouped.setdefault(idx, {})['text'] = str(v).strip() if v is not None else ''
-                continue
-            # q1_a1 or q1_answer1 -> answer text
-            m = re.match(r'^\s*q(\d+)[\._-]*a(?:nswer)?(\d+)\s*$', kstr, re.I)
-            if m:
-                qi = int(m.group(1)); ai = int(m.group(2))
-                grp = grouped.setdefault(qi, {})
-                ans_list = grp.setdefault('answers', {})
-                ans_list[ai] = {'text': str(v).strip() if v is not None else '', 'isCorrect': ans_list.get(ai, {}).get('isCorrect', False)}
-                continue
-            # q1_a1_correct or q1_a1_isCorrect
-            m = re.match(r'^\s*q(\d+)[\._-]*a(\d+)[\._-]*(correct|iscorrect|is_correct|true)\s*$', kstr, re.I)
-            if m:
-                qi = int(m.group(1)); ai = int(m.group(2))
-                grp = grouped.setdefault(qi, {})
-                ans_list = grp.setdefault('answers', {})
-                entry = ans_list.setdefault(ai, {})
-                try:
-                    sval = str(v).strip().lower() if v is not None else 'true'
-                except Exception:
-                    sval = 'true'
-                entry['isCorrect'] = sval in ('1', 'true', 'yes', 'y', 'on')
-                continue
-
-        for qk in sorted(grouped.keys()):
-            g = grouped[qk]
-            q_text = str(g.get('text', '')).strip()
-            answers_map = g.get('answers', {})
-            answers = []
-            for aidx in sorted(answers_map.keys()):
-                a = answers_map[aidx]
-                text = str(a.get('text', '')).strip()
-                is_correct = bool(a.get('isCorrect', False))
-                if text:
-                    answers.append({'text': text, 'isCorrect': is_correct})
-            if q_text and answers:
-                normalized.append({'text': q_text, 'answers': answers})
-        return normalized
-
-    # Unknown structure
-    return []
-
-@app.route('/api/load_quiz/<int:module_id>')
-@login_required
-def api_load_quiz(module_id):
-    m = db.session.get(Module, module_id)
-    if not m:
-        return jsonify({'success': False, 'message': 'Module not found'}), 404
-
-    raw = getattr(m, 'quiz_json', None)
-    # Log raw DB value and its type to help debugging
-    try:
-        preview = raw if isinstance(raw, (str, int, float, bool, list, dict, type(None))) else '[non-primitive]'
-    except Exception:
-        preview = '[unserializable]'
-    logging.debug('[API LOAD QUIZ] module_id=%s raw_type=%s raw_value=%s', module_id, type(raw).__name__, preview)
-
-    quiz = _parse_quiz_json(raw)
-    logging.debug('[API LOAD QUIZ] parsed_count=%d', len(quiz))
-
-    payload = {'success': True, 'quiz': quiz}
-    if app.debug:
-        # include raw only in debug mode
-        payload['raw'] = preview
-    return jsonify(payload)
-
-@app.route('/api/save_quiz_answers/<int:module_id>', methods=['POST'])
-@login_required
-def api_save_quiz_answers(module_id):
-    try:
-        # Only regular users persist quiz answers
-        if not isinstance(current_user, User):
-            return jsonify(success=False, message='Only users can save answers'), 403
-        m = db.session.get(Module, module_id)
-        if not m:
-            return jsonify(success=False, message='Module not found'), 404
-        payload = request.get_json(silent=True) or {}
-        answers = payload.get('answers')
-        if not isinstance(answers, list):
-            return jsonify(success=False, message='Invalid answers payload'), 400
-        # Ensure a UserModule row exists
-        um = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
-        if not um:
-            um = UserModule(user_id=current_user.User_id, module_id=module_id, is_completed=False)
-            db.session.add(um)
-        # Persist as JSON text
-        try:
-            um.quiz_answers = json.dumps(answers)
-        except Exception:
-            return jsonify(success=False, message='Failed to serialize answers'), 400
-        db.session.commit()
-        return jsonify(success=True)
-    except Exception:
-        logging.exception('[API SAVE QUIZ ANSWERS] Failed')
-        db.session.rollback()
-        return jsonify(success=False, message='Server error'), 500
-
-
-@app.route('/api/user_quiz_answers/<int:module_id>')
-@login_required
-def api_get_user_quiz_answers(module_id):
-    try:
-        if not isinstance(current_user, User):
-            return jsonify([])
-        um = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
-        if not um or not um.quiz_answers:
-            return jsonify([])
-        try:
-            data = json.loads(um.quiz_answers)
-            if isinstance(data, list):
-                return jsonify(data)
-        except Exception:
-            pass
-        return jsonify([])
-    except Exception:
-        logging.exception('[API GET QUIZ ANSWERS] Failed')
-        return jsonify([])
-
-
-@app.route('/api/submit_quiz/<int:module_id>', methods=['POST'])
-@login_required
-def api_submit_quiz(module_id):
-    try:
-        if not isinstance(current_user, User):
-            return jsonify(success=False, message='Only users can submit quizzes'), 403
-        m = db.session.get(Module, module_id)
-        if not m:
-            return jsonify(success=False, message='Module not found'), 404
-        quiz = _parse_quiz_json(getattr(m, 'quiz_json', None))
-        if not quiz:
-            return jsonify(success=False, message='No quiz available for this module'), 404
-        payload = request.get_json(silent=True) or {}
-        answers = payload.get('answers') or []
-        is_reattempt = bool(payload.get('is_reattempt'))
-        # Compute correct indices for each question
-        correct_indices = []
-        for q in quiz:
-            idx = None
-            ans_list = q.get('answers') or []
-            for i, a in enumerate(ans_list):
-                if isinstance(a, dict) and a.get('isCorrect'):
-                    idx = i
-                    break
-            correct_indices.append(idx)
-        total = len(correct_indices)
-        # Compare up to min length
-        correct = 0
-        for i in range(min(len(answers), total)):
-            try:
-                sel = answers[i]
-                if isinstance(sel, str) and sel.isdigit():
-                    sel = int(sel)
-                if isinstance(sel, (int, float)):
-                    if correct_indices[i] is not None and int(sel) == int(correct_indices[i]):
-                        correct += 1
-            except Exception:
-                continue
-        score_pct = int(round((correct / total) * 100)) if total else 0
-        # Upsert UserModule row and persist
-        um = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
-        if not um:
-            um = UserModule(user_id=current_user.User_id, module_id=module_id)
-            db.session.add(um)
-        # Increment reattempt count if explicitly flagged
-        if is_reattempt:
-            try:
-                um.reattempt_count = (um.reattempt_count or 0) + 1
-            except Exception:
-                um.reattempt_count = 1
-        # Save answers, completion, score (keep best score)
-        try:
-            um.quiz_answers = json.dumps(answers)
-        except Exception:
-            pass
-        um.is_completed = True
-        um.completion_date = datetime.now(UTC)
-        if um.score is None or score_pct > int(um.score):
-            um.score = score_pct
-        db.session.commit()
-        # Grade letter derived from per-module reattempt_count
-        grade_letter = um.get_grade_letter() if hasattr(um, 'get_grade_letter') else 'A'
-        return jsonify(success=True, score=score_pct, total=total, correct=correct, grade_letter=grade_letter, reattempt_count=(um.reattempt_count or 0))
-    except Exception:
-        logging.exception('[API SUBMIT QUIZ] Failed')
-        db.session.rollback()
-        return jsonify(success=False, message='Server error'), 500
-
-# --- User profile update API (supports remarks) ---
-@app.route('/api/user/update', methods=['PATCH'])
-@login_required
-def api_user_update():
-    try:
-        if not isinstance(current_user, User):
-            return jsonify(success=False, error='Only users can update their profile'), 403
-        payload = request.get_json(silent=True) or {}
-        allowed = ('full_name','email','visa_number','visa_expiry_date','state','postcode','remarks','address')
-        changes = {}
-        for k in allowed:
-            if k in payload:
-                changes[k] = payload.get(k)
-        # Basic validation
-        if 'email' in changes:
-            email = (changes.get('email') or '').strip().lower()
-            if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
-                return jsonify(success=False, error='Invalid email format'), 400
-            # Ensure uniqueness for other accounts
-            exists = User.query.filter(User.email == email, User.User_id != current_user.User_id).first()
-            if exists:
-                return jsonify(success=False, error='Email is already in use'), 400
-            current_user.email = email
-        if 'full_name' in changes and changes.get('full_name') is not None:
-            current_user.full_name = str(changes.get('full_name')).strip()
-        if 'visa_number' in changes:
-            current_user.visa_number = (changes.get('visa_number') or '').strip()
-        if 'visa_expiry_date' in changes:
-            # Accept YYYY-MM-DD or empty
-            dt = safe_parse_date(changes.get('visa_expiry_date'))
-            current_user.visa_expiry_date = dt
-        if 'state' in changes:
-            current_user.state = (changes.get('state') or '').strip()
-        if 'postcode' in changes:
-            current_user.postcode = (changes.get('postcode') or '').strip()
-        if 'address' in changes:
-            current_user.address = (changes.get('address') or '').strip()
-        if 'remarks' in changes:
-            # Free text; store as-is (trim length lightly)
-            txt = changes.get('remarks')
-            if isinstance(txt, str) and len(txt) > 5000:
-                txt = txt[:5000]
-            current_user.remarks = txt
-        db.session.commit()
-        return jsonify(success=True)
-    except Exception:
-        logging.exception('[API USER UPDATE] Failed')
-        db.session.rollback()
-        return jsonify(success=False, error='Server error'), 500
-
-# --- Certificate star rating API ---
-@app.route('/api/certificate/<int:certificate_id>/rate', methods=['POST'])
-@login_required
-def api_rate_certificate(certificate_id):
-    try:
-        cert = db.session.get(Certificate, certificate_id)
-        if not cert:
-            return jsonify(success=False, error='Certificate not found'), 404
-        # Only the owner user can rate their certificate
-        if not isinstance(current_user, User) or cert.user_id != current_user.User_id:
-            return jsonify(success=False, error='Forbidden'), 403
-        data = request.get_json(silent=True) or {}
-        rating = data.get('rating')
-        try:
-            rating = int(rating)
-        except Exception:
-            return jsonify(success=False, error='Invalid rating'), 400
-        if rating < 1 or rating > 5:
-            return jsonify(success=False, error='Rating must be between 1 and 5'), 400
-        cert.star_rating = rating
-        db.session.commit()
-        return jsonify(success=True, rating=rating)
-    except Exception:
-        logging.exception('[API RATE CERTIFICATE] Failed')
-        db.session.rollback()
-        return jsonify(success=False, error='Server error'), 500
-
-@app.route('/upload_content', methods=['GET', 'POST'])
-@login_required
-def upload_content():
-    """Trainer-facing content upload endpoint. Renders a form to upload slides, add YouTube URL, or save a quiz.
-    POST will handle basic validation and persist files to UPLOAD_CONTENT_FOLDER and update Module fields.
-    """
-    # Only trainers (or admins) should access this; existing project uses 'Trainer' role check elsewhere
-    try:
-        # Gather modules available to the trainer (simple approach: show all modules)
-        modules = Module.query.order_by(Module.module_name).all()
-    except Exception:
-        modules = []
-
-    if request.method == 'GET':
-        # Render upload form
-        return render_template('upload_content.html', modules=[m.to_dict() for m in modules])
-
-    # POST - process submitted content
-    module_id = request.form.get('module_id') or request.form.get('module')
-    content_type = request.form.get('content_type')
-    if not module_id:
-        flash('Please select a module.', 'danger')
-        return redirect(url_for('upload_content'))
-
-    module = db.session.get(Module, module_id)
-    if not module:
-        flash('Selected module not found.', 'danger')
-        return redirect(url_for('upload_content'))
-
-    # Handle slide upload
-    if content_type == 'slide' or 'slide_file' in request.files:
-        slide = request.files.get('slide_file')
-        if slide and slide.filename:
-            filename = secure_filename(slide.filename)
-            # Ensure extension allowed
-            if not is_slide_file(filename):
-                flash('Slide must be a PDF or PPTX file.', 'danger')
-                return redirect(url_for('upload_content'))
-            # Avoid collisions by prefixing timestamp
-            name, ext = os.path.splitext(filename)
-            safe_name = f"{int(datetime.utcnow().timestamp())}_{name}{ext}"
-            # Save into the configured uploads folder under the app root to match serving logic
-            dest_dir = os.path.join(app.root_path, UPLOAD_CONTENT_FOLDER)
-            os.makedirs(dest_dir, exist_ok=True)
-            dest = os.path.join(dest_dir, safe_name)
-            try:
-                slide.save(dest)
-                # Save relative path/filename to module.slide_url
-                module.slide_url = safe_name
-                db.session.commit()
-                flash('Slide uploaded successfully.', 'success')
-            except Exception as e:
-                db.session.rollback()
-                logging.exception('Failed to save slide file')
-                flash('Failed to save slide file.', 'danger')
-                return redirect(url_for('upload_content'))
-        else:
-            flash('No slide file selected.', 'warning')
-
-    # Handle YouTube URL
-    if content_type == 'video' or request.form.get('youtube_url'):
-        youtube_url = request.form.get('youtube_url')
-        if youtube_url:
-            # Basic extract/validation
-            vid = extract_youtube_id(youtube_url)
-            if not vid:
-                flash('Invalid YouTube URL provided.', 'danger')
-                return redirect(url_for('upload_content'))
-            module.youtube_url = youtube_url.strip()
-            try:
-                db.session.commit()
-                flash('YouTube URL saved.', 'success')
-            except Exception:
-                db.session.rollback()
-                flash('Failed to save YouTube URL.', 'danger')
-                return redirect(url_for('upload_content'))
-
-    # Handle Quiz content
-    if content_type == 'quiz' or any(k.startswith('quiz_question_') for k in request.form.keys()):
-        # Build quiz JSON from form fields
-        quiz = {'questions': []}
-        try:
-            # Determine how many questions were supplied (max 5)
-            for qn in range(1, 6):
-                qtext = request.form.get(f'quiz_question_{qn}')
-                if not qtext:
-                    continue
-                answers = []
-                for an in range(1, 6):
-                    a = request.form.get(f'answer_{qn}_{an}')
-                    if a:
-                        answers.append(a)
-                correct = request.form.get(f'correct_answer_{qn}')
-                try:
-                    correct_idx = int(correct) - 1 if correct else None
-                except Exception:
-                    correct_idx = None
-                quiz['questions'].append({
-                    'question': qtext,
-                    'answers': answers,
-                    'correct_index': correct_idx
-                })
-            module.quiz_json = json.dumps(quiz)
-            db.session.commit()
-            flash('Quiz saved to module.', 'success')
-        except Exception:
-            db.session.rollback()
-            logging.exception('Failed to save quiz')
-            flash('Failed to save quiz content.', 'danger')
-            return redirect(url_for('upload_content'))
-
-    # After processing, redirect back to trainer portal
-    return redirect(url_for('trainer_portal'))
-
-@app.route('/onboarding/<int:id>', methods=['GET', 'POST'])
-def onboarding(id):
-    step = request.args.get('step', 1, type=int)
-    total_steps = 4
-    # Load onboarding user record via session.get
-    user = db.session.get(User, id)
-    if not user:
-        from flask import abort
-        return abort(404)
-    malaysian_states = [
-        "Johor", "Kedah", "Kelantan", "Melaka", "Negeri Sembilan", "Pahang", "Penang", "Perak", "Perlis", "Sabah", "Sarawak", "Selangor", "Terengganu", "Kuala Lumpur", "Labuan", "Putrajaya"
-    ]
-    if request.method == 'POST':
-        # Step 1: Personal Details
-        if step == 1:
-            user.full_name = request.form.get('full_name', user.full_name)
-            user.user_category = request.form.get('user_category', user.user_category)
-            user.ic_number = request.form.get('ic_number', user.ic_number)
-            user.passport_number = request.form.get('passport_number', user.passport_number)
-            user.state = request.form.get('state', user.state)
-        # Step 2: Contact Details
-        elif step == 2:
-            user.emergency_contact_phone = request.form.get('emergency_contact_phone', user.emergency_contact_phone)
-            user.postcode = request.form.get('postcode', user.postcode)
-            user.address = request.form.get('address', user.address)
-            user.state = request.form.get('state', user.state)
-        # Step 3: Work Details
-        elif step == 3:
-            user.current_workplace = request.form.get('current_workplace', user.current_workplace)
-            # Parse recruitment_date safely using helper
-            recruitment_val = request.form.get('recruitment_date')
-            user.recruitment_date = safe_parse_date(recruitment_val)
-            # Work histories handled separately if needed
-        # Step 4: Emergency Contact
-        elif step == 4:
-            user.emergency_contact_name = request.form.get('emergency_contact_name', user.emergency_contact_name)
-            user.emergency_contact_relationship = request.form.get('emergency_contact_relationship', user.emergency_contact_relationship)
-            user.emergency_contact_phone = request.form.get('emergency_contact_phone', user.emergency_contact_phone)
-        # Use the module-level `db` imported at top of file
-        db.session.commit()
-        if 'skip' in request.form:
-            return redirect(url_for('user_dashboard'))
-        next_step = step + 1 if step < total_steps else total_steps
-        return redirect(url_for('onboarding', id=id, step=next_step))
-    return render_template('onboarding.html', id=id, step=step, total_steps=total_steps, user=user, malaysian_states=malaysian_states)
-
-# --- Debug/health endpoints to diagnose routing in dev ---
-@app.route('/__health')
-def __health():
-    try:
-        return jsonify(ok=True, app='training-system', time=datetime.utcnow().isoformat(), routes_count=len(list(app.url_map.iter_rules())))
-    except Exception:
-        return jsonify(ok=False), 500
-
-@app.route('/__routes')
-def __routes():
-    try:
-        rules = []
-        for r in app.url_map.iter_rules():
-            rules.append({
-                'rule': r.rule,
-                'methods': sorted(list(r.methods or [])),
-                'endpoint': r.endpoint,
-            })
-        # Sort for stable output
-        rules.sort(key=lambda x: x['rule'])
-        return jsonify(routes=rules, count=len(rules))
-    except Exception:
-        return jsonify(routes=[], count=0), 500
-
-@app.route('/__whoami')
-def __whoami():
-    try:
-        return jsonify(
-            server='training-system-2',
-            host=request.host,
-            path=request.path,
-            remote_addr=request.remote_addr,
-            time=datetime.utcnow().isoformat()
+        return render_template(
+            'agency_progress_monitor.html',
+            agency=agency,
+            progress_rows=progress_rows
         )
-    except Exception:
-        return jsonify(server='training-system-2'), 200
+    except Exception as e:
+        logging.exception('[AGENCY PROGRESS MONITOR] Error loading progress')
+        flash('Error loading progress monitor', 'danger')
+        return redirect(url_for('agency_portal'))
 
-@app.route('/index')
-def index_redirect():
-    return redirect(url_for('index'))
 
-@app.route('/index.html')
-def index_html_redirect():
-    return redirect(url_for('index'))
+@app.route('/agency_update_details', methods=['POST'])
+@login_required
+def agency_update_details():
+    if not isinstance(current_user, AgencyAccount):
+        flash('Unauthorized access.', 'danger')
+        return redirect(url_for('login'))
 
-@app.route('/home')
-def home_redirect():
-    return redirect(url_for('index'))
+    agency = current_user.agency
+    if not agency:
+        flash('Agency not found.', 'danger')
+        return redirect(url_for('agency_portal'))
 
-@app.route('/favicon.ico')
-def favicon():
     try:
-        # Prefer favicon in static/ if present
-        static_dir = app.static_folder or 'static'
-        for name in ('favicon.ico', 'favicon.png'):
-            candidate = os.path.join(static_dir, name)
-            if os.path.exists(candidate):
-                return send_from_directory(static_dir, name)
-        # No favicon available; return empty
-        return ('', 204)
-    except Exception:
-        return ('', 204)
+        agency.agency_name = request.form.get('agency_name', agency.agency_name)
+        agency.agency_contact_person = request.form.get('agency_contact_person', agency.agency_contact_person)
+        agency.agency_contact_email = request.form.get('agency_contact_email', agency.agency_contact_email)
+        agency.agency_contact_phone = request.form.get('agency_contact_phone', agency.agency_contact_phone)
 
-@app.errorhandler(404)
-def _handle_404(e):
+        db.session.commit()
+        flash('Agency details updated successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"[AGENCY UPDATE] Error updating agency details for {agency.agency_name}: {e}")
+        flash('Error updating agency details.', 'danger')
+
+    return redirect(url_for('agency_portal'))
+
+@app.route('/agency_create_user', methods=['POST'])
+@login_required
+def agency_create_user():
+    """Allow agency accounts to create users under their agency"""
+    from models import AgencyAccount
+    if not isinstance(current_user, AgencyAccount):
+        flash('Unauthorized access.', 'danger')
+        return redirect(url_for('login'))
+
+    agency = current_user.agency
+    if not agency:
+        flash('No agency associated with this account.', 'danger')
+        return redirect(url_for('login'))
+
     try:
-        p = (request.path or '').strip()
-    except Exception:
-        p = ''
-    # API requests keep JSON 404
-    if p.startswith('/api/'):
-        return jsonify(success=False, error='Not found', path=p), 404
-    # For common root-like paths, render the home page directly
-    if p in ('', '/', '/index', '/index.html', '/home'):
-        try:
-            return render_template('index.html'), 200
-        except Exception:
-            # Fallback minimal text in case template missing
-            return 'Home', 200
-    # For other paths, show a simple not found page with a link home
-    return render_template('404.html') if os.path.exists(os.path.join(app.template_folder or 'templates','404.html')) else ("Not Found. Go to /", 404)
+        full_name = request.form.get('full_name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '').strip()
+        user_category = request.form.get('user_category', 'citizen').strip().lower()
 
-# Final catch-all for non-API GETs to improve SPA-like navigation and avoid confusing 404s on root
-@app.route('/<path:any_path>', methods=['GET'])
-def _fallback_spa(any_path):
-    # Allow static and uploads to proceed to their own handlers
-    if any_path.startswith(('static/', 'uploads/', 'slides/')):
-        from flask import abort
-        return abort(404)
-    # APIs should not be handled here
-    if any_path.startswith('api/'):
-        from flask import abort
-        return abort(404)
-    # Render index for other GETs (acts like basic SPA fallback)
-    try:
-        return render_template('index.html'), 200
-    except Exception:
-        return 'Home', 200
+        # Validate inputs
+        if not full_name or not email or not password:
+            flash('All fields are required.', 'danger')
+            return redirect(url_for('agency_portal'))
 
-# Optional request logging for diagnostics (enable with LOG_REQUESTS=1)
-ENABLE_REQUEST_LOG = os.environ.get('LOG_REQUESTS', '0') in ('1', 'true', 'True', 'yes', 'on')
+        # Check if email already exists
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            flash('A user with this email already exists.', 'warning')
+            return redirect(url_for('agency_portal'))
 
-@app.before_request
-def _log_request_line():
-    if ENABLE_REQUEST_LOG:
-        try:
-            print(f"[REQ] {request.method} {request.host}{request.full_path} from {request.remote_addr}")
-        except Exception:
-            pass
+        # Create new user
+        data = {
+            'full_name': full_name,
+            'email': email,
+            'password': password,
+            'user_category': 'foreigner' if user_category == 'foreigner' else 'citizen',
+            'agency_id': agency.agency_id
+        }
 
+        new_user = Registration.registerUser(data)
+        flash(f'User {full_name} created successfully with number series: {new_user.number_series}', 'success')
+
+    except ValueError as ve:
+        flash(str(ve), 'danger')
+    except Exception as e:
+        logging.exception('[AGENCY CREATE USER] Failed to create user')
+        flash('Failed to create user. Please try again.', 'danger')
+
+    return redirect(url_for('agency_portal'))
+
+# python
 if __name__ == '__main__':
-    # Allow direct execution: python app.py
-    try:
-        host = os.environ.get('HOST', '0.0.0.0')
-        try:
-            port = int(os.environ.get('PORT', '5050'))
-        except Exception:
-            port = 5050
-        debug = os.environ.get('FLASK_DEBUG', '0') in ('1', 'true', 'True', 'yes', 'on')
-        print('=' * 60)
-        print('TRAINING SYSTEM - Flask server (app.py)')
-        print('=' * 60)
-        print(f'Listening on http://{host}:{port}  (debug={debug})')
-        print('Press Ctrl+C to stop')
-        print('=' * 60)
-        app.run(host=host, port=port, debug=debug, threaded=True, use_reloader=debug)
-    except KeyboardInterrupt:
-        pass
-
+    port = int(os.environ.get('PORT', '5050'))
+    host = os.environ.get('HOST', '0.0.0.0')
+    debug = os.environ.get('FLASK_DEBUG', '0') in ('1', 'true', 'True')
+    # Friendly startup message
+    if host == '0.0.0.0':
+        print(f"Starting Flask on http://127.0.0.1:{port} (and listening on 0.0.0.0:{port})")
+    else:
+        print(f"Starting Flask on http://{host}:{port}")
+    app.run(host=host, port=port, debug=debug)
