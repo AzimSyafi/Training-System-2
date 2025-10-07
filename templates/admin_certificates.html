@@ -39,7 +39,7 @@
         <!-- Filters (moved below upload section) -->
         <div class="card shadow-sm mb-4">
             <div class="card-body">
-                <form method="get" action="{{ url_for('admin_certificates') }}" class="row g-2 align-items-end">
+                <form method="get" action="{{ url_for('main.admin_certificates') }}" class="row g-2 align-items-end">
                     <div class="col-md-3">
                         <label class="form-label" for="cf_q">Search</label>
                         <input id="cf_q" type="text" class="form-control" name="q" placeholder="User, Agency, Course, Module" value="{{ (filters.q if filters else request.args.get('q')) or '' }}">
@@ -84,7 +84,7 @@
                     </div>
                     <div class="col-12 d-flex gap-2 mt-1">
                         <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Apply</button>
-                        <a href="{{ url_for('admin_certificates') }}" class="btn btn-outline-secondary">Reset</a>
+                        <a href="{{ url_for('main.admin_certificates') }}" class="btn btn-outline-secondary">Reset</a>
                     </div>
                 </form>
             </div>
@@ -142,7 +142,7 @@
             <div class="alert alert-info">
                 <h5><i class="fas fa-info-circle"></i> No Certificates Issued</h5>
                 <p>No certificates have been issued yet. Certificates are automatically issued when users complete modules with a passing score (>50%).</p>
-                <a href="{{ safe_url_for('monitor_progress') }}" class="btn btn-primary">
+                <a href="{{ safe_url_for('main.monitor_progress') }}" class="btn btn-primary">
                     <i class="fas fa-chart-line"></i> Monitor Progress
                 </a>
             </div>

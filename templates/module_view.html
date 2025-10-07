@@ -4,7 +4,7 @@
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="mb-3">
-            <a href="{{ url_for('courses') }}" class="btn btn-secondary">
+            <a href="{{ url_for('main.courses') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Courses
             </a>
         </div>
@@ -96,7 +96,7 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                       </div>
                       <div class="modal-body">
-                        <form method="POST" action="{{ url_for('upload_content') }}" enctype="multipart/form-data" id="contentForm">
+                        <form method="POST" action="{{ url_for('main.upload_content') }}" enctype="multipart/form-data" id="contentForm">
                           <div class="form-group mb-3">
                             <label for="moduleSelect" class="form-label">Select Module</label>
                             <select class="form-select" id="moduleSelect" name="module_id" required>

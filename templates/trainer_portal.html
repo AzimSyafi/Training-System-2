@@ -250,7 +250,7 @@
                     <div class="section-header">
                         <h2 class="section-title" id="details-course-title">Course Details</h2>
                         <button class="btn btn-outline" id="close-details">Close</button>
-                        <button class="btn btn-primary" id="show-module-upload" style="margin-left: 12px;" onclick="window.location.href='{{ url_for('upload_content') }}'">
+                        <button class="btn btn-primary" id="show-module-upload" style="margin-left: 12px;" onclick="window.location.href='{{ url_for('main.upload_content') }}'">
                             <i class="fas fa-upload"></i> Upload Content
                         </button>
                     </div>
@@ -274,7 +274,7 @@
         <h1 class="page-title">Course Content Management</h1>
         <div class="upload-form">
             <div class="section-header"><h2 class="section-title">Upload New Content</h2></div>
-            <form method="POST" action="{{ url_for('upload_content') }}" enctype="multipart/form-data">
+            <form method="POST" action="{{ url_for('main.upload_content') }}" enctype="multipart/form-data">
                 <div class="form-group">
                     <label class="form-label">Select Course</label>
                     <select class="form-control" id="upload-course-select">

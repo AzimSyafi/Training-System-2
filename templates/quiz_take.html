@@ -43,7 +43,7 @@
      data-is-completed="{{ '1' if (user_module and user_module.is_completed) else '0' }}">
   <div class="quiz-topbar">
     <div class="breadcrumbs">
-      <a href="{% if course %}{{ url_for('course_modules', course_code=course.code) }}{% else %}{{ url_for('user_dashboard') }}{% endif %}"><i class="fas fa-arrow-left me-2"></i>Back</a>
+      <a href="{% if course %}{{ url_for('main.course_modules', course_code=course.code) }}{% else %}{{ url_for('main.user_dashboard') }}{% endif %}"><i class="fas fa-arrow-left me-2"></i>Back</a>
     </div>
     <div class="quiz-title">Quiz: {{ module.module_name if module else '' }}</div>
     <div class="d-flex align-items-center gap-2">

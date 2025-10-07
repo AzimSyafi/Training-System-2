@@ -25,7 +25,7 @@ body.dark-mode .stat-change, body.dark-mode .stat-title { color:#94a3b8; }
 
     <!-- Quick Actions -->
     <div class="mb-4">
-        <a href="{{ url_for('recalculate_ratings') }}" class="btn btn-outline-secondary">
+        <a href="{{ url_for('main.recalculate_ratings') }}" class="btn btn-outline-secondary">
             <i class="fas fa-sync-alt"></i> Recalculate Ratings
         </a>
     </div>
@@ -159,22 +159,22 @@ body.dark-mode .stat-change, body.dark-mode .stat-title { color:#94a3b8; }
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-3">
-                            <a href="{{ safe_url_for('admin_course_management') }}" class="btn btn-primary btn-block w-100">
+                            <a href="{{ safe_url_for('main.admin_course_management') }}" class="btn btn-primary btn-block w-100">
                                 <i class="fas fa-plus"></i> Create Module
                             </a>
                         </div>
                         <div class="col-md-3">
-                            <a href="{{ safe_url_for('admin_users') }}" class="btn btn-success btn-block w-100">
+                            <a href="{{ safe_url_for('main.admin_users') }}" class="btn btn-success btn-block w-100">
                                 <i class="fas fa-user-plus"></i> Create User
                             </a>
                         </div>
                         <div class="col-md-3">
-                            <a href="{{ safe_url_for('monitor_progress') }}" class="btn btn-warning btn-block w-100">
+                            <a href="{{ safe_url_for('main.monitor_progress') }}" class="btn btn-warning btn-block w-100">
                                 <i class="fas fa-chart-line"></i> Monitor Progress
                             </a>
                         </div>
                         <div class="col-md-3">
-                            <a href="{{ safe_url_for('admin_certificates') }}" class="btn btn-info btn-block w-100">
+                            <a href="{{ safe_url_for('main.admin_certificates') }}" class="btn btn-info btn-block w-100">
                                 <i class="fas fa-certificate"></i> View Certificates
                             </a>
                         </div>

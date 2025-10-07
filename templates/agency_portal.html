@@ -33,7 +33,7 @@
         </div>
 
         {% if current_user.__class__.__name__ == 'AgencyAccount' %}
-        <form id="agencyEditForm" method="post" action="{{ url_for('agency_update_details') }}" style="display:none;">
+        <form id="agencyEditForm" method="post" action="{{ url_for('main.agency_update_details') }}" style="display:none;">
           <div class="mb-3">
             <label for="agency_name" class="form-label">Agency name</label>
             <input id="agency_name" name="agency_name" class="form-control" value="{{ agency.agency_name }}" />
@@ -69,7 +69,7 @@
       <div class="card">
         <div class="card-header">Add New User</div>
         <div class="card-body">
-          <form method="post" action="{{ url_for('agency_create_user') }}">
+          <form method="post" action="{{ url_for('main.agency_create_user') }}">
             <div class="mb-3">
               <label for="new_full_name" class="form-label">Full name</label>
               <input id="new_full_name" name="full_name" class="form-control" required />

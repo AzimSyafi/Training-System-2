@@ -25,7 +25,7 @@
         <!-- Filters & Search -->
         <div class="card shadow-sm mb-3">
             <div class="card-body">
-                <form class="row g-2 align-items-end" method="get" action="{{ url_for('admin_users') }}">
+                <form class="row g-2 align-items-end" method="get" action="{{ url_for('main.admin_users') }}">
                     <div class="col-12 col-md-4">
                         <label for="q" class="form-label mb-1">Search</label>
                         <input id="q" name="q" type="text" class="form-control" placeholder="Name, email, series" value="{{ (filters.q if filters else request.args.get('q','')) }}" />
@@ -62,7 +62,7 @@
                     </div>
                     <div class="col-12 d-flex gap-2 mt-1">
                         <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Apply</button>
-                        <a href="{{ url_for('admin_users') }}" class="btn btn-outline-secondary">Reset</a>
+                        <a href="{{ url_for('main.admin_users') }}" class="btn btn-outline-secondary">Reset</a>
                     </div>
                 </form>
             </div>
@@ -161,7 +161,7 @@
         <h5 class="modal-title" id="createUserModalLabel"><i class="fas fa-user-plus"></i> Create New Account</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <form method="POST" action="{{ safe_url_for('create_user') }}">
+      <form method="POST" action="{{ safe_url_for('main.create_user') }}">
         <div class="modal-body">
           <div class="row">
             <div class="col-md-6">
@@ -306,7 +306,7 @@ function viewUserProgress(userId) {
 
 function resetUserProgress(userId, userName) {
     if (!confirm(`Reset all progress for ${userName}?`)) return;
-    const resetUrl = "{{ safe_url_for('reset_user_progress') }}";
+    const resetUrl = "{{ safe_url_for('main.reset_user_progress') }}";
     if (!resetUrl || resetUrl === '#' || resetUrl.startsWith('#')) {
         showTempAlert('Reset endpoint not available.', 'danger');
         return;
@@ -356,7 +356,7 @@ document.getElementById('changeRoleForm').addEventListener('submit', function(e)
 
 function deleteUserOrTrainer(userId, fullName, userType) {
     if (!confirm(`Delete ${userType} ${fullName}? This cannot be undone.`)) return;
-    let url = userType === 'trainer' ? "{{ safe_url_for('delete_trainer') }}" : "{{ safe_url_for('delete_user') }}";
+    let url = userType === 'trainer' ? "{{ safe_url_for('main.delete_trainer') }}" : "{{ safe_url_for('main.delete_user') }}";
     if (!url || url === '#' || url.startsWith('#')) {
         showTempAlert('Delete endpoint not available.', 'danger');
         return;
