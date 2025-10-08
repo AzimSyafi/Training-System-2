@@ -65,9 +65,17 @@ def authority_portal():
     except Exception:
         logging.exception('[AUTHORITY] Failed to load certificates')
         rows = []
+    # Create users list with pending counts
+    from collections import defaultdict
+    users_dict = defaultdict(lambda: {'user': None, 'count': 0})
+    for c in rows:
+        if c.status == 'pending':
+            users_dict[c.user_id]['user'] = c.user
+            users_dict[c.user_id]['count'] += 1
+    users_list = [{'user': v['user'], 'count': v['count']} for v in users_dict.values() if v['user'] and v['count'] > 0]
     # Ensure CSRF token exists for the page
     token = _get_csrf_token()
-    return render_template('authority_portal.html', rows=rows, csrf_token=token, selected_status=status, search_query=q)
+    return render_template('authority_portal.html', rows=rows, csrf_token=token, selected_status=status, search_query=q, users_list=users_list, id=token)
 
 @authority_bp.route('/bulk_approve', methods=['POST'])
 @login_required
@@ -84,33 +92,23 @@ def bulk_approve():
         payload = request.get_json(silent=True) or {}
     except Exception:
         payload = {}
-    ids = payload.get('ids')
-    if not isinstance(ids, list):
-        return jsonify({'error': 'invalid_ids'}), 400
-    try:
-        ids = [int(i) for i in ids]
-    except Exception:
-        return jsonify({'error': 'invalid_ids'}), 400
-    # Normalize and validate
-    ids = [i for i in ids if i > 0]
-    if not ids:
-        return jsonify({'error': 'empty_ids'}), 400
-    # Enforce maximum batch size
-    if len(ids) > BULK_LIMIT:
-        return jsonify({'error': 'batch_too_large', 'limit': BULK_LIMIT}), 400
-
-    # Unique the list to avoid duplicate updates inflating counts
-    unique_ids = list(dict.fromkeys(ids))
+    scope = payload.get('scope')
+    if scope == 'all':
+        # Approve all pending certificates
+        conditions = Certificate.status == 'pending'
+    elif scope == 'user':
+        user_id = payload.get('user_id')
+        if not user_id or not isinstance(user_id, int):
+            return jsonify({'error': 'invalid_user_id'}), 400
+        conditions = and_(Certificate.status == 'pending', Certificate.user_id == user_id)
+    else:
+        return jsonify({'error': 'invalid_scope'}), 400
 
     now = datetime.now(UTC)
 
     # Perform a single bulk UPDATE with idempotency (status='pending')
     try:
         from sqlalchemy import and_
-        conditions = and_(
-            Certificate.certificate_id.in_(unique_ids),
-            Certificate.status == 'pending'
-        )
         stmt = (
             update(Certificate)
             .where(conditions)
@@ -119,10 +117,8 @@ def bulk_approve():
         result = db.session.execute(stmt)
         approved_count = result.rowcount or 0
         db.session.commit()
-        requested = len(unique_ids)
-        skipped = requested - approved_count
-        logging.info('[AUTHORITY] user_id=%s bulk_approve requested=%d approved=%d skipped=%d', current_user.User_id, requested, approved_count, skipped)
-        return jsonify({'success': True, 'requested': requested, 'approved': approved_count, 'skipped': skipped}), 200
+        logging.info('[AUTHORITY] user_id=%s bulk_approve scope=%s approved=%d', current_user.User_id, scope, approved_count)
+        return jsonify({'success': True, 'approved': approved_count}), 200
     except Exception as e:
         logging.exception('[AUTHORITY] bulk_approve failed for user_id=%s: %s', getattr(current_user, 'User_id', None), e)
         try:

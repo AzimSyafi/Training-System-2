@@ -47,6 +47,7 @@ def signup():
     except Exception:
         logging.exception('[SIGNUP] Failed loading agencies')
         agencies = []
+    countries = ['Malaysia', 'Indonesia', 'Singapore', 'Thailand', 'Philippines', 'Vietnam', 'Brunei', 'Cambodia', 'Laos', 'Myanmar', 'China', 'India', 'Bangladesh', 'Pakistan', 'Nepal', 'Sri Lanka', 'Japan', 'South Korea', 'North Korea', 'Taiwan', 'Hong Kong', 'Macau', 'Mongolia', 'Russia', 'Kazakhstan', 'Kyrgyzstan', 'Tajikistan', 'Turkmenistan', 'Uzbekistan', 'Afghanistan', 'Iran', 'Iraq', 'Jordan', 'Kuwait', 'Lebanon', 'Oman', 'Qatar', 'Saudi Arabia', 'Syria', 'Turkey', 'United Arab Emirates', 'Yemen', 'Egypt', 'Libya', 'Morocco', 'Tunisia', 'Algeria', 'Sudan', 'Ethiopia', 'Kenya', 'Tanzania', 'Uganda', 'Rwanda', 'Burundi', 'South Africa', 'Zimbabwe', 'Zambia', 'Botswana', 'Namibia', 'Angola', 'Mozambique', 'Madagascar', 'Mauritius', 'Seychelles', 'Comoros', 'Djibouti', 'Somalia', 'Eritrea', 'Australia', 'New Zealand', 'Papua New Guinea', 'Solomon Islands', 'Vanuatu', 'Fiji', 'Samoa', 'Tonga', 'Kiribati', 'Tuvalu', 'Nauru', 'Marshall Islands', 'Micronesia', 'Palau', 'United States', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'Chile', 'Peru', 'Colombia', 'Venezuela', 'Ecuador', 'Bolivia', 'Paraguay', 'Uruguay', 'Guyana', 'Suriname', 'French Guiana', 'United Kingdom', 'Ireland', 'France', 'Germany', 'Italy', 'Spain', 'Portugal', 'Belgium', 'Netherlands', 'Luxembourg', 'Switzerland', 'Austria', 'Denmark', 'Sweden', 'Norway', 'Finland', 'Iceland', 'Greenland', 'Poland', 'Czech Republic', 'Slovakia', 'Hungary', 'Romania', 'Bulgaria', 'Greece', 'Serbia', 'Croatia', 'Bosnia and Herzegovina', 'Montenegro', 'Kosovo', 'Albania', 'North Macedonia', 'Slovenia', 'Ukraine', 'Belarus', 'Moldova', 'Lithuania', 'Latvia', 'Estonia', 'Georgia', 'Armenia', 'Azerbaijan']
     if request.method == 'POST':
         form = request.form
         full_name = form.get('full_name','').strip()
@@ -98,8 +99,8 @@ def signup():
         except Exception as e:
             logging.exception('[SIGNUP] Registration failed')
             flash('Registration failed due to server error. Please try again later.', 'danger')
-        return render_template('signup.html', agencies=agencies)
-    return render_template('signup.html', agencies=agencies)
+        return render_template('signup.html', agencies=agencies, countries=countries)
+    return render_template('signup.html', agencies=agencies, countries=countries)
 
 # Login route
 @main_bp.route('/login', methods=['GET', 'POST'])
@@ -1009,6 +1010,89 @@ def manage_module_content(module_id):
         flash('Failed to save content', 'danger')
     return redirect(url_for('main.admin_course_management'))
 
+# Trainer upload content
+@main_bp.route('/upload_content', methods=['GET', 'POST'])
+@login_required
+def upload_content():
+    if not isinstance(current_user, Trainer):
+        return redirect(url_for('main.login'))
+    if request.method == 'POST':
+        # Handle the upload, similar to manage_module_content
+        module_id = request.form.get('module_id')
+        if not module_id:
+            flash('Module ID required', 'danger')
+            return redirect(url_for('main.upload_content'))
+        try:
+            m = db.session.get(Module, int(module_id))
+            if not m:
+                flash('Module not found', 'danger')
+                return redirect(url_for('main.upload_content'))
+            # Check if trainer is assigned to this module's course
+            if getattr(current_user, 'course', None) and m.course.code != current_user.course:
+                flash('Access denied', 'danger')
+                return redirect(url_for('main.upload_content'))
+            ctype = (request.form.get('content_type') or '').strip().lower()
+            if ctype == 'slide':
+                file = request.files.get('slide_file')
+                if file and file.filename:
+                    fname = secure_filename(file.filename)
+                    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads')
+                    os.makedirs(upload_dir, exist_ok=True)
+                    candidate = fname
+                    i = 1
+                    while os.path.exists(os.path.join(upload_dir, candidate)):
+                        name, ext = os.path.splitext(fname)
+                        candidate = f"{name}_{i}{ext}"
+                        i += 1
+                    file_path = os.path.join(upload_dir, candidate)
+                    file.save(file_path)
+                    # Update module
+                    m.slide_file = candidate
+                    db.session.commit()
+                    flash('Slide uploaded successfully', 'success')
+                else:
+                    flash('No file provided', 'danger')
+            elif ctype == 'video':
+                youtube_url = request.form.get('youtube_url')
+                if youtube_url:
+                    m.youtube_url = youtube_url
+                    db.session.commit()
+                    flash('Video URL added successfully', 'success')
+                else:
+                    flash('No URL provided', 'danger')
+            elif ctype == 'quiz':
+                # Handle quiz, similar to manage_module_content
+                quiz_data = []
+                for i in range(1, 6):  # up to 5
+                    q = request.form.get(f'question_{i}')
+                    if q:
+                        options = [request.form.get(f'option_{i}_{j}') for j in range(1, 5)]
+                        correct = request.form.get(f'correct_{i}')
+                        if correct:
+                            quiz_data.append({'question': q, 'options': options, 'correct': int(correct)})
+                if quiz_data:
+                    m.quiz = quiz_data
+                    db.session.commit()
+                    flash('Quiz created successfully', 'success')
+                else:
+                    flash('No quiz questions provided', 'danger')
+            else:
+                flash('Invalid content type', 'danger')
+        except Exception as e:
+            db.session.rollback()
+            flash('Error uploading content', 'danger')
+        return redirect(url_for('main.upload_content'))
+    # GET: render the form
+    # Get modules for the trainer
+    modules = []
+    courses_query = Course.query
+    if getattr(current_user, 'course', None):
+        courses_query = courses_query.filter(Course.code == current_user.course)
+    courses = courses_query.all()
+    for course in courses:
+        modules.extend(course.modules)
+    return render_template('upload_content.html', modules=modules)
+
 # Admin certificates
 @main_bp.route('/admin_certificates')
 @login_required
@@ -1255,14 +1339,16 @@ def onboarding(id):
                 return redirect(url_for('main.user_dashboard'))
             else:
                 flash('Your progress has been saved.', 'success')
-                return redirect(url_for('main.onboarding', id=id))
+                return redirect(url_for('main.onboarding', id=id, step=step+1))
         except Exception:
             db.session.rollback()
             logging.exception('[ONBOARDING] Failed to save step %s', step)
             flash('Failed to save your changes. Please try again.', 'danger')
     # GET request: render onboarding page
     current_step = int(request.args.get('step', 1))
-    return render_template('onboarding.html', user=current_user, step=current_step, total_steps=total_steps)
+    malaysian_states = ['Johor', 'Kedah', 'Kelantan', 'Melaka', 'Negeri Sembilan', 'Pahang', 'Perak', 'Perlis', 'Pulau Pinang', 'Sabah', 'Sarawak', 'Selangor', 'Terengganu', 'Wilayah Persekutuan Kuala Lumpur', 'Wilayah Persekutuan Labuan', 'Wilayah Persekutuan Putrajaya']
+    countries = ['Malaysia', 'Indonesia', 'Singapore', 'Thailand', 'Philippines', 'Vietnam', 'Brunei', 'Cambodia', 'Laos', 'Myanmar', 'China', 'India', 'Bangladesh', 'Pakistan', 'Nepal', 'Sri Lanka', 'Japan', 'South Korea', 'North Korea', 'Taiwan', 'Hong Kong', 'Macau', 'Mongolia', 'Russia', 'Kazakhstan', 'Kyrgyzstan', 'Tajikistan', 'Turkmenistan', 'Uzbekistan', 'Afghanistan', 'Iran', 'Iraq', 'Jordan', 'Kuwait', 'Lebanon', 'Oman', 'Qatar', 'Saudi Arabia', 'Syria', 'Turkey', 'United Arab Emirates', 'Yemen', 'Egypt', 'Libya', 'Morocco', 'Tunisia', 'Algeria', 'Sudan', 'Ethiopia', 'Kenya', 'Tanzania', 'Uganda', 'Rwanda', 'Burundi', 'South Africa', 'Zimbabwe', 'Zambia', 'Botswana', 'Namibia', 'Angola', 'Mozambique', 'Madagascar', 'Mauritius', 'Seychelles', 'Comoros', 'Djibouti', 'Somalia', 'Eritrea', 'Australia', 'New Zealand', 'Papua New Guinea', 'Solomon Islands', 'Vanuatu', 'Fiji', 'Samoa', 'Tonga', 'Kiribati', 'Tuvalu', 'Nauru', 'Marshall Islands', 'Micronesia', 'Palau', 'United States', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'Chile', 'Peru', 'Colombia', 'Venezuela', 'Ecuador', 'Bolivia', 'Paraguay', 'Uruguay', 'Guyana', 'Suriname', 'French Guiana', 'United Kingdom', 'Ireland', 'France', 'Germany', 'Italy', 'Spain', 'Portugal', 'Belgium', 'Netherlands', 'Luxembourg', 'Switzerland', 'Austria', 'Denmark', 'Sweden', 'Norway', 'Finland', 'Iceland', 'Greenland', 'Poland', 'Czech Republic', 'Slovakia', 'Hungary', 'Romania', 'Bulgaria', 'Greece', 'Serbia', 'Croatia', 'Bosnia and Herzegovina', 'Montenegro', 'Kosovo', 'Albania', 'North Macedonia', 'Slovenia', 'Ukraine', 'Belarus', 'Moldova', 'Lithuania', 'Latvia', 'Estonia', 'Georgia', 'Armenia', 'Azerbaijan']
+    return render_template('onboarding.html', user=current_user, step=current_step, total_steps=total_steps, id=id, malaysian_states=malaysian_states, countries=countries)
 
 # Course modules page
 @main_bp.route('/modules/<string:course_code>')
