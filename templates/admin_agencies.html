@@ -13,7 +13,6 @@
                 <th>Email</th>
                 <th>Address</th>
                 <th>Registration No.</th>
-                <th>Involved Users</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -26,17 +25,19 @@
                 <td>{{ agency.email }}</td>
                 <td>{{ agency.address }}</td>
                 <td>{{ agency.Reg_of_Company }}</td>
-                <td>
-                    {% for user in agency.users %}
-                        <div>{{ user.full_name }} ({{ user.email }})</div>
-                    {% else %}
-                        <span class="text-muted">No users</span>
-                    {% endfor %}
-                </td>
                 <td class="d-flex gap-2">
-                    <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editAgencyModal{{ agency.agency_id }}">Edit</button>
-                    <form method="post" action="{{ url_for('main.admin_create_agency_account', agency_id=agency.agency_id) }}" onsubmit="return confirm('Create login for this agency?');">
-                        <button class="btn btn-sm btn-success" type="submit">Create Login</button>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton{{ agency.agency_id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton{{ agency.agency_id }}">
+                            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#usersModal{{ agency.agency_id }}"><i class="fas fa-users"></i> View Users</a></li>
+                            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#editAgencyModal{{ agency.agency_id }}"><i class="fas fa-edit"></i> Edit</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="if(confirm('Create login for this agency?')) document.getElementById('createLoginForm{{ agency.agency_id }}').submit();"><i class="fas fa-user-plus"></i> Create Login</a></li>
+                        </ul>
+                    </div>
+                    <form id="createLoginForm{{ agency.agency_id }}" method="post" action="{{ url_for('main.admin_create_agency_account', agency_id=agency.agency_id) }}" style="display:none;">
+                        <button type="submit">Create Login</button>
                     </form>
                 </td>
             </tr>
@@ -80,6 +81,29 @@
                       <button type="submit" class="btn btn-primary">Save changes</button>
                     </div>
                   </form>
+                </div>
+              </div>
+            </div>
+            <!-- Users Modal for each agency -->
+            <div class="modal fade" id="usersModal{{ agency.agency_id }}" tabindex="-1" aria-labelledby="usersModalLabel{{ agency.agency_id }}" aria-hidden="true">
+              <div class="modal-dialog">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title" id="usersModalLabel{{ agency.agency_id }}">Involved Users for {{ agency.agency_name }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body">
+                    <ul class="list-group">
+                      {% for user in agency.users %}
+                      <li class="list-group-item">{{ user.full_name }} ({{ user.email }})</li>
+                      {% else %}
+                      <li class="list-group-item text-muted">No users</li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                  </div>
                 </div>
               </div>
             </div>
