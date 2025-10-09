@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text, or_
 from utils import safe_url_for, normalized_user_category, safe_parse_date, extract_youtube_id, is_slide_file, allowed_file
 from itsdangerous import URLSafeTimedSerializer
+from flask_mail import Message
 import smtplib
 from email.mime.text import MIMEText
 
