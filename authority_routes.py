@@ -93,13 +93,31 @@ def bulk_approve():
     except Exception:
         payload = {}
     scope = payload.get('scope')
-    if scope == 'all':
+
+    # Handle different approval scopes
+    if scope == 'selected':
+        # Approve specific selected certificates
+        cert_ids = payload.get('cert_ids')
+        if not cert_ids or not isinstance(cert_ids, list) or len(cert_ids) == 0:
+            return jsonify({'error': 'no_certificates_selected'}), 400
+        # Validate all IDs are integers
+        try:
+            cert_ids = [int(cid) for cid in cert_ids]
+        except (ValueError, TypeError):
+            return jsonify({'error': 'invalid_certificate_ids'}), 400
+        from sqlalchemy import and_
+        conditions = and_(
+            Certificate.status == 'pending',
+            Certificate.certificate_id.in_(cert_ids)
+        )
+    elif scope == 'all':
         # Approve all pending certificates
         conditions = Certificate.status == 'pending'
     elif scope == 'user':
         user_id = payload.get('user_id')
         if not user_id or not isinstance(user_id, int):
             return jsonify({'error': 'invalid_user_id'}), 400
+        from sqlalchemy import and_
         conditions = and_(Certificate.status == 'pending', Certificate.user_id == user_id)
     else:
         return jsonify({'error': 'invalid_scope'}), 400

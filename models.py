@@ -1,11 +1,12 @@
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, date, UTC  # added UTC
+from datetime import datetime, date, timezone
 from flask_login import UserMixin
 from sqlalchemy import event, text
 from sqlalchemy.exc import IntegrityError  # added
 
 db = SQLAlchemy()
+UTC = timezone.utc
 
 class Admin(UserMixin, db.Model):
     __tablename__ = 'admin'

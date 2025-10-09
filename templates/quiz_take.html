@@ -40,7 +40,8 @@
      data-module-id="{{ module.module_id if module else 0 }}"
      data-module-name="{{ module.module_name|e if module else '' }}"
      data-course-code="{{ course.code if course else '' }}"
-     data-is-completed="{{ '1' if (user_module and user_module.is_completed) else '0' }}">
+     data-is-completed="{{ '1' if (user_module and user_module.is_completed) else '0' }}"
+     data-back-url="{% if course %}{{ url_for('main.course_modules', course_code=course.code) }}{% else %}{{ url_for('main.user_dashboard') }}{% endif %}">
   <div class="quiz-topbar">
     <div class="breadcrumbs">
       <a href="{% if course %}{{ url_for('main.course_modules', course_code=course.code) }}{% else %}{{ url_for('main.user_dashboard') }}{% endif %}"><i class="fas fa-arrow-left me-2"></i>Back</a>
@@ -241,6 +242,10 @@
       if(!data.success){
         alert(data.message || 'Submission failed'); btnSubmit.disabled = false; btnSubmit.innerHTML = '<i class="fas fa-check me-1"></i>Submit'; return;
       }
+      // Use backend-provided normalized answers for review if available
+      if (Array.isArray(data.answers)){
+        try { answers = data.answers.map(v => (typeof v === 'number' ? v : parseInt(v, 10))); } catch(_) {}
+      }
       clearInterval(timerHandle); clearInterval(periodicSave);
       statusLabel.textContent = `Score: ${data.score}% | Grade: ${data.grade_letter} | Attempts: ${data.reattempt_count}`;
       resultContainer.classList.remove('d-none');
@@ -314,7 +319,7 @@
   btnPrev.addEventListener('click', ()=>{ prevQuestion(); scheduleAutoSave(); });
   btnNext.addEventListener('click', ()=>{ nextQuestion(); scheduleAutoSave(); });
   btnSubmit.addEventListener('click', submitQuiz);
-  btnSaveExit.addEventListener('click', async ()=>{ await autoSaveAnswers(); window.history.back(); });
+  btnSaveExit.addEventListener('click', async ()=>{ await autoSaveAnswers(); window.location.href = root.dataset.backUrl; });
   btnReattempt?.addEventListener('click', ()=>{ if(confirm('Start a reattempt? Your previous score is kept but this will count as another attempt.')) startReattempt(); });
 
   // Save on navigation
@@ -387,7 +392,23 @@
         const a = await fetch(`/api/user_quiz_answers/${moduleId}`, { credentials:'same-origin' }).then(r=>r.json()).catch(()=>[]);
         if(Array.isArray(a)){
           answers = a;
+
+          // Show the result container with score when loading completed quiz
+          resultContainer.classList.remove('d-none');
+          const scorePercent = quiz.length > 0 ? Math.round((a.filter((ans, idx) => {
+            const q = quiz[idx];
+            if (!q || !q.answers) return false;
+            const correctIdx = q.answers.findIndex(answer => answer.isCorrect);
+            return ans === correctIdx;
+          }).length / quiz.length) * 100) : 0;
+
+          resultContainer.innerHTML = `<div class='card'><div class='card-body d-flex align-items-center justify-content-between'>`+
+            `<div><strong>Completed!</strong> Score: ${scorePercent}%</div>`+
+            `<div class='opacity-75 small'>Review your answers below</div>`+
+          `</div></div>`;
+
           renderReview();
+          btnReattemptBox.classList.remove('d-none');
           document.getElementById('quiz-container').classList.add('d-none');
           countdownEl.textContent='--';
         }

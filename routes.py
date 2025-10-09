@@ -12,6 +12,9 @@ from models import db, Admin, User, Agency, Module, Certificate, Trainer, UserMo
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text, or_
 from utils import safe_url_for, normalized_user_category, safe_parse_date, extract_youtube_id, is_slide_file, allowed_file
+from itsdangerous import URLSafeTimedSerializer
+import smtplib
+from email.mime.text import MIMEText
 
 main_bp = Blueprint('main', __name__)
 
@@ -258,10 +261,83 @@ def courses():
     return render_template('courses.html', course_progress=course_progress)
 
 # Profile
-@main_bp.route('/profile')
+@main_bp.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
-    return render_template('profile.html', user=current_user)
+    if request.method == 'POST':
+        # Handle form submission
+        try:
+            # Update user fields
+            current_user.full_name = request.form.get('full_name', current_user.full_name)
+            current_user.email = request.form.get('email', current_user.email)
+            current_user.address = request.form.get('address', current_user.address)
+            current_user.postcode = request.form.get('postcode', current_user.postcode)
+            current_user.state = request.form.get('state', current_user.state)
+            current_user.country = request.form.get('country', current_user.country)
+            current_user.working_experience = request.form.get('working_experience', current_user.working_experience)
+            current_user.recruitment_date = safe_parse_date(request.form.get('recruitment_date'))
+            current_user.visa_number = request.form.get('visa_number', current_user.visa_number)
+            current_user.visa_expiry_date = safe_parse_date(request.form.get('visa_expiry_date'))
+            current_user.current_workplace = request.form.get('current_workplace', current_user.current_workplace)
+            current_user.emergency_contact_name = request.form.get('emergency_contact_name', current_user.emergency_contact_name)
+            current_user.emergency_contact_relationship = request.form.get('emergency_contact_relationship', current_user.emergency_contact_relationship)
+            current_user.emergency_contact_phone = request.form.get('emergency_contact_phone', current_user.emergency_contact_phone)
+
+            # Handle profile picture upload
+            if 'profile_pic' in request.files:
+                file = request.files['profile_pic']
+                if file and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'profile_pics', filename)
+                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                    file.save(file_path)
+                    current_user.profile_pic = filename
+
+            # Handle working experiences
+            # First, delete existing experiences
+            WorkHistory.query.filter_by(user_id=current_user.User_id).delete()
+
+            # Get experience data from form
+            exp_companies = request.form.getlist('exp_company')
+            exp_positions = request.form.getlist('exp_position')
+            exp_recruitments = request.form.getlist('exp_recruitment')
+            exp_starts = request.form.getlist('exp_start')
+            exp_ends = request.form.getlist('exp_end')
+            exp_visas = request.form.getlist('exp_visa_number')
+            exp_visa_expiries = request.form.getlist('exp_visa_expiry')
+
+            for i in range(len(exp_companies)):
+                if exp_companies[i].strip():  # Only save if company is provided
+                    exp = WorkHistory(
+                        user_id=current_user.User_id,
+                        company_name=exp_companies[i],
+                        position_title=exp_positions[i] if i < len(exp_positions) else None,
+                        recruitment_date=safe_parse_date(exp_recruitments[i]) if i < len(exp_recruitments) else None,
+                        start_date=safe_parse_date(exp_starts[i]) if i < len(exp_starts) else None,
+                        end_date=safe_parse_date(exp_ends[i]) if i < len(exp_ends) else None,
+                        visa_number=exp_visas[i] if i < len(exp_visas) else None,
+                        visa_expiry_date=safe_parse_date(exp_visa_expiries[i]) if i < len(exp_visa_expiries) else None
+                    )
+                    db.session.add(exp)
+
+            db.session.commit()
+            flash('Profile updated successfully!', 'success')
+            return redirect(url_for('main.profile'))
+        except Exception as e:
+            db.session.rollback()
+            logging.exception('[PROFILE UPDATE] Failed to update profile')
+            flash('Failed to update profile. Please try again.', 'danger')
+            return redirect(url_for('main.profile'))
+
+    # GET request: render the template
+    try:
+        experiences = WorkHistory.query.filter_by(user_id=current_user.User_id).order_by(WorkHistory.start_date.desc()).all()
+    except Exception:
+        experiences = []
+
+    malaysian_states = ['Johor', 'Kedah', 'Kelantan', 'Melaka', 'Negeri Sembilan', 'Pahang', 'Perak', 'Perlis', 'Pulau Pinang', 'Sabah', 'Sarawak', 'Selangor', 'Terengganu', 'Wilayah Persekutuan Kuala Lumpur', 'Wilayah Persekutuan Labuan', 'Wilayah Persekutuan Putrajaya']
+
+    return render_template('profile.html', user=current_user, experiences=experiences, malaysian_states=malaysian_states)
 
 # My certificates
 @main_bp.route('/my_certificates')
@@ -298,6 +374,52 @@ def logout():
         pass
     flash('You have been logged out.', 'info')
     return redirect(url_for('main.login'))
+
+# Change Password route
+@main_bp.route('/change_password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    """Allow authenticated users to change their password."""
+    if request.method == 'POST':
+        current_password = request.form.get('current_password', '').strip()
+        new_password = request.form.get('new_password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+
+        if not current_password or not new_password or not confirm_password:
+            flash('All fields are required.', 'danger')
+            return render_template('change_password.html')
+
+        if len(new_password) < 8:
+            flash('New password must be at least 8 characters long.', 'danger')
+            return render_template('change_password.html')
+
+        if new_password != confirm_password:
+            flash('New password and confirmation do not match.', 'danger')
+            return render_template('change_password.html')
+
+        if current_password == new_password:
+            flash('New password must be different from your current password.', 'warning')
+            return render_template('change_password.html')
+
+        if not current_user.check_password(current_password):
+            flash('Current password is incorrect.', 'danger')
+            return render_template('change_password.html')
+
+        try:
+            current_user.set_password(new_password)
+            db.session.commit()
+            logging.info(f'[CHANGE PASSWORD] User {current_user.get_id()} changed password successfully.')
+            logout_user()
+            session.clear()
+            flash('Password changed successfully! Please log in with your new password.', 'success')
+            return redirect(url_for('main.login'))
+        except Exception as e:
+            db.session.rollback()
+            logging.exception(f'[CHANGE PASSWORD] Failed to update password for user {current_user.get_id()}')
+            flash('An error occurred while updating your password. Please try again later.', 'danger')
+            return render_template('change_password.html')
+
+    return render_template('change_password.html')
 
 # Trainer portal
 @main_bp.route('/trainer_portal')
@@ -773,6 +895,113 @@ def agency_create_user():
     except Exception:
         logging.exception('[AGENCY CREATE USER] Failed')
         flash('Failed to create user.', 'danger')
+
+    return redirect(url_for('main.agency_portal'))
+
+# Agency bulk create users from Excel
+@main_bp.route('/agency_bulk_create_users', methods=['POST'])
+@login_required
+def agency_bulk_create_users():
+    if not isinstance(current_user, AgencyAccount):
+        return redirect(url_for('main.login'))
+
+    agency = getattr(current_user, 'agency', None)
+    if not agency:
+        flash('Agency not found.', 'danger')
+        return redirect(url_for('main.agency_portal'))
+
+    # Check if file was uploaded
+    if 'excel_file' not in request.files:
+        flash('No file uploaded.', 'danger')
+        return redirect(url_for('main.agency_portal'))
+
+    file = request.files['excel_file']
+    if file.filename == '':
+        flash('No file selected.', 'danger')
+        return redirect(url_for('main.agency_portal'))
+
+    # Check if file is Excel
+    if not file.filename.lower().endswith(('.xlsx', '.xls')):
+        flash('Please upload an Excel file (.xlsx or .xls).', 'danger')
+        return redirect(url_for('main.agency_portal'))
+
+    try:
+        import openpyxl
+
+        # Read Excel file
+        wb = openpyxl.load_workbook(file)
+        ws = wb.active
+
+        success_count = 0
+        error_count = 0
+        errors = []
+
+        # Start from row 2 (assuming row 1 is header)
+        for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+            if not row or all(cell is None or str(cell).strip() == '' for cell in row):
+                continue  # Skip empty rows
+
+            try:
+                # Extract Name, Email, Citizenship from columns
+                name = str(row[0]).strip() if row[0] else ''
+                email = str(row[1]).strip().lower() if row[1] else ''
+                citizenship = str(row[2]).strip().lower() if row[2] else 'citizen'
+
+                # Validate required fields
+                if not name or not email:
+                    errors.append(f'Row {row_idx}: Missing name or email')
+                    error_count += 1
+                    continue
+
+                # Determine user_category based on citizenship
+                if citizenship in ['foreigner', 'foreign', 'non-citizen']:
+                    user_category = 'foreigner'
+                else:
+                    user_category = 'citizen'
+
+                # Generate a default password (agency can change later)
+                default_password = 'Welcome123!'
+
+                # Create user data
+                data = {
+                    'full_name': name,
+                    'email': email,
+                    'password': default_password,
+                    'user_category': user_category,
+                    'agency_id': agency.agency_id
+                }
+
+                # Register user
+                new_user = Registration.registerUser(data)
+                success_count += 1
+
+            except ValueError as ve:
+                errors.append(f'Row {row_idx}: {str(ve)}')
+                error_count += 1
+            except Exception as e:
+                errors.append(f'Row {row_idx}: {str(e)}')
+                error_count += 1
+
+        # Flash results
+        if success_count > 0:
+            flash(f'Successfully created {success_count} user(s). Default password: Welcome123!', 'success')
+        if error_count > 0:
+            error_msg = f'{error_count} user(s) failed. '
+            if len(errors) <= 5:
+                error_msg += ' | '.join(errors)
+            else:
+                error_msg += ' | '.join(errors[:5]) + f' ... and {len(errors) - 5} more errors'
+            flash(error_msg, 'warning')
+
+        if success_count == 0 and error_count == 0:
+            flash('No valid user data found in the Excel file.', 'warning')
+
+    except ImportError:
+        flash('Excel file processing library not installed. Please contact administrator.', 'danger')
+        logging.exception('[AGENCY BULK CREATE] openpyxl not installed')
+    except Exception as e:
+        logging.exception('[AGENCY BULK CREATE] Failed to process Excel file')
+        flash(f'Failed to process Excel file: {str(e)}', 'danger')
 
     return redirect(url_for('main.agency_portal'))
 
@@ -1279,7 +1508,7 @@ def onboarding(id):
             # Handle profile pic upload
             if 'profile_pic' in request.files:
                 file = request.files['profile_pic']
-                if file and file.filename and allowed_file(file.filename):
+                if file and allowed_file(file.filename):
                     filename = secure_filename(file.filename)
                     upload_dir = os.path.join(current_app.root_path, 'static', 'profile_pics')
                     os.makedirs(upload_dir, exist_ok=True)
@@ -1633,7 +1862,18 @@ def api_user_quiz_answers(module_id):
         if not um or not um.quiz_answers:
             return jsonify([])
         data = _json.loads(um.quiz_answers)
-        return jsonify(data if isinstance(data, list) else [])
+        # Normalize to list of integers (or None) so the frontend can reliably compare
+        norm = []
+        if isinstance(data, list):
+            for v in data:
+                try:
+                    iv = int(v)
+                    norm.append(iv)
+                except Exception:
+                    norm.append(None)
+        else:
+            return jsonify([])
+        return jsonify(norm)
     except Exception:
         return jsonify([])
 
@@ -1648,12 +1888,19 @@ def api_save_quiz_answers(module_id):
         answers = payload.get('answers')
         if not isinstance(answers, list):
             return jsonify({'success': False, 'message': 'answers must be an array'}), 400
+        # Coerce to integers (or None)
+        coerced = []
+        for v in answers:
+            try:
+                coerced.append(int(v))
+            except Exception:
+                coerced.append(None)
         # Upsert user-module row
         um = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
         if not um:
             um = UserModule(user_id=current_user.User_id, module_id=module_id, is_completed=False, reattempt_count=0)
             db.session.add(um)
-        um.quiz_answers = _json.dumps(answers)
+        um.quiz_answers = _json.dumps(coerced)
         db.session.commit()
         return jsonify({'success': True})
     except Exception as e:
@@ -1692,13 +1939,33 @@ def api_submit_quiz(module_id):
     payload = request.get_json(silent=True) or {}
     answers = payload.get('answers')
     is_reattempt = bool(payload.get('is_reattempt'))
-    if not isinstance(answers, list):
+    
+    # Coerce answers to integers
+    coerced_answers = []
+    if answers is not None and isinstance(answers, list):
+        for v in answers:
+            try:
+                coerced_answers.append(int(v))
+            except (ValueError, TypeError):
+                coerced_answers.append(None)
+    else:
         # If not provided, fallback to saved partial
         try:
             um_prev = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
-            answers = _json.loads(um_prev.quiz_answers) if (um_prev and um_prev.quiz_answers) else []
+            prev = _json.loads(um_prev.quiz_answers) if (um_prev and um_prev.quiz_answers) else []
+            if isinstance(prev, list):
+                for v in prev:
+                    try:
+                        coerced_answers.append(int(v))
+                    except (ValueError, TypeError):
+                        coerced_answers.append(None)
         except Exception:
-            answers = []
+            coerced_answers = []
+    
+    # Validate we have answers
+    if not coerced_answers or len(coerced_answers) == 0:
+        return jsonify({'success': False, 'message': 'No answers submitted'}), 400
+    
     # Compute score
     total = len(qdata)
     correct = 0
@@ -1712,10 +1979,19 @@ def api_submit_quiz(module_id):
                     corr_idx = ai
                     break
         correct_indices.append(corr_idx if corr_idx is not None else -1)
-        chosen = answers[qi] if (isinstance(answers, list) and qi < len(answers)) else None
-        if isinstance(chosen, int) and corr_idx is not None and chosen == corr_idx:
+        chosen = coerced_answers[qi] if (qi < len(coerced_answers)) else None
+        if chosen is not None and corr_idx is not None and chosen == corr_idx:
             correct += 1
-    score_pct = round((correct / total) * 100.0, 1)
+    score_pct = round((correct / total) * 100.0, 1) if total > 0 else 0.0
+    
+    # Generate feedback message
+    if score_pct >= 75:
+        feedback = "Excellent work! You've demonstrated a strong understanding of the material."
+    elif score_pct >= 50:
+        feedback = "Good effort! Consider reviewing the material and trying again for a better score."
+    else:
+        feedback = "You may want to review the module content and reattempt the quiz."
+    
     # Upsert user-module record and mark complete
     try:
         um = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
@@ -1724,7 +2000,7 @@ def api_submit_quiz(module_id):
             db.session.add(um)
         if is_reattempt and um.is_completed:
             um.reattempt_count = (um.reattempt_count or 0) + 1
-        um.quiz_answers = _json.dumps(answers if isinstance(answers, list) else [])
+        um.quiz_answers = _json.dumps(coerced_answers)
         um.score = score_pct
         um.is_completed = True
         um.completion_date = datetime.now()
@@ -1737,12 +2013,90 @@ def api_submit_quiz(module_id):
             'correct': correct,
             'total': total,
             'correct_indices': correct_indices,
+            'answers': coerced_answers,
+            'feedback': feedback,
             'grade_letter': grade_letter,
             'reattempt_count': (um.reattempt_count or 0)
         })
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+
+# API endpoint: Complete course and request certificate
+@main_bp.route('/api/complete_course', methods=['POST'])
+@login_required
+def api_complete_course():
+    if not isinstance(current_user, User):
+        return jsonify({'success': False, 'message': 'Only users can complete courses'}), 403
+
+    payload = request.get_json(silent=True) or {}
+    course_code = payload.get('course_code', '').strip()
+
+    if not course_code:
+        return jsonify({'success': False, 'message': 'Course code is required'}), 400
+
+    # Find the course
+    course = Course.query.filter(Course.code.ilike(course_code)).first()
+    if not course:
+        return jsonify({'success': False, 'message': 'Course not found'}), 404
+
+    # Get all modules in this course
+    modules = list(course.modules)
+    if not modules:
+        return jsonify({'success': False, 'message': 'No modules found in this course'}), 400
+
+    # Check if user has completed all modules
+    module_ids = [m.module_id for m in modules]
+    completed_modules = UserModule.query.filter_by(
+        user_id=current_user.User_id,
+        is_completed=True
+    ).filter(UserModule.module_id.in_(module_ids)).all()
+
+    if len(completed_modules) != len(modules):
+        return jsonify({
+            'success': False,
+            'message': f'You must complete all {len(modules)} modules before requesting a certificate. Completed: {len(completed_modules)}'
+        }), 400
+
+    # Check if certificate already exists (avoid duplicates)
+    existing_cert = Certificate.query.filter_by(
+        user_id=current_user.User_id,
+        module_id=modules[0].module_id  # Use first module as representative
+    ).filter(Certificate.status.in_(['pending', 'approved'])).first()
+
+    if existing_cert:
+        return jsonify({
+            'success': True,
+            'already_submitted': True,
+            'message': 'Certificate request already submitted'
+        })
+
+    # Calculate average score across all modules
+    total_score = sum(um.score or 0 for um in completed_modules)
+    avg_score = total_score / len(completed_modules) if completed_modules else 0
+
+    # Create pending certificate
+    try:
+        new_cert = Certificate(
+            user_id=current_user.User_id,
+            module_id=modules[0].module_id,  # Use first module as representative
+            module_type=course.code,
+            issue_date=datetime.now().date(),
+            score=round(avg_score, 1),
+            status='pending'
+        )
+        db.session.add(new_cert)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'submitted': True,
+            'message': 'Certificate request submitted for approval'
+        })
+    except Exception as e:
+        db.session.rollback()
+        logging.exception('[COMPLETE_COURSE] Failed to create certificate')
+        return jsonify({'success': False, 'message': 'Failed to submit certificate request'}), 500
 
 # Quick maintenance: Recalculate certificate star ratings from scores
 @main_bp.route('/recalculate_ratings', methods=['GET'])
@@ -1795,3 +2149,75 @@ def recalculate_ratings():
         logging.exception('[RECALCULATE RATINGS] Failed')
         flash('Failed to recalculate ratings due to a server error.', 'danger')
     return redirect(url_for('main.admin_dashboard'))
+
+# Forgot Password route
+@main_bp.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form['email'].strip().lower()
+        # Find user by email across all models
+        user = None
+        for model in [Admin, User, Trainer, AgencyAccount]:
+            user = model.query.filter_by(email=email).first()
+            if user:
+                break
+        # Always show success message
+        flash('If an account with that email exists, a password reset link has been sent.', 'info')
+        if user:
+            # Generate token
+            serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+            token = serializer.dumps(user.email, salt='password-reset-salt')
+            # Create reset link
+            reset_url = url_for('main.reset_password', token=token, _external=True)
+            # Send email
+            send_reset_email(user.email, reset_url)
+        return redirect(url_for('main.login'))
+    return render_template('forgot_password.html')
+
+# Reset Password route
+@main_bp.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+    try:
+        email = serializer.loads(token, salt='password-reset-salt', max_age=1800)  # 30 minutes
+    except:
+        flash('The reset link is invalid or has expired.', 'danger')
+        return redirect(url_for('main.login'))
+    if request.method == 'POST':
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+        if password != confirm_password:
+            flash('Passwords do not match.', 'danger')
+            return render_template('reset_password.html')
+        # Find user
+        user = None
+        for model in [Admin, User, Trainer, AgencyAccount]:
+            user = model.query.filter_by(email=email).first()
+            if user:
+                break
+        if not user:
+            flash('User not found.', 'danger')
+            return redirect(url_for('main.login'))
+        user.set_password(password)
+        db.session.commit()
+        flash('Your password has been updated. Please log in.', 'success')
+        return redirect(url_for('main.login'))
+    return render_template('reset_password.html')
+
+def send_reset_email(to_email, reset_url):
+    # For local testing, print to console
+    print(f"Reset link: {reset_url}")
+    # Also send via SMTP if configured
+    smtp_server = os.environ.get('SMTP_SERVER', 'localhost')
+    smtp_port = int(os.environ.get('SMTP_PORT', 1025))
+    from_email = os.environ.get('FROM_EMAIL', 'noreply@example.com')
+    msg = MIMEText(f"Click the link to reset your password: {reset_url}")
+    msg['Subject'] = 'Password Reset'
+    msg['From'] = from_email
+    msg['To'] = to_email
+    try:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.sendmail(from_email, [to_email], msg.as_string())
+    except Exception as e:
+        print(f"Email send failed: {e}")
+

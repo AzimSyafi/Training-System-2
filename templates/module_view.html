@@ -370,8 +370,20 @@
                     })
                     .then(res => res.json())
                     .then(result => {
-                      let feedback = `<div class='alert alert-info'><b>Your Score:</b> ${result.score || 0}%<br>${result.feedback || ''}<br><b>Grade:</b> ${result.grade_letter || 'A'} (Attempts: ${result.reattempt_count || 0})</div>`;
-                      feedback += `<button class='btn btn-warning' id='start-reattempt'>Reattempt Quiz</button>`;
+                      const respAnswers = Array.isArray(result.answers) ? result.answers.map(v => (typeof v === 'number' ? v : parseInt(v, 10))) : answers;
+                      const safeAnswers = Array.isArray(respAnswers) ? respAnswers : answers;
+                      let feedback = `<div class='alert alert-info'><b>Your Score:</b> ${result.score ?? 0}%<br>${result.feedback || ''}<br><b>Grade:</b> ${result.grade_letter || 'A'} (Attempts: ${result.reattempt_count || 0})</div>`;
+                      feedback += '<div class="mt-3"><h6>Review Your Answers:</h6><ul class="list-group">';
+                      cachedQuiz.forEach((q, idx) => {
+                        const userAnsIdx = safeAnswers[idx];
+                        const correctAnsIdx = (Array.isArray(result.correct_indices) && typeof result.correct_indices[idx] === 'number') ? result.correct_indices[idx] : q.answers.findIndex(a => a.isCorrect);
+                        const userText = (Number.isInteger(userAnsIdx) && q.answers[userAnsIdx]) ? q.answers[userAnsIdx].text : 'No answer';
+                        const correctText = (correctAnsIdx !== -1 && q.answers[correctAnsIdx]) ? q.answers[correctAnsIdx].text : 'N/A';
+                        const isCorrect = Number.isInteger(userAnsIdx) && userAnsIdx === correctAnsIdx;
+                        feedback += `<li class="list-group-item"><b>Q${idx+1}:</b> ${q.text}<br><span class="${isCorrect ? 'text-success' : 'text-danger'}">Your answer: ${userText}</span><br>Correct answer: ${correctText}</li>`;
+                      });
+                      feedback += '</ul></div>';
+                      feedback += `<button class='btn btn-warning mt-3' id='start-reattempt'>Reattempt Quiz</button>`;
                       quizFormContainer.innerHTML = feedback;
                       const btn = document.getElementById('start-reattempt');
                       if(btn){

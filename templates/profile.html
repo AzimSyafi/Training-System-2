@@ -17,6 +17,9 @@
         <!-- Add a visible debug span to confirm JS loads -->
         <span id="export-debug-msg" class="text-xs text-red-600 ml-2"></span>
       </div>
+      <a href="{{ url_for('main.change_password') }}" class="px-6 py-2 bg-yellow-600 text-white rounded shadow hover:bg-yellow-700 font-bold text-center inline-flex items-center justify-center gap-2" style="background-color: #d97706 !important; color: white !important;">
+        <i class="fas fa-key"></i> Change Password
+      </a>
       <button id="open-profile-modal" class="px-6 py-2 bg-blue-700 text-white rounded shadow hover:bg-blue-800 font-bold">Edit Profile</button>
     </div>
   </div>
@@ -145,7 +148,7 @@
     <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
       <button id="close-profile-modal" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700">&times;</button>
       <h2 class="text-xl font-bold mb-4">Edit Personal Information</h2>
-      <form id="edit-profile-form" method="POST" action="/profile" enctype="multipart/form-data">
+      <form id="edit-profile-form" method="POST" action="{{ url_for('main.profile') }}" enctype="multipart/form-data">
         <div class="mb-4 flex flex-col items-center">
           <img id="modal-profile-img" src="{{ user.profile_pic_url or url_for('static', filename='default_avatar.png') }}" alt="Profile Picture" class="w-24 h-24 rounded-full object-cover border-4 border-blue-200 mb-2">
           <input type="file" name="profile_pic" accept="image/*" class="mt-2" />

@@ -66,7 +66,7 @@
 
   <div class="row g-4">
     <div class="col-md-5">
-      <div class="card">
+      <div class="card mb-3">
         <div class="card-header">Add New User</div>
         <div class="card-body">
           <form method="post" action="{{ url_for('main.agency_create_user') }}">
@@ -90,6 +90,31 @@
               </select>
             </div>
             <button type="submit" class="btn btn-primary">Create user</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Import Users from Excel</div>
+        <div class="card-body">
+          <form method="post" action="{{ url_for('main.agency_bulk_create_users') }}" enctype="multipart/form-data">
+            <div class="mb-3">
+              <label for="excel_file" class="form-label">Upload Excel File</label>
+              <input id="excel_file" name="excel_file" type="file" class="form-control" accept=".xlsx,.xls" required />
+              <div class="form-text">
+                Excel file should have 3 columns: <strong>Name</strong>, <strong>Email</strong>, <strong>Citizenship</strong>
+                <br>First row should be headers. Citizenship values: "citizen" or "foreigner"
+              </div>
+            </div>
+            <div class="alert alert-info mb-3">
+              <small>
+                <strong>Note:</strong> Default password for all imported users will be: <code>Welcome123!</code>
+                <br>Users should change their password after first login.
+              </small>
+            </div>
+            <button type="submit" class="btn btn-success">
+              <i class="bi bi-upload"></i> Import Users
+            </button>
           </form>
         </div>
       </div>
