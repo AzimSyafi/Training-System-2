@@ -1247,7 +1247,6 @@ def upload_content():
     if not isinstance(current_user, Trainer):
         return redirect(url_for('main.login'))
     if request.method == 'POST':
-        # Handle the upload, similar to manage_module_content
         module_id = request.form.get('module_id')
         if not module_id:
             flash('Module ID required', 'danger')
@@ -1257,7 +1256,6 @@ def upload_content():
             if not m:
                 flash('Module not found', 'danger')
                 return redirect(url_for('main.upload_content'))
-            # Check if trainer is assigned to this module's course
             if getattr(current_user, 'course', None) and m.course.code != current_user.course:
                 flash('Access denied', 'danger')
                 return redirect(url_for('main.upload_content'))
@@ -1276,7 +1274,6 @@ def upload_content():
                         i += 1
                     file_path = os.path.join(upload_dir, candidate)
                     file.save(file_path)
-                    # Update module
                     m.slide_file = candidate
                     db.session.commit()
                     flash('Slide uploaded successfully', 'success')
@@ -1291,29 +1288,49 @@ def upload_content():
                 else:
                     flash('No URL provided', 'danger')
             elif ctype == 'quiz':
-                # Handle quiz, similar to manage_module_content
-                quiz_data = []
-                for i in range(1, 6):  # up to 5
-                    q = request.form.get(f'question_{i}')
-                    if q:
-                        options = [request.form.get(f'option_{i}_{j}') for j in range(1, 5)]
-                        correct = request.form.get(f'correct_{i}')
-                        if correct:
-                            quiz_data.append({'question': q, 'options': options, 'correct': int(correct)})
+                import json as _json
+                quiz_data = request.form.get('quiz_data')
+                quiz_list = None
                 if quiz_data:
-                    m.quiz = quiz_data
+                    try:
+                        quiz_list = _json.loads(quiz_data)
+                    except Exception:
+                        quiz_list = None
+                if not isinstance(quiz_list, list):
+                    quiz_list = []
+                    for qi in range(1, 51):
+                        qtext = (request.form.get(f'quiz_question_{qi}') or '').strip()
+                        if not qtext:
+                            continue
+                        answers = []
+                        for ai in range(1, 6):
+                            atext = (request.form.get(f'answer_{qi}_{ai}') or '').strip()
+                            if atext:
+                                answers.append({'text': atext, 'isCorrect': False})
+                        corr_raw = request.form.get(f'correct_answer_{qi}')
+                        try:
+                            corr_idx = int(corr_raw) - 1 if corr_raw else 0
+                        except Exception:
+                            corr_idx = 0
+                        if answers:
+                            if 0 <= corr_idx < len(answers):
+                                answers[corr_idx]['isCorrect'] = True
+                            else:
+                                answers[0]['isCorrect'] = True
+                            quiz_list.append({'text': qtext, 'answers': answers})
+                if quiz_list:
+                    m.quiz_json = _json.dumps(quiz_list or [], ensure_ascii=False)
                     db.session.commit()
-                    flash('Quiz created successfully', 'success')
+                    flash('Quiz saved successfully', 'success')
                 else:
-                    flash('No quiz questions provided', 'danger')
+                    flash('No quiz questions provided or data was invalid', 'danger')
             else:
                 flash('Invalid content type', 'danger')
         except Exception as e:
             db.session.rollback()
-            flash('Error uploading content', 'danger')
+            logging.exception('[UPLOAD CONTENT] Error uploading content')
+            flash('Error uploading content: %s' % str(e), 'danger')
         return redirect(url_for('main.upload_content'))
-    # GET: render the form
-    # Get modules for the trainer
     modules = []
     courses_query = Course.query
     if getattr(current_user, 'course', None):
@@ -2221,4 +2238,3 @@ def send_reset_email(to_email, reset_url):
             server.sendmail(from_email, [to_email], msg.as_string())
     except Exception as e:
         print(f"Email send failed: {e}")
-

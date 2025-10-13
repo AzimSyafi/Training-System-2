@@ -99,7 +99,7 @@
               <h6 class="mb-0 fw-semibold"><i class="fas fa-layer-group text-primary me-1"></i>Modules</h6>
               <button class="btn btn-sm btn-primary toggle-add-module" data-target="#addModuleWrap-{{ course.course_id }}"><i class="fas fa-plus me-1"></i>Add Module</button>
             </div>
-            <div class="add-module-wrapper collapse" id="addModuleWrap-{{ course.course_id }}">
+            <div class="add-module-wrapper" id="addModuleWrap-{{ course.course_id }}" style="display: none;">
               <div class="card shadow-sm mb-3 border-start-accent">
                 <div class="card-body p-3">
                   <form class="row g-3" method="post" action="{{ safe_url_for('main.add_course_module', course_id=course.course_id) }}">
@@ -344,7 +344,7 @@
   .answer-row .input-group-text { font-size:.65rem; min-width:28px; justify-content:center; }
   #backToCourses { transition:background-color .2s; }
   #backToCourses:hover { background:#1e3a8a; color:#fff; }
-  .collapse:not(.show) { }
+  .add-module-wrapper { transition: all 0.3s ease; overflow: hidden; }
   .toggle-module-sections[aria-expanded='true'] .more-text { display:none; }
   .toggle-module-sections[aria-expanded='false'] .less-text { display:none; }
   .toggle-module-sections .less-text { display:none; }
@@ -406,7 +406,19 @@
     const delCourseBtn = e.target.closest('.delete-course-btn');
     if(delCourseBtn){ e.preventDefault(); if(confirm('Delete this course?')){ const cid=delCourseBtn.getAttribute('data-course-id'); const f=document.getElementById('delete-course-form-'+cid); if(f) f.submit(); } }
     const toggleAdd = e.target.closest('.toggle-add-module');
-    if(toggleAdd){ const target = document.querySelector(toggleAdd.getAttribute('data-target')); if(target){ new bootstrap.Collapse(target,{toggle:true}); } }
+    if(toggleAdd){
+      e.preventDefault();
+      e.stopPropagation();
+      const targetId = toggleAdd.getAttribute('data-target');
+      const target = document.querySelector(targetId);
+      if(target){
+        if (target.style.display === 'block') {
+            target.style.display = 'none';
+        } else {
+            target.style.display = 'block';
+        }
+      }
+    }
   });
   try { const last = localStorage.getItem('adminCourseMgmt.selectedCourse'); if(last){ const exists = document.getElementById('course-manage-'+last); if(exists){ showCourse(last); } } } catch(e){}
 })();
@@ -484,28 +496,37 @@
   </div>
 </div>
 <script>
-// Unified Quiz Builder (accordion style, now up to 20 questions) with dynamic init & existing quiz preload
-(function quizBuilder(){
-  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',quizBuilder);return;}
-  const MAX_Q = 40; // increased from 20 to 40
-  const MAX_A = 4; // new constant for answers
-  function createQuestion(moduleId, idx, data){
-    const wrapper = document.createElement('div');
-    wrapper.className = 'quiz-question';
-    wrapper.dataset.index = idx;
-    const qText = data && data.question ? data.question : '';
-    const answers = (data && Array.isArray(data.answers) ? data.answers : []).slice(0,MAX_A);
-    while(answers.length < MAX_A) answers.push('');
-    let correct = data && data.correct ? parseInt(data.correct,10) : 1;
-    if(correct > MAX_A) correct = MAX_A;
-    wrapper.innerHTML = `
+// Unified Quiz Builder
+(function quizBuilder() {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', quizBuilder);
+        return;
+    }
+    const MAX_Q = 40;
+    const MAX_A = 4;
+
+    function createQuestion(moduleId, idx, data) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'quiz-question';
+        wrapper.dataset.index = idx;
+        const qText = (data && data.text) ? data.text : '';
+        const answers_obj = (data && Array.isArray(data.answers)) ? data.answers : [];
+        const answers_text = answers_obj.map(a => a.text || '');
+        const correct_idx = answers_obj.findIndex(a => a.isCorrect);
+        let correct = (correct_idx > -1) ? correct_idx + 1 : 1;
+        const final_answers_text = answers_text.slice(0, MAX_A);
+        while (final_answers_text.length < MAX_A) {
+            final_answers_text.push('');
+        }
+        if (correct > MAX_A) correct = 1;
+        wrapper.innerHTML = `
       <div class="quiz-question-header" role="button" tabindex="0" aria-expanded="false">
         <div class="d-flex align-items-center gap-2">
           <div class="question-index-badge">${idx}</div>
           <strong class="small mb-0">Question ${idx}</strong>
         </div>
         <div class="d-flex align-items-center gap-2">
-          <button type="button" class="btn btn-outline-danger btn-xs remove-question" ${idx===1?'disabled':''} title="Remove"><i class="fas fa-trash"></i></button>
+          <button type="button" class="btn btn-outline-danger btn-xs remove-question" ${idx === 1 ? 'disabled' : ''} title="Remove"><i class="fas fa-trash"></i></button>
           <i class="fas fa-chevron-down rotate small text-secondary"></i>
         </div>
       </div>
@@ -515,7 +536,7 @@
           <textarea class="form-control form-control-sm question-input" name="quiz_question_${idx}" rows="3" placeholder="Enter question ${idx}" required>${escapeHtml(qText)}</textarea>
         </div>
         <div class="answer-row row g-2 mb-2">
-          ${[1,2,3,4].map(a=>`<div class='col-6'><div class='input-group input-group-sm'><span class='input-group-text'>${a}</span><input class='form-control answer-input' data-answer-pos='${a}' name='answer_${idx}_${a}' placeholder='Answer ${a} (optional)' value='${escapeHtml(answers[a-1]||'')}'></div></div>`).join('')}
+          ${[1, 2, 3, 4].map(a => `<div class='col-6'><div class='input-group input-group-sm'><span class='input-group-text'>${a}</span><input class='form-control answer-input' data-answer-pos='${a}' name='answer_${idx}_${a}' placeholder='Answer ${a} (optional)' value='${escapeHtml(final_answers_text[a - 1] || '')}'></div></div>`).join('')}
         </div>
         <div class="d-flex align-items-center gap-2 mb-1">
           <label class="small mb-0">Correct Answer #</label>
@@ -523,113 +544,285 @@
           <small class="text-muted small flex-grow-1">Min 2 answers required.</small>
         </div>
       </div>`;
-    // Initialize correct select options after insertion
-    setTimeout(()=>{ updateCorrectOptions(wrapper, correct); },0);
-    return wrapper;
-  }
-  function updateCorrectOptions(questionEl, desired){
-    const answers = [...questionEl.querySelectorAll('.answer-input')];
-    const filled = answers.filter(a=>a.value.trim()!== '');
-    const select = questionEl.querySelector('.correct-select');
-    if(!select) return;
-    const prev = desired || parseInt(select.value,10) || 1;
-    const count = filled.length;
-    select.innerHTML = '';
-    for(let i=1;i<=count;i++){
-      const opt = document.createElement('option');
-      opt.value = i; opt.textContent = i;
-      if(i===prev || prev>count && i===1) opt.selected = true;
-      select.appendChild(opt);
+        setTimeout(() => {
+            updateCorrectOptions(wrapper, correct);
+        }, 0);
+        return wrapper;
     }
-    if(count===0){
-      // No answers yet; add placeholder disabled option
-      const opt = document.createElement('option');
-      opt.textContent = '-'; opt.value = '1'; select.appendChild(opt);
-    }
-  }
-  function escapeHtml(str){
-    return (str||'').replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
-  }
-  function reindex(container){
-    [...container.querySelectorAll('.quiz-question')].forEach((q,i)=>{
-      const idx = i+1;
-      q.dataset.index = idx;
-      q.querySelector('.question-index-badge').textContent = idx;
-      q.querySelector('strong').textContent = 'Question '+idx;
-      const qInput = q.querySelector('.question-input');
-      qInput.name = 'quiz_question_'+idx;
-      qInput.placeholder = 'Enter question '+idx;
-      [...q.querySelectorAll('.answer-input')].forEach((inp,aIdx)=>{ inp.name = 'answer_'+idx+'_'+(aIdx+1); });
-      const sel = q.querySelector('.correct-select'); sel.name = 'correct_answer_'+idx;
-      const rm = q.querySelector('.remove-question'); if(rm) rm.disabled = idx===1;
-    });
-  }
-  function updateAddBtnState(form){ const btn = form.querySelector('.add-question'); if(!btn) return; const count = form.querySelectorAll('.quiz-question').length; btn.disabled = count>=MAX_Q; }
-  function ensureFloatingSave(form){ const floating = form.querySelector('.floating-save'); if(floating) floating.classList.remove('d-none'); }
-  function preloadExisting(form, container){
-    let existingQuiz = null;
-    const script = form.querySelector('.existing-quiz-data');
-    if(script){ try { existingQuiz = JSON.parse(script.textContent); } catch(e) { existingQuiz = null; } }
-    if(existingQuiz && existingQuiz.questions && Array.isArray(existingQuiz.questions) && existingQuiz.questions.length){
-      container.innerHTML = '';
-      existingQuiz.questions.slice(0, MAX_Q).forEach((q,i)=>{ container.appendChild(createQuestion(container.dataset.moduleId||'x', i+1, q)); });
-      // Open first for clarity
-      const first = container.querySelector('.quiz-question');
-      if(first){ first.classList.add('open'); const header = first.querySelector('.quiz-question-header'); if(header) header.setAttribute('aria-expanded','true'); }
-    }
-  }
-  function initQuizBuilderForm(form){
-    if(!form) return;
-    const container = form.querySelector('.quiz-questions');
-    if(!container) return;
-    if(!container.dataset.moduleId){ const mid = form.getAttribute('data-module-id'); if(mid) container.dataset.moduleId = mid; }
-    if(container.children.length===0){
-      preloadExisting(form, container);
-      if(container.children.length===0){ container.appendChild(createQuestion(container.dataset.moduleId || 'x',1)); }
-    }
-    updateAddBtnState(form); ensureFloatingSave(form);
-    if(!form.dataset.quizBuilderInitialized){
-      form.addEventListener('submit', ()=>{ reindex(form.querySelector('.quiz-questions')); });
-      form.dataset.quizBuilderInitialized = 'true';
-    }
-  }
-  // Expose for dynamic use
-  window.initQuizBuilderForm = initQuizBuilderForm;
-  document.querySelectorAll('.quiz-builder-form').forEach(initQuizBuilderForm);
-  document.addEventListener('click', e=>{
-    const addBtn = e.target.closest('.add-question');
-    if(addBtn){ const form = addBtn.closest('form'); const container = form.querySelector('.quiz-questions'); const count = container.querySelectorAll('.quiz-question').length; if(count<MAX_Q){ const mid = container.dataset.moduleId; container.appendChild(createQuestion(mid, count+1)); updateAddBtnState(form); ensureFloatingSave(form); } }
-    const header = e.target.closest('.quiz-question-header');
-    if(header){ const q = header.parentElement; const open = q.classList.toggle('open'); header.setAttribute('aria-expanded', open?'true':'false'); }
-    const rmBtn = e.target.closest('.remove-question');
-    if(rmBtn){ const q = rmBtn.closest('.quiz-question'); const form = rmBtn.closest('form'); q.classList.add('removing'); setTimeout(()=>{ q.remove(); reindex(form.querySelector('.quiz-questions')); updateAddBtnState(form); },180); }
-  });
-  document.addEventListener('input', e=>{
-    const ans = e.target.closest('.answer-input');
-    if(ans){
-      const q = ans.closest('.quiz-question');
-      updateCorrectOptions(q);
-    }
-  });
-  document.addEventListener('submit', e=>{
-    const form = e.target.closest('.quiz-builder-form');
-    if(form){
-      let ok = true; let firstBad=null;
-      form.querySelectorAll('.quiz-question').forEach(q=>{
-        const filled = [...q.querySelectorAll('.answer-input')].filter(a=>a.value.trim()!=='');
-        if(filled.length < 2){
-          ok = false; if(!firstBad) firstBad=q; q.classList.add('border','border-danger');
-        } else {
-          q.classList.remove('border-danger');
+
+    function updateCorrectOptions(questionEl, desired) {
+        const answers = [...questionEl.querySelectorAll('.answer-input')];
+        const filled = answers.filter(a => a.value.trim() !== '');
+        const select = questionEl.querySelector('.correct-select');
+        if (!select) return;
+        const prev = desired || parseInt(select.value, 10) || 1;
+        const count = filled.length;
+        select.innerHTML = '';
+        for (let i = 1; i <= count; i++) {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = i;
+            if (i === prev || (prev > count && i === 1)) opt.selected = true;
+            select.appendChild(opt);
         }
-      });
-      if(!ok){
-        e.preventDefault();
-        if(firstBad){ firstBad.classList.add('open'); firstBad.scrollIntoView({behavior:'smooth', block:'center'}); }
-        alert('Each question needs at least 2 answers.');
-      }
+        if (count === 0) {
+            const opt = document.createElement('option');
+            opt.textContent = '-';
+            opt.value = '1';
+            select.appendChild(opt);
+        }
     }
-  });
+
+    function escapeHtml(str) {
+        return (str || '').replace(/[&<>"]/g, c => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;"
+        }[c]));
+    }
+
+    function reindex(container) {
+        [...container.querySelectorAll('.quiz-question')].forEach((q, i) => {
+            const idx = i + 1;
+            q.dataset.index = idx;
+            q.querySelector('.question-index-badge').textContent = idx;
+            q.querySelector('strong').textContent = 'Question ' + idx;
+            const qInput = q.querySelector('.question-input');
+            qInput.name = 'quiz_question_' + idx;
+            qInput.placeholder = 'Enter question ' + idx;
+            [...q.querySelectorAll('.answer-input')].forEach((inp, aIdx) => {
+                inp.name = 'answer_' + idx + '_' + (aIdx + 1);
+            });
+            const sel = q.querySelector('.correct-select');
+            sel.name = 'correct_answer_' + idx;
+            const rm = q.querySelector('.remove-question');
+            if (rm) rm.disabled = idx === 1;
+        });
+    }
+
+    function updateAddBtnState(form) {
+        const btn = form.querySelector('.add-question');
+        if (!btn) return;
+        const count = form.querySelectorAll('.quiz-question').length;
+        btn.disabled = count >= MAX_Q;
+    }
+
+    function ensureFloatingSave(form) {
+        const floating = form.querySelector('.floating-save');
+        if (floating) floating.classList.remove('d-none');
+    }
+
+    function preloadExisting(form, container) {
+        let existingQuiz = null;
+        const script = form.querySelector('.existing-quiz-data');
+        if (script) {
+            try {
+                existingQuiz = JSON.parse(script.textContent);
+            } catch (e) {
+                console.error('Failed to parse existing quiz data:', e);
+                existingQuiz = null;
+            }
+        }
+        if (existingQuiz && Array.isArray(existingQuiz) && existingQuiz.length > 0) {
+            container.innerHTML = '';
+            existingQuiz.slice(0, MAX_Q).forEach((q, i) => {
+                container.appendChild(createQuestion(container.dataset.moduleId || 'x', i + 1, q));
+            });
+            const first = container.querySelector('.quiz-question');
+            if (first) {
+                first.classList.add('open');
+                const header = first.querySelector('.quiz-question-header');
+                if (header) header.setAttribute('aria-expanded', 'true');
+            }
+        } else if (existingQuiz && existingQuiz.questions && Array.isArray(existingQuiz.questions) && existingQuiz.questions.length) {
+            container.innerHTML = '';
+            existingQuiz.questions.slice(0, MAX_Q).forEach((q, i) => {
+                const newFormat = {
+                    text: q.question,
+                    answers: (q.answers || []).map((ansText, ansIdx) => ({
+                        text: ansText,
+                        isCorrect: (ansIdx + 1) === parseInt(q.correct, 10)
+                    }))
+                };
+                container.appendChild(createQuestion(container.dataset.moduleId || 'x', i + 1, newFormat));
+            });
+            const first = container.querySelector('.quiz-question');
+            if (first) {
+                first.classList.add('open');
+                const header = first.querySelector('.quiz-question-header');
+                if (header) header.setAttribute('aria-expanded', 'true');
+            }
+        }
+    }
+
+    function serializeQuizData(form) {
+        const container = form.querySelector('.quiz-questions');
+        if (!container) return '[]';
+
+        const questions = [];
+        container.querySelectorAll('.quiz-question').forEach((q, idx) => {
+            const questionText = q.querySelector('.question-input')?.value?.trim() || '';
+            if (!questionText) return;
+
+            const answers = [];
+            q.querySelectorAll('.answer-input').forEach((inp, aIdx) => {
+                const ansText = inp.value.trim();
+                if (ansText) {
+                    answers.push({
+                        text: ansText,
+                        isCorrect: false
+                    });
+                }
+            });
+
+            if (answers.length >= 2) {
+                const correctIdx = parseInt(q.querySelector('.correct-select')?.value || '1', 10) - 1;
+                if (correctIdx >= 0 && correctIdx < answers.length) {
+                    answers[correctIdx].isCorrect = true;
+                } else if (answers.length > 0) {
+                    answers[0].isCorrect = true;
+                }
+
+                questions.push({
+                    text: questionText,
+                    answers: answers
+                });
+            }
+        });
+
+        return JSON.stringify(questions);
+    }
+
+    function initQuizBuilderForm(form) {
+        if (!form) return;
+        const container = form.querySelector('.quiz-questions');
+        if (!container) return;
+        if (!container.dataset.moduleId) {
+            const mid = form.getAttribute('data-module-id');
+            if (mid) container.dataset.moduleId = mid;
+        }
+        if (container.children.length === 0) {
+            preloadExisting(form, container);
+            if (container.children.length === 0) {
+                container.appendChild(createQuestion(container.dataset.moduleId || 'x', 1));
+            }
+        }
+        updateAddBtnState(form);
+        ensureFloatingSave(form);
+
+        if (!form.dataset.quizBuilderInitialized) {
+            form.addEventListener('submit', (e) => {
+                reindex(form.querySelector('.quiz-questions'));
+
+                // Create hidden input with JSON data
+                let quizDataInput = form.querySelector('input[name="quiz_data"]');
+                if (!quizDataInput) {
+                    quizDataInput = document.createElement('input');
+                    quizDataInput.type = 'hidden';
+                    quizDataInput.name = 'quiz_data';
+                    form.appendChild(quizDataInput);
+                }
+                quizDataInput.value = serializeQuizData(form);
+            });
+            form.dataset.quizBuilderInitialized = 'true';
+        }
+    }
+
+    window.initQuizBuilderForm = initQuizBuilderForm;
+
+    document.querySelectorAll('.quiz-builder-form').forEach(initQuizBuilderForm);
+
+    // Use event delegation for dynamically added buttons
+    document.addEventListener('click', e => {
+        const addBtn = e.target.closest('.add-question');
+        if (addBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const form = addBtn.closest('form');
+            if (!form) return;
+            const container = form.querySelector('.quiz-questions');
+            if (!container) return;
+            const count = container.querySelectorAll('.quiz-question').length;
+            if (count < MAX_Q) {
+                const mid = container.dataset.moduleId;
+                const newQ = createQuestion(mid, count + 1);
+                container.appendChild(newQ);
+                // Open the newly added question
+                newQ.classList.add('open');
+                const header = newQ.querySelector('.quiz-question-header');
+                if (header) header.setAttribute('aria-expanded', 'true');
+                updateAddBtnState(form);
+                ensureFloatingSave(form);
+                // Scroll to the new question
+                setTimeout(() => {
+                    newQ.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 100);
+            }
+        }
+
+        const header = e.target.closest('.quiz-question-header');
+        if (header) {
+            const q = header.parentElement;
+            const open = q.classList.toggle('open');
+            header.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+
+        const rmBtn = e.target.closest('.remove-question');
+        if (rmBtn && !rmBtn.disabled) {
+            e.preventDefault();
+            e.stopPropagation();
+            const q = rmBtn.closest('.quiz-question');
+            const form = rmBtn.closest('form');
+            const container = form?.querySelector('.quiz-questions');
+            if (container && container.querySelectorAll('.quiz-question').length > 1) {
+                q.classList.add('removing');
+                setTimeout(() => {
+                    q.remove();
+                    reindex(container);
+                    updateAddBtnState(form);
+                }, 180);
+            }
+        }
+    });
+
+    document.addEventListener('input', e => {
+        const ans = e.target.closest('.answer-input');
+        if (ans) {
+            const q = ans.closest('.quiz-question');
+            updateCorrectOptions(q);
+        }
+    });
+
+    document.addEventListener('submit', e => {
+        const form = e.target.closest('.quiz-builder-form');
+        if (form) {
+            let ok = true;
+            let firstBad = null;
+            form.querySelectorAll('.quiz-question').forEach(q => {
+                const filled = [...q.querySelectorAll('.answer-input')].filter(a => a.value.trim() !== '');
+                const qText = q.querySelector('.question-input')?.value?.trim();
+                if (!qText || filled.length < 2) {
+                    ok = false;
+                    if (!firstBad) firstBad = q;
+                    q.classList.add('border', 'border-danger');
+                } else {
+                    q.classList.remove('border-danger');
+                }
+            });
+            if (!ok) {
+                e.preventDefault();
+                if (firstBad) {
+                    firstBad.classList.add('open');
+                    firstBad.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+                }
+                alert('Each question needs text and at least 2 answers.');
+            }
+        }
+    });
 })();
 </script>
 <script>
