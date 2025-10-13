@@ -1,23 +1,551 @@
 {% extends "base.html" %}
 
+{% block styles %}
+<style>
+  /* Mobile-First Responsive Design */
+  .course-container {
+    padding: 12px;
+  }
+
+  @media (min-width: 768px) {
+    .course-container {
+      padding: 16px;
+    }
+  }
+
+  /* Header Actions - Mobile Optimized */
+  .course-header {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  @media (min-width: 768px) {
+    .course-header {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
+  }
+
+  .btn {
+    padding: 12px 20px;
+    font-size: 14px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 768px) {
+    .btn {
+      width: 100%;
+      justify-content: center;
+      padding: 14px 20px;
+      font-size: 15px;
+    }
+  }
+
+  /* Course Title - Mobile Optimized */
+  .course-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--primary-text, #1e3a8a);
+    line-height: 1.3;
+  }
+
+  @media (min-width: 768px) {
+    .course-title {
+      font-size: 28px;
+    }
+  }
+
+  .course-score {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+  }
+
+  /* Module Card - Mobile Optimized */
+  .module-card-rounded {
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  @media (min-width: 768px) {
+    .module-card-rounded {
+      margin-bottom: 24px;
+    }
+  }
+
+  /* Module Header - Touch Friendly */
+  .module-card-rounded > .card-header {
+    background: var(--sidebar-bg, #1e3a8a) !important;
+    color: var(--sidebar-icon-color, #fff) !important;
+    padding: 16px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    min-height: 60px;
+  }
+
+  .module-card-rounded > .card-header.collapsed {
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+  }
+
+  @media (max-width: 768px) {
+    .module-card-rounded > .card-header {
+      padding: 14px 12px;
+      min-height: 64px;
+    }
+  }
+
+  .module-header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .module-title-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  @media (min-width: 576px) {
+    .module-title-section {
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+    }
+  }
+
+  .module-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.3;
+    word-break: break-word;
+  }
+
+  @media (min-width: 768px) {
+    .module-title {
+      font-size: 18px;
+    }
+  }
+
+  .module-badge {
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 12px;
+    display: inline-block;
+    white-space: nowrap;
+  }
+
+  .module-lock-status {
+    font-size: 12px;
+    color: #fca5a5;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+  }
+
+  @media (min-width: 576px) {
+    .module-lock-status {
+      margin-top: 0;
+      margin-left: 8px;
+    }
+  }
+
+  .module-chevron {
+    font-size: 18px;
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 768px) {
+    .module-chevron {
+      font-size: 20px;
+    }
+  }
+
+  /* Module Body - Mobile Optimized */
+  .module-card-rounded .card-body {
+    background-color: #ffffff;
+    color: var(--text-color);
+    padding: 16px;
+  }
+
+  @media (min-width: 768px) {
+    .module-card-rounded .card-body {
+      padding: 24px;
+    }
+  }
+
+  body.dark-mode .module-card-rounded .card-body {
+    background-color: rgba(30, 64, 175, 0.06);
+    color: var(--text-color);
+  }
+
+  .locked-message {
+    text-align: center;
+    color: #dc2626;
+    font-weight: 600;
+    padding: 16px;
+    background: #fee2e2;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 14px;
+  }
+
+  .module-description {
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    line-height: 1.6;
+    font-size: 14px;
+  }
+
+  /* Tabs - Mobile Optimized */
+  .nav-tabs {
+    border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  @media (max-width: 768px) {
+    .nav-tabs {
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+  }
+
+  .nav-tabs .nav-item {
+    flex-shrink: 0;
+  }
+
+  .nav-tabs .nav-link {
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border: 2px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 768px) {
+    .nav-tabs .nav-link {
+      padding: 12px 16px;
+      font-size: 13px;
+    }
+  }
+
+  .nav-tabs .nav-link:hover {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--primary, #3b82f6);
+  }
+
+  .nav-tabs .nav-link.active {
+    background: var(--primary, #3b82f6);
+    color: #fff;
+    border-color: var(--primary, #3b82f6);
+  }
+
+  /* Tab Content */
+  .default-tab-content {
+    background: #f9fafb;
+    padding: 24px 16px;
+    border-radius: 10px;
+    text-align: center;
+  }
+
+  @media (min-width: 768px) {
+    .default-tab-content {
+      padding: 32px;
+    }
+  }
+
+  .default-tab-content i {
+    color: #9ca3af;
+    font-size: 36px;
+    margin-bottom: 12px;
+  }
+
+  .default-tab-content h5 {
+    color: var(--text-secondary);
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .default-tab-content p {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin: 0;
+  }
+
+  /* Content Panels - Mobile Optimized */
+  .module-inner-panel-blue {
+    background-color: rgba(30, 64, 175, 0.04);
+    padding: 16px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+  }
+
+  @media (min-width: 768px) {
+    .module-inner-panel-blue {
+      padding: 20px;
+    }
+  }
+
+  .module-inner-panel-blue h4 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--primary-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  @media (min-width: 768px) {
+    .module-inner-panel-blue h4 {
+      font-size: 18px;
+    }
+  }
+
+  /* Iframe Container - Mobile Responsive */
+  .iframe-container {
+    max-width: 100%;
+    margin: 0 auto 16px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  @media (min-width: 768px) {
+    .iframe-container {
+      /* max-width: 900px; <-- Removed to allow for more width */
+    }
+  }
+
+  .iframe-container iframe {
+    width: 100%;
+    height: 600px; /* Increased base height */
+    border: none;
+    border-radius: 8px;
+  }
+
+  @media (min-width: 576px) {
+    .iframe-container iframe {
+      height: 750px; /* Increased height for medium screens */
+    }
+  }
+
+  @media (min-width: 768px) {
+    .iframe-container iframe {
+      height: 900px; /* Increased height for large screens */
+    }
+  }
+
+  /* YouTube Container - Mobile Responsive */
+  .youtube-container {
+    position: relative;
+    padding-top: 56.25%;
+    max-width: 100%;
+    margin: 0 auto; /* Removed bottom margin to integrate with quiz section */
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    min-height: 300px;
+  }
+
+  @media (min-width: 768px) {
+    .youtube-container {
+      max-width: 900px;
+    }
+  }
+
+  .youtube-inner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .youtube-inner iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+
+  /* Alert Messages - Mobile Optimized */
+  .alert {
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  @media (min-width: 768px) {
+    .alert {
+      font-size: 14px;
+    }
+  }
+
+  /* Action Buttons - Touch Friendly */
+  .btn-primary,
+  .btn-secondary,
+  .btn-warning {
+    min-height: 44px;
+    font-weight: 600;
+  }
+
+  @media (max-width: 768px) {
+    .btn-primary,
+    .btn-secondary,
+    .btn-warning {
+      min-height: 48px;
+    }
+  }
+
+  .btn-lg {
+    padding: 14px 28px;
+    font-size: 15px;
+  }
+
+  @media (max-width: 768px) {
+    .btn-lg {
+      padding: 16px 24px;
+      font-size: 16px;
+      width: 100%;
+    }
+  }
+
+  /* Utility Classes */
+  .text-muted-mobile {
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+
+  /* Ensure proper text contrast */
+  body.dark-mode .module-description,
+  body.dark-mode .text-muted-mobile {
+    color: #9ca3af;
+  }
+
+  /* Fullscreen Button */
+  .fullscreen-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: var(--primary, #3b82f6);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 12px;
+  }
+
+  .fullscreen-btn:hover {
+    background: #2563eb;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  }
+
+  @media (max-width: 768px) {
+    .fullscreen-btn {
+      width: 100%;
+      justify-content: center;
+      padding: 14px 20px;
+      font-size: 15px;
+    }
+  }
+
+  /* Fullscreen mode styles */
+  .iframe-container.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    z-index: 9999;
+    margin: 0;
+    border-radius: 0;
+  }
+
+  .iframe-container.fullscreen iframe {
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  /* Modal Improvements for Mobile */
+  @media (max-width: 768px) {
+    .modal-dialog {
+      margin: 8px;
+      max-width: calc(100% - 16px);
+    }
+
+    .modal-body {
+      padding: 16px;
+    }
+
+    .terms-content {
+      max-height: 250px !important;
+      font-size: 13px;
+    }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mx-auto p-4">
-  <!-- styles moved to static/css/module_cards.css -->
-  <div class="mb-4 flex justify-between items-center">
+<div class="container mx-auto course-container">
+  <div class="course-header">
     <a href="{{ url_for('main.courses') }}" class="btn btn-secondary">
-      <i class="fas fa-arrow-left"></i> Back to Courses
+      <i class="fas fa-arrow-left"></i> <span>Back to Courses</span>
     </a>
 
     {% set course_type = modules[0].module_type if modules else '' %}
     {% if current_user.has_completed_all_modules_in_course(course_type) and overall_percentage is defined and overall_percentage < 50 %}
     <button id="reattemptBtn" class="btn btn-warning" onclick="reattemptCourse('{{ course_type.lower() }}')" title="Overall score {{ overall_percentage }}% (below 50%) - you can reattempt">
-      <i class="fas fa-redo"></i> Reattempt Course
+      <i class="fas fa-redo"></i> <span>Reattempt Course</span>
     </button>
     {% endif %}
   </div>
-  <h2 class="text-3xl font-bold mb-1 text-blue-900">{{ course_name }}</h2>
+
+  <h2 class="course-title">{{ course_name }}</h2>
   {% if overall_percentage is defined and current_user.has_completed_all_modules_in_course(course_type) %}
-    <p class="text-sm text-gray-600 mb-6">Overall Score: <span class="font-semibold {% if overall_percentage < 50 %}text-red-600{% elif overall_percentage > 75 %}text-green-600{% else %}text-blue-600{% endif %}">{{ overall_percentage }}%</span></p>
+    <p class="course-score">Overall Score: <span class="font-semibold {% if overall_percentage < 50 %}text-red-600{% elif overall_percentage > 75 %}text-green-600{% else %}text-blue-600{% endif %}">{{ overall_percentage }}%</span></p>
   {% endif %}
 
   {% set first_incomplete_found = false %}
@@ -28,113 +556,122 @@
       {% set anchor_id = 'next' %}
       {% set first_incomplete_found = true %}
     {% endif %}
-    {% set open_module = False %}
+    {% set open_module = false %}
     {% set body_style = 'display:block;' if open_module else 'display:none;' %}
     {% if not module.unlocked %}{% set body_style = body_style + 'pointer-events:none;opacity:0.5;' %}{% endif %}
-    <div class="card module-card-rounded shadow mb-6" id="{{ anchor_id }}">
-      <div class="card-header bg-blue-800 text-white p-4 flex justify-between items-center {% if not module.unlocked %}opacity-60 cursor-not-allowed{% else %}cursor-pointer{% endif %} {% if not open_module %}collapsed{% endif %}" {% if module.unlocked %}onclick="toggleModule('{{ module.module_id }}')"{% endif %}>
-        <div class="flex items-center">
-          <h3 class="text-xl font-bold mr-2">{{ module.module_name }}</h3>
-          <span class="font-semibold text-xs bg-blue-100 text-blue-800 rounded px-2 py-1 mb-2 inline-block">{{ module.series_number }}</span>
-          {% if not module.unlocked %}
-            <span class="ml-2 text-red-500" title="Locked"><i class="fas fa-lock"></i> Locked</span>
-          {% endif %}
+
+    <div class="card module-card-rounded" id="{{ anchor_id }}">
+      <div class="card-header {% if not module.unlocked %}opacity-60 cursor-not-allowed{% endif %} {% if not open_module %}collapsed{% endif %}" {% if module.unlocked %}onclick="toggleModule('{{ module.module_id }}')"{% endif %}>
+        <div class="module-header-content">
+          <div class="module-title-section">
+            <h3 class="module-title">{{ module.module_name }}</h3>
+            <span class="module-badge">{{ module.series_number }}</span>
+            {% if not module.unlocked %}
+              <span class="module-lock-status">
+                <i class="fas fa-lock"></i> <span>Locked</span>
+              </span>
+            {% endif %}
+          </div>
+          <i class="fas fa-chevron-down module-chevron" id="chevron-{{ module.module_id }}"></i>
         </div>
-        <div></div>
-        <i class="fas fa-chevron-down text-xl transition-transform duration-300" id="chevron-{{ module.module_id }}"></i>
       </div>
-      <div class="card-body p-6" id="module-content-{{ module.module_id }}" style="{{ body_style }}">
+
+      <div class="card-body" id="module-content-{{ module.module_id }}" style="{{ body_style }}">
         {% if not module.unlocked %}
-          <div class="text-center text-red-500 font-bold mb-4">This module is locked. Complete the previous module to unlock.</div>
+          <div class="locked-message">
+            <i class="fas fa-lock me-2"></i>This module is locked. Complete the previous module to unlock.
+          </div>
         {% endif %}
+
         {% if module.unlocked %}
-        <p class="text-gray-700 mb-6">{{ module.content }}</p>
-        <ul class="nav nav-tabs mb-4" role="tablist">
+        <p class="module-description">{{ module.content }}</p>
+
+        <ul class="nav nav-tabs" role="tablist">
           <li class="nav-item" role="presentation">
             <button class="nav-link slide-tab-btn" data-bs-toggle="tab" data-bs-target="#slide-{{ module.module_id }}" type="button" role="tab" data-module-id="{{ module.module_id }}">
-              <i class="fas fa-file-powerpoint mr-2"></i>Slide
+              <i class="fas fa-file-powerpoint"></i><span>Slide</span>
             </button>
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#video-{{ module.module_id }}" type="button" role="tab">
-              <i class="fas fa-video mr-2"></i>Video & Quiz
+              <i class="fas fa-video"></i><span>Video & Quiz</span>
             </button>
           </li>
         </ul>
+
         <div class="tab-content">
-          <!-- Default state: show instructions to select a tab -->
           <div class="default-tab-content" id="default-{{ module.module_id }}">
-            <div class="bg-gray-50 p-4 rounded-lg text-center">
-              <i class="fas fa-mouse-pointer text-gray-400 text-4xl mb-3"></i>
-              <h5 class="text-gray-600 mb-2">Select Content Type</h5>
-              <p class="text-gray-500 mb-0">Choose from Slides or Video & Quiz to view the module content.</p>
-            </div>
+            <i class="fas fa-mouse-pointer"></i>
+            <h5>Select Content Type</h5>
+            <p>Choose from Slides or Video & Quiz to view the module content.</p>
           </div>
 
           <div class="tab-pane fade" id="slide-{{ module.module_id }}" role="tabpanel">
-            <div class="bg-blue-50 module-inner-panel-blue p-4 rounded-lg">
-              <h4 class="text-lg font-semibold mb-2">Module Slides</h4>
+            <div class="module-inner-panel-blue">
+              <h4><i class="fas fa-file-powerpoint"></i> Module Slides</h4>
               {% if module.slide_url %}
                 {% set slide_url_gated = url_for('main.serve_uploaded_slide', filename=module.slide_url) %}
                 {% if module.slide_url.endswith('.pdf') %}
-                  <div class="max-w-4xl mx-auto mb-2">
-                    <iframe class="w-full h-96 border rounded deferred-iframe" data-src="{{ slide_url_gated }}" allowfullscreen></iframe>
+                  <div class="iframe-container" id="iframe-container-{{ module.module_id }}">
+                    <iframe class="deferred-iframe" data-src="{{ slide_url_gated }}" allowfullscreen></iframe>
                   </div>
+                  <button class="fullscreen-btn" onclick="toggleFullscreen('iframe-container-{{ module.module_id }}')">
+                    <i class="fas fa-expand"></i> <span>View Fullscreen</span>
+                  </button>
                 {% elif module.slide_url.endswith('.pptx') %}
-                  <div class="max-w-4xl mx-auto mb-2">
-                    {# Keep Office embed using absolute static URL for compatibility #}
+                  <div class="iframe-container" id="iframe-container-{{ module.module_id }}">
                     {% set absolute_src = (request.url_root ~ 'static/uploads/' ~ module.slide_url) | trim('/') %}
-                    <iframe class="w-full h-96 border rounded deferred-iframe" data-src="https://view.officeapps.live.com/op/embed.aspx?src={{ absolute_src | url_encode }}" allowfullscreen></iframe>
+                    <iframe class="deferred-iframe" data-src="https://view.officeapps.live.com/op/embed.aspx?src={{ absolute_src | url_encode }}" allowfullscreen></iframe>
                   </div>
+                  <button class="fullscreen-btn" onclick="toggleFullscreen('iframe-container-{{ module.module_id }}')">
+                    <i class="fas fa-expand"></i> <span>View Fullscreen</span>
+                  </button>
                 {% else %}
-                  <p class="text-gray-600 mb-4">Unsupported slide format. Please use PDF or PPTX.</p>
+                  <p class="text-muted-mobile">Unsupported slide format. Please use PDF or PPTX.</p>
                 {% endif %}
-                <a href="{{ slide_url_gated }}" class="btn btn-primary mt-2" download>Download Slide</a>
               {% else %}
-                <p class="text-gray-600 mb-4">No slides available for this module.</p>
+                <p class="text-muted-mobile">No slides available for this module.</p>
               {% endif %}
             </div>
           </div>
+
           <div class="tab-pane fade" id="video-{{ module.module_id }}" role="tabpanel">
-            <div class="bg-blue-50 module-inner-panel-blue p-4 rounded-lg">
-              <h4 class="text-lg font-semibold mb-2">Instructional Video</h4>
+            <div class="module-inner-panel-blue">
+
+              <h4><i class="fas fa-video"></i> Instructional Video</h4>
               {% if module.youtube_url %}
-              {% set __yid = module.youtube_url|youtube_id %}
-              <div class="max-w-4xl mx-auto">
-                <div style="position:relative;padding-top:56.25%;">
-                  <div style="position:absolute;top:0;left:0;width:100%;height:100%;">
+                {% set __yid = module.youtube_url|youtube_id %}
+                <div class="youtube-container">
+                  <div class="youtube-inner">
                     <div class="youtube-placeholder" data-youtube-id="{{ __yid }}" aria-label="YouTube video placeholder" style="width:100%;height:100%;"></div>
                   </div>
                 </div>
-              </div>
               {% else %}
-                <p class="text-gray-600 mb-4">No video available for this module.</p>
-               {% endif %}
-            </div>
-
-            <!-- Quiz section directly below video -->
-            <div class="bg-blue-50 module-inner-panel-blue p-4 rounded-lg mt-4">
-              <div class="text-lg font-semibold mb-3 flex items-center">
-                <i class="fas fa-question-circle mr-2"></i>Knowledge Check
-              </div>
-              {% if user_module and user_module.is_completed %}
-                <div class="alert alert-success mb-3 p-2 text-sm">Quiz completed. You can review or reattempt in the Quiz Player.</div>
+                <p class="text-muted-mobile">No video available for this module.</p>
               {% endif %}
-              <p class="text-gray-600 mb-3">Test your understanding of the video content with this interactive quiz.</p>
+
+              <hr class="my-4" style="border-color: rgba(30, 64, 175, 0.1);">
+
+              <h4><i class="fas fa-question-circle"></i> Knowledge Check</h4>
+              {% if user_module and user_module.is_completed %}
+                <div class="alert alert-success">
+                  <i class="fas fa-check-circle"></i> Quiz completed. You can review or reattempt in the Quiz Player.
+                </div>
+              {% endif %}
+              <p class="text-muted-mobile mb-3">Test your understanding of the video content with this interactive quiz.</p>
               <a href="/module/{{ module.module_id }}/quiz" class="btn btn-primary btn-lg">
-                <i class="fas fa-play me-1"></i> Open Quiz Player
+                <i class="fas fa-play"></i> <span>Open Quiz Player</span>
               </a>
+
             </div>
           </div>
         </div>
         {% endif %}
       </div>
     </div>
-    {% endfor %}
-  </div>
+  {% endfor %}
 </div>
 
-<!-- Disclaimer Modal -->
 <div class="modal fade" id="disclaimerModal" tabindex="-1" aria-labelledby="disclaimerModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -142,8 +679,8 @@
         <h5 class="modal-title" id="disclaimerModalLabel">
           <i class="fas fa-exclamation-triangle me-2"></i>Terms and Conditions
         </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" disabled></button>
-      </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
       <div class="modal-body">
         <div class="alert alert-info">
           <strong>Important Notice:</strong> Please read and agree to the following terms before accessing the module slides.
@@ -180,7 +717,6 @@
   </div>
 </div>
 {% endblock %}
-
 
 {% block scripts %}
 <script>
@@ -220,10 +756,13 @@ function activateDeferredIframes(root=document){
     const id = ph.getAttribute('data-youtube-id');
     if(!id) continue;
     const iframe = document.createElement('iframe');
-    iframe.setAttribute('src', 'https://www.youtube.com/embed/' + id);
+    // Add parameters to prevent opening in YouTube app on mobile
+    iframe.setAttribute('src', 'https://www.youtube.com/embed/' + id + '?playsinline=1&rel=0&modestbranding=1');
     iframe.setAttribute('title', 'YouTube video player');
     iframe.setAttribute('allowfullscreen', '');
+    iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
     iframe.style.width = '100%'; iframe.style.height = '100%';
+    iframe.style.border = 'none';
     ph.innerHTML = '';
     ph.appendChild(iframe);
     ph.dataset.processed = '1';
@@ -242,10 +781,9 @@ let currentModuleId = null;
 let disclaimerModal = null;
 
 function initializeDisclaimerModal() {
-  disclaimerModal = new bootstrap.Modal(document.getElementById('disclaimerModal'), {
-    backdrop: 'static',
-    keyboard: false
-  });
+  // NOTE: We now allow the modal to be closed via backdrop click or escape key
+  // by removing the static backdrop and keyboard options.
+  disclaimerModal = new bootstrap.Modal(document.getElementById('disclaimerModal'));
 
   const agreeCheckbox = document.getElementById('agreeCheckbox');
   const agreeButton = document.getElementById('agreeButton');
@@ -396,6 +934,19 @@ function showSlideContent(moduleId, tabButton) {
       // Activate any deferred iframes in the newly shown content
       activateDeferredIframes(slidePane);
     }
+  }
+}
+
+function toggleFullscreen(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const isFullscreen = document.fullscreenElement === container;
+
+  if (isFullscreen) {
+    document.exitFullscreen().catch(err => console.log('Error exiting fullscreen:', err));
+  } else {
+    container.requestFullscreen().catch(err => console.log('Error entering fullscreen:', err));
   }
 }
 </script>

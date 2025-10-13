@@ -5,15 +5,6 @@
 <nav class="navbar navbar-light bg-light shadow-sm">
   <div class="container d-flex justify-content-between align-items-center">
     <a class="navbar-brand fw-bold" href="/">TRAINING SYSTEM</a>
-    <div>
-      {% if current_user.is_authenticated %}
-        <a href="{{ safe_url_for('main.user_dashboard') }}" class="btn btn-outline-primary me-2">Dashboard</a>
-        <a href="{{ url_for('main.logout') }}" class="btn btn-outline-secondary">Logout</a>
-      {% else %}
-        <a href="{{ url_for('main.login') }}" class="btn btn-outline-primary me-2">Login</a>
-        <a href="{{ url_for('main.signup') }}" class="btn btn-outline-primary">Sign Up</a>
-      {% endif %}
-    </div>
   </div>
 </nav>
 
@@ -39,6 +30,254 @@
   .passport-photo-frame { width: 140px; height: 180px; border: 2px solid #e5e7eb; border-radius: 8px; background: #f9fafb; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; }
   .passport-photo { width: 100%; height: 100%; object-fit: cover; display: none; }
   .passport-photo-placeholder { font-size: 12px; color: #9ca3af; text-align: center; padding: 8px; }
+
+  /* ========================================
+     MOBILE RESPONSIVE STYLES
+     ======================================== */
+  @media (max-width: 768px) {
+    /* Navbar adjustments */
+    .navbar .container {
+      padding: 0.75rem 1rem;
+    }
+
+    .navbar-brand {
+      font-size: 1rem !important;
+    }
+
+    .navbar .btn {
+      font-size: 0.875rem;
+      padding: 0.375rem 0.75rem;
+    }
+
+    .navbar .me-2 {
+      margin-right: 0.5rem !important;
+    }
+
+    /* Page title */
+    .auth-wrapper .w-100.text-center h1 {
+      font-size: 1.75rem !important;
+      margin-bottom: 0.5rem;
+    }
+
+    .auth-wrapper .w-100.text-center p {
+      font-size: 0.9rem;
+    }
+
+    /* Main card adjustments */
+    .auth-main {
+      padding: 1rem 0.75rem;
+    }
+
+    .onboarding-card {
+      width: 100%;
+      margin: 0;
+    }
+
+    .onboarding-card.card {
+      border-radius: 16px !important;
+      padding: 1rem !important;
+    }
+
+    .card-header {
+      padding: 0 !important;
+      margin-bottom: 1.5rem;
+    }
+
+    .card-header h3 {
+      font-size: 1.25rem;
+    }
+
+    /* Step indicator adjustments for mobile - FIX OVERFLOW */
+    .step-indicator {
+      margin-top: 1rem !important;
+      padding: 0 !important;
+      justify-content: space-between;
+    }
+
+    .step-dot {
+      width: 24px;
+      height: 24px;
+      font-size: 11px;
+      margin: 0 !important; /* Remove horizontal margin to prevent overflow */
+    }
+
+    .step-line {
+      min-width: 12px;
+      flex: 1 1 auto;
+      margin: 0 4px; /* Add small margin to lines instead */
+    }
+
+    /* Ensure header content doesn't overflow */
+    .card-header > div {
+      width: 100%;
+    }
+
+    .card-header > div > div:first-child {
+      width: 100%;
+      max-width: 100%;
+    }
+
+    /* Profile picture in header - make smaller on mobile */
+    .card-header img {
+      width: 48px !important;
+      height: 48px !important;
+    }
+
+    .card-header .small {
+      font-size: 0.75rem !important;
+    }
+
+    /* Form sections */
+    .card-body {
+      padding: 0 !important;
+    }
+
+    .card-body h5 {
+      font-size: 1.1rem;
+      margin-bottom: 1rem !important;
+    }
+
+    /* Form inputs - ensure proper sizing */
+    .form-control,
+    .form-select {
+      font-size: 16px !important; /* Prevent iOS zoom */
+      padding: 0.625rem 0.75rem;
+    }
+
+    .form-label {
+      font-size: 0.9rem;
+      margin-bottom: 0.375rem;
+      font-weight: 500;
+    }
+
+    .form-text {
+      font-size: 0.8rem;
+    }
+
+    /* Passport photo frame - center on mobile */
+    .passport-photo-frame {
+      margin: 0 auto;
+      width: 120px;
+      height: 154px;
+    }
+
+    /* Experience items */
+    .experience-item {
+      padding: 1rem !important;
+      margin-bottom: 1rem;
+    }
+
+    .experience-item .row {
+      gap: 0.75rem !important;
+    }
+
+    /* Row gutters */
+    .row.g-3 {
+      --bs-gutter-y: 0.75rem;
+    }
+
+    /* Button groups */
+    .d-flex.justify-content-between {
+      flex-direction: column !important;
+      gap: 1rem;
+    }
+
+    .d-flex.justify-content-between .d-flex.gap-2 {
+      flex-direction: column !important;
+      width: 100%;
+    }
+
+    .d-flex.justify-content-between .btn {
+      width: 100% !important;
+      justify-content: center;
+    }
+
+    /* Add experience button */
+    #add-experience {
+      width: 100%;
+    }
+
+    /* Alert messages */
+    .alert {
+      font-size: 0.9rem;
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    /* Footer adjustments */
+    .footer {
+      padding: 1.5rem 0 !important;
+    }
+
+    .footer .container {
+      padding: 0 1rem;
+    }
+
+    .footer .fw-bold {
+      font-size: 0.95rem !important;
+    }
+
+    .footer .text-muted {
+      font-size: 0.8rem !important;
+    }
+  }
+
+  /* Extra small screens */
+  @media (max-width: 480px) {
+    .auth-wrapper .w-100.text-center h1 {
+      font-size: 1.5rem !important;
+    }
+
+    .onboarding-card.card {
+      padding: 0.75rem !important;
+      border-radius: 12px !important;
+    }
+
+    .card-header h3 {
+      font-size: 1.1rem;
+    }
+
+    .step-dot {
+      width: 20px;
+      height: 20px;
+      font-size: 10px;
+      margin: 0 4px;
+    }
+
+    .step-line {
+      min-width: 12px;
+    }
+
+    .passport-photo-frame {
+      width: 100px;
+      height: 128px;
+    }
+
+    .experience-item {
+      padding: 0.75rem !important;
+    }
+
+    /* Make navbar buttons stack on very small screens */
+    .navbar .container > div:last-child {
+      display: flex;
+      gap: 0.5rem;
+    }
+  }
+
+  /* Landscape mobile orientation */
+  @media (max-width: 768px) and (orientation: landscape) {
+    .auth-main {
+      padding: 1rem;
+    }
+
+    .auth-wrapper .w-100.text-center {
+      margin-bottom: 1rem !important;
+    }
+
+    .auth-wrapper .w-100.text-center h1 {
+      font-size: 1.5rem !important;
+    }
+  }
 </style>
 
 <div class="blurred-shape shape-orange"></div>
@@ -294,13 +533,6 @@
     <div class="mb-2 mb-md-0 text-center text-md-start">
       <span class="fw-bold" style="font-size: 1.1rem; color: #222;">&copy; 2025 SHAPADU SECURITY SDN BHD</span>
       <span class="text-muted ms-2" style="font-size: 0.95rem;">All rights reserved.</span>
-    </div>
-    <div class="d-flex flex-column flex-md-row align-items-center gap-2 gap-md-3 text-center text-md-end">
-      <span class="ms-md-3">
-        <a href="#" class="me-2" style="color: #495057;"><i class="bi bi-facebook"></i></a>
-        <a href="#" class="me-2" style="color: #495057;"><i class="bi bi-twitter"></i></a>
-        <a href="#" style="color: #495057;"><i class="bi bi-linkedin"></i></a>
-      </span>
     </div>
   </div>
 </footer>

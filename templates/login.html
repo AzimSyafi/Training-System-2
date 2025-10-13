@@ -55,6 +55,8 @@
     overflow-y: auto;
     position: relative;
     box-shadow: -20px 0 60px rgba(2,6,23,0.5); /* separation from dark background */
+    border-radius: 24px; /* rounded edges */
+    margin: 20px; /* spacing from viewport edges */
   }
 
   .login-form-wrapper {
@@ -105,7 +107,12 @@
   @media (max-width: 768px) {
     .login-split-screen { flex-direction: column; min-height: 100vh; }
     .login-brand-panel { height: 220px; flex-basis: auto; }
-    .login-form-panel { flex-basis: auto; padding: 2rem 1.5rem; }
+    .login-form-panel {
+      flex-basis: auto;
+      padding: 2rem 1.5rem;
+      margin: 16px; /* smaller margin on mobile */
+      border-radius: 20px; /* slightly smaller radius on mobile */
+    }
     .login-footer-note { position: static; padding-top: 1.25rem; }
   }
 </style>

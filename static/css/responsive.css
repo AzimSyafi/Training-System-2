@@ -2,10 +2,21 @@
 :root {
   --rs-font-scale: 1;
   --rs-spacing-scale: 1;
+  --mobile-nav-height: 60px;
+  --desktop-hamburger-size: 50px;
 }
 
 /* Make media scale within containers */
-img, video, canvas, svg { max-width: 100%; height: auto; }
+img, video, canvas, svg, iframe {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Ensure iframes and embedded content are fluid */
+iframe {
+  width: 100%;
+}
 
 /* Base typography scales slightly via JS-driven var while keeping readability */
 body { font-size: clamp(16px, calc(16px * var(--rs-font-scale)), 18px); line-height: 1.5; }
@@ -17,9 +28,11 @@ h4 { font-size: clamp(1.125rem, calc(1.25rem * var(--rs-font-scale)), 1.5rem); }
 h5 { font-size: clamp(1rem, calc(1.125rem * var(--rs-font-scale)), 1.25rem); }
 h6 { font-size: clamp(0.95rem, calc(1rem * var(--rs-font-scale)), 1.125rem); }
 
-p, li, label, .form-text, .text-body, .text-body-secondary { font-size: clamp(0.95rem, calc(1rem * var(--rs-font-scale)), 1.125rem); }
+p, li, label, .form-text, .text-body, .text-body-secondary {
+  font-size: clamp(0.95rem, calc(1rem * var(--rs-font-scale)), 1.125rem);
+}
 
-/* Ensure buttons and inputs are touch-friendly */
+/* Ensure buttons and inputs are touch-friendly (minimum 44x44px touch target) */
 button, .btn,
 input[type="button"], input[type="submit"], input[type="reset"],
 input[type="text"], input[type="email"], input[type="password"],
@@ -29,43 +42,822 @@ select, textarea, .form-control {
   font-size: clamp(16px, calc(16px * var(--rs-font-scale)), 20px);
 }
 
+/* Enhanced touch targets for links and interactive elements */
+a, button, .btn, .nav-link, [role="button"] {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Utility for making buttons square */
+.btn-square {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  justify-content: center;
+}
+
 /* Cards and images */
 .card img, .module-card-rounded img { width: 100%; height: auto; display: block; }
 .card-title { font-size: clamp(1.05rem, calc(1.15rem * var(--rs-font-scale)), 1.35rem); }
 .card-subtitle, .card-text { font-size: clamp(0.95rem, calc(1rem * var(--rs-font-scale)), 1.125rem); }
 
+/* ========================================
+   QUICK ACTIONS (DEFINITIVE FIX)
+   ======================================== */
+/* This robust selector targets any child element that follows another,
+   ensuring a gap is created regardless of the HTML structure. */
+.quick-actions > * + * {
+  margin-top: 0.75rem !important;
+}
+
+
 /* Tables: enable horizontal scroll on small screens without redesigning DOM */
 @media (max-width: 768px) {
-  .table { display: block; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .table thead th, .table tbody td { white-space: nowrap; }
+  .table-responsive {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table thead th, .table tbody td {
+    white-space: nowrap;
+    min-width: 120px;
+  }
+}
+
+/* ========================================
+   UNIVERSAL HAMBURGER MENU (ALL SCREENS)
+   Desktop and mobile use same slide-out behavior
+   ======================================== */
+
+/* Desktop hamburger button (shown on all screen sizes) - OUTSIDE SIDEBAR ON LEFT */
+.desktop-nav-toggle {
+  position: fixed;
+  top: 15px;
+  left: 295px; /* Position to the right of sidebar (280px + 15px gap) */
+  z-index: 10001; /* Higher than sidebar to stay on top */
+  width: var(--desktop-hamburger-size);
+  height: var(--desktop-hamburger-size);
+  background: var(--sidebar-bg, #1e40af);
+  border: none;
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  transition: left 0.3s ease; /* Animate position when sidebar opens/closes */
+}
+
+/* When sidebar is closed, move hamburger to left edge */
+body:not(.sidebar-open) .desktop-nav-toggle {
+  left: 15px;
+}
+
+.desktop-nav-toggle:hover,
+.desktop-nav-toggle:focus {
+  background: var(--sidebar-link-hover-bg, #3b82f6);
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+
+.desktop-nav-toggle i {
+  transition: transform 0.3s ease;
+}
+
+.desktop-nav-toggle.active i {
+  transform: rotate(90deg);
+}
+
+/* Sidebar slide-out behavior - FROM LEFT */
+.sidebar {
+  position: fixed !important;
+  top: 0;
+  left: -280px !important; /* Hidden off-screen to the left */
+  right: auto !important;
+  width: 280px !important;
+  height: 100vh;
+  z-index: 9999; /* Below hamburger button */
+  transition: left 0.3s ease-in-out !important;
+  overflow-y: auto;
+  box-shadow: 2px 0 15px rgba(0,0,0,0.15); /* Shadow on right side */
+  padding-top: 0;
+}
+
+/* When menu is open, sidebar slides in from left to position 0 */
+.sidebar.menu-open {
+  left: 0 !important; /* Sidebar comes in from left, sits at left edge */
+}
+
+/* Add top margin to first nav element to avoid overlap */
+.sidebar nav {
+  margin-top: 20px;
+}
+
+/* Overlay when menu is open (all screens) */
+.nav-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9998;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.nav-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Ensure profile menu appears on top of sidebar */
+.profile-menu {
+  z-index: 10000 !important; /* Higher than sidebar (9999) */
+}
+
+/* Hide the old sidebar toggle button inside sidebar */
+#sidebar-toggle {
+  display: none !important;
+}
+
+/* Hide close button - we'll use hamburger for both open and close */
+.sidebar .nav-close-btn {
+  display: none !important;
+}
+
+/* Main content takes full width since sidebar is hidden by default */
+.main-content {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding: calc(var(--desktop-hamburger-size) + 25px) 1.5rem 1.5rem 1.5rem !important;
+  width: 100% !important;
+  transition: none !important;
+}
+
+/* Ensure sidebar nav links show full text when menu is open */
+.sidebar .nav-link {
+  padding: 0.9rem 1rem !important;
+  gap: 0.85rem !important;
+  justify-content: flex-start !important;
+  min-height: 48px;
+}
+
+.sidebar .nav-link .link-text {
+  max-width: none !important;
+  opacity: 1 !important;
+  display: inline-block !important;
+  width: auto !important;
+}
+
+/* Profile block always shows full text */
+.sidebar .profile-block {
+  padding: 1rem !important;
+}
+
+.sidebar .profile-trigger {
+  justify-content: flex-start !important;
+  width: 100% !important;
+  gap: 0.8rem !important;
+}
+
+.sidebar .profile-text {
+  max-width: none !important;
+  opacity: 1 !important;
+  display: flex !important;
+}
+
+/* Remove collapsed state styling since we don't use it anymore */
+.sidebar.collapsed {
+  width: 280px !important;
+  overflow-y: auto !important;
+}
+
+.main-content.collapsed {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }
 
 /* Layout paddings and sidebar behavior */
 @media (max-width: 1024px) {
-  :root { --sidebar-expanded: 180px; }
-  .main-content { padding: 1.25rem 0.75rem; }
+  .main-content { padding: calc(var(--desktop-hamburger-size) + 20px) 1rem 1rem 1rem !important; }
 }
 
+/* ========================================
+   MOBILE SPECIFIC ADJUSTMENTS (≤768px)
+   ======================================== */
 @media (max-width: 768px) {
-  .main-content { margin-left: 0 !important; padding: 1rem 0.75rem; }
-  /* Keep sidebar visually collapsed to free content space; JS toggles classes on resize */
-  .sidebar .nav-link { padding-left: 0.75rem; padding-right: 0.75rem; }
-}
+  .desktop-nav-toggle {
+    width: 44px;
+    height: 44px;
+    top: 10px;
+    right: 10px; /* Changed from left to right */
+    left: auto; /* Ensure left positioning is overridden */
+  }
 
-/* Form elements should fill container width on narrow screens */
-@media (max-width: 768px) {
-  input[type="text"], input[type="email"], input[type="password"], select, textarea, .form-control, .form-select {
-    width: 100%;
+  .main-content {
+    padding: calc(var(--mobile-nav-height) + 10px) 0.75rem 1rem 0.75rem !important;
+  }
+
+  .sidebar {
+    max-width: 85vw !important;
   }
 }
 
-/* Utility spacing that scales with var */
-.mt-responsive { margin-top: calc(1rem * var(--rs-spacing-scale)); }
-.mb-responsive { margin-bottom: calc(1rem * var(--rs-spacing-scale)); }
-.py-responsive { padding-top: calc(0.75rem * var(--rs-spacing-scale)); padding-bottom: calc(0.75rem * var(--rs-spacing-scale)); }
-
-/* Ensure any fixed toolbars/cards don’t crowd mobile */
+/* ========================================
+   MOBILE LAYOUT CONVERSIONS
+   ======================================== */
 @media (max-width: 768px) {
-  .card { border-radius: 12px; }
+  /* Convert flex and grid layouts to single column */
+  .stats-container,
+  .profile-grid,
+  .module-grid,
+  .course-grid,
+  .qa-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+
+  /* Form elements should fill container width on narrow screens */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  input[type="date"],
+  input[type="time"],
+  select,
+  textarea,
+  .form-control,
+  .form-select {
+    width: 100%;
+  }
+
+  /* Stack form groups vertically */
+  .row {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .row > * {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* Make cards full width with better spacing */
+  .card {
+    border-radius: 12px;
+    margin-bottom: 1rem;
+  }
+
+  /* Reduce heading sizes slightly on mobile for better fit */
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.25rem; }
+
+  /* Container adjustments */
+  .container,
+  .container-fluid {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  /* Hero section adjustments for index page */
+  .hero {
+    padding: 40px 0;
+  }
+
+  .hero-inner {
+    padding: 20px;
+  }
+
+  .hero-title {
+    font-size: 1.8rem;
+  }
+
+  .hero-sub {
+    font-size: 1rem;
+  }
+
+  .hero-cta {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .hero-cta .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Course cards - stack and full width */
+  .flex-row {
+    flex-direction: column !important;
+  }
+
+  .max-w-md,
+  .w-\[350px\] {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* ================================== */
+  /* === MODIFIED MODULE CARD START === */
+  /* ================================== */
+  .module-card {
+    padding: 18px;
+  }
+
+  .module-card .card-body {
+      position: relative;
+  }
+
+  /* Hide the button group containing the trash icon */
+  .module-card .btn-group-sm {
+    display: none !important;
+  }
+
+  /* Style for the card title (h6) */
+  .module-card h6 {
+    font-size: 1.05rem !important;
+    line-height: 1.4 !important;
+    margin-bottom: 0.5rem !important;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    /* Remove padding since the icon is gone */
+    padding-right: 0;
+  }
+
+  /* Style for the trash button (hidden via parent) */
+  .module-card .btn-outline-danger {
+    padding: 0 !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+    max-height: 40px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.875rem !important;
+    border-radius: 6px !important;
+    aspect-ratio: 1 / 1 !important;
+  }
+
+  .module-card .btn-outline-danger i {
+    font-size: 0.875rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+  }
+
+  /* Style for delete button in module detail modal */
+  .module-modal-inner .btn-outline-danger {
+    padding: 0 !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+    max-height: 40px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.875rem !important;
+    border-radius: 6px !important;
+    aspect-ratio: 1 / 1 !important;
+  }
+
+  .module-modal-inner .btn-outline-danger i {
+    font-size: 0.875rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+  }
+
+  /* Add spacing for badge under title */
+  .module-card .badge {
+    margin-top: 0.25rem !important;
+  }
+  /* ================================ */
+  /* === MODIFIED MODULE CARD END === */
+  /* ================================ */
+
+  /* Quick actions on mobile */
+  .quick-actions {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem; /* Increased vertical spacing between action buttons */
+  }
+
+  .qa-btn {
+    padding: 12px 14px;
+    width: 100%; /* Make buttons full width on mobile */
+    margin-bottom: 0.5rem; /* Additional margin for extra spacing */
+  }
+
+  .qa-btn:last-child {
+    margin-bottom: 0; /* Remove margin from last button */
+  }
+
+  /* Stat cards */
+  .stat-card {
+    padding: 16px;
+  }
+
+  /* Better button spacing on mobile */
+  .btn-group {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btn-group .btn {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Modal improvements */
+  .modal-dialog {
+    margin: 0.5rem;
+    max-width: calc(100% - 1rem);
+  }
+
+  /* Tabs to dropdown on mobile */
+  .nav-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-tabs .nav-link {
+    white-space: nowrap;
+    min-width: auto;
+  }
+
+  /* Tables - better mobile handling */
+  .table-responsive {
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+  }
+
+  /* Pagination on mobile */
+  .pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .pagination .page-item {
+    margin: 2px;
+  }
+
+  /* ========================================
+     USER DASHBOARD MOBILE OPTIMIZATIONS
+     ======================================== */
+
+  /* Page headers with actions */
+  .d-flex.justify-content-between,
+  .flex.justify-between {
+    flex-direction: column !important;
+    gap: 1rem;
+    align-items: stretch !important;
+  }
+
+  .d-flex.justify-content-between > *,
+  .flex.justify-between > * {
+    width: 100%;
+  }
+
+  /* Profile page specific */
+  .max-w-5xl {
+    padding: 1rem !important;
+  }
+
+  /* Profile header buttons */
+  .flex.gap-2 {
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+
+  /* Profile image and info layout */
+  .flex.gap-6 {
+    flex-direction: column !important;
+    gap: 1.5rem !important;
+    align-items: center !important;
+  }
+
+  /* Center profile image on mobile */
+  .w-32 {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: center !important;
+  }
+
+  /* Info fields full width */
+  #personal-info-fields,
+  #working-info-fields {
+    width: 100% !important;
+  }
+
+  /* Working experience grid */
+  .grid.grid-cols-1.md\:grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ========================================
+     COURSES PAGE MOBILE OPTIMIZATIONS
+     ======================================== */
+
+  /* Course cards container */
+  .flex.flex-row.gap-8 {
+    flex-direction: column !important;
+    gap: 1.5rem !important;
+    align-items: center !important;
+  }
+
+  /* Individual course card */
+  .relative.max-w-md {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Course card buttons */
+  .block.w-full {
+    padding: 0.75rem !important;
+    font-size: 0.9rem !important;
+  }
+
+  /* ========================================
+     MODULE VIEW MOBILE OPTIMIZATIONS
+     ======================================== */
+
+  /* Module header */
+  .module-card-rounded .card-header {
+    padding: 1rem !important;
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+
+  .module-card-rounded .card-header h3 {
+    font-size: 1.1rem !important;
+  }
+
+  /* Module tabs */
+  .nav-tabs .nav-item {
+    flex: 1;
+  }
+
+  .nav-tabs .nav-link {
+    padding: 0.75rem 0.5rem !important;
+    font-size: 0.875rem !important;
+  }
+
+  /* Video iframe */
+  .module-inner-panel-blue iframe {
+    height: 250px !important;
+  }
+
+  /* Quiz buttons */
+  .module-card-rounded .btn {
+    width: 100% !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  /* ========================================
+     CERTIFICATES PAGE MOBILE OPTIMIZATIONS
+     ======================================== */
+
+  /* Certificate cards */
+  .col-md-6 {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+
+  .card-header h5 {
+    font-size: 1rem !important;
+  }
+
+  .card-header .badge {
+    font-size: 0.75rem !important;
+  }
+
+  /* Certificate image */
+  .card-body img {
+    max-height: 150px !important;
+  }
+
+  /* Certificate text */
+  .card-text {
+    font-size: 0.9rem !important;
+  }
+
+  /* ========================================
+     TAILWIND-LIKE UTILITY OVERRIDES FOR MOBILE
+     ======================================== */
+
+  /* Text sizes */
+  .text-2xl {
+    font-size: 1.5rem !important;
+  }
+
+  .text-3xl {
+    font-size: 1.75rem !important;
+  }
+
+  .text-xl {
+    font-size: 1.25rem !important;
+  }
+
+  .text-lg {
+    font-size: 1.1rem !important;
+  }
+
+  /* Padding adjustments */
+  .p-4 {
+    padding: 1rem !important;
+  }
+
+  .p-6 {
+    padding: 1.25rem !important;
+  }
+
+  .px-4 {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .py-4 {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+  }
+
+  /* Margin adjustments */
+  .mb-4 {
+    margin-bottom: 1rem !important;
+  }
+
+  .mb-6 {
+    margin-bottom: 1.25rem !important;
+  }
+
+  .mb-8 {
+    margin-bottom: 1.5rem !important;
+  }
+
+  /* Rounded corners */
+  .rounded-xl {
+    border-radius: 12px !important;
+  }
+
+  /* Shadows - reduce on mobile */
+  .shadow,
+  .shadow-md,
+  .shadow-lg {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  /* ========================================
+     INFO CARDS AND PANELS
+     ======================================== */
+
+  .info-card {
+    padding: 12px 14px !important;
+  }
+
+  .info-title {
+    font-size: 0.9rem !important;
+  }
+
+  .info-body {
+    font-size: 0.85rem !important;
+  }
+
+  /* ========================================
+     DROPDOWN AND ACTION MENUS
+     ======================================== */
+
+  /* Export dropdown and similar menus */
+  .relative.inline-block {
+    width: 100%;
+  }
+
+  #exportDropdownBtn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  #exportDropdown {
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+  }
+
+  /* ========================================
+     ALERTS AND NOTIFICATIONS
+     ======================================== */
+
+  .alert {
+    padding: 0.75rem !important;
+    font-size: 0.9rem !important;
+    border-radius: 8px !important;
+  }
+
+  .alert h5 {
+    font-size: 1rem !important;
+  }
+
+  /* ========================================
+     BACK BUTTONS AND NAVIGATION
+     ======================================== */
+
+  .btn-secondary,
+  .btn.btn-secondary {
+    width: 100% !important;
+    justify-content: center !important;
+    margin-bottom: 1rem !important;
+  }
+}
+
+/* ========================================
+   SMALL MOBILE (≤480px)
+   ======================================== */
+@media (max-width: 480px) {
+  body {
+    font-size: 14px;
+  }
+
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.35rem; }
+  h3 { font-size: 1.15rem; }
+
+  .btn {
+    font-size: 14px;
+    padding: 10px 16px;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  .stats-container {
+    gap: 12px;
+  }
+
+  .stat-card {
+    padding: 12px;
+  }
+
+  .stat-value {
+    font-size: 20px !important;
+  }
+
+  .stat-icon {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 18px !important;
+  }
+
+  /* Further reduce text sizes */
+  .text-2xl {
+    font-size: 1.25rem !important;
+  }
+
+  .text-3xl {
+    font-size: 1.5rem !important;
+  }
+
+  /* Tighter padding */
+  .p-4,
+  .p-6 {
+    padding: 0.75rem !important;
+  }
+
+  /* Quick actions even more compact */
+  .qa-btn {
+    padding: 10px 12px !important;
+    font-size: 0.875rem !important;
+  }
+
+  .qa-icon {
+    width: 36px !important;
+    height: 36px !important;
+  }
 }
 

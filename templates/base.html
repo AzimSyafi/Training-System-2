@@ -154,8 +154,9 @@
         }
         .sidebar.collapsed .nav-link .link-text { max-width: 0; opacity: 0; }
 
-        #sidebar-toggle { height: 60px; background: none; border: 0; color: #fff; font-size: var(--sidebar-font-size); width: 100%; display: flex; align-items: center; gap: .85rem; padding: .65rem 1rem; cursor: pointer; text-align: left; overflow: hidden; }
+        #sidebar-toggle { height: 60px; background: none; border: 0; color: #fff; font-size: var(--sidebar-font-size); width: 100%; display: flex; align-items: center; justify-content: center; padding: .65rem 1rem; cursor: pointer; text-align: left; overflow: hidden; }
         #sidebar-toggle i { min-width: 20px; text-align: center; color: #fff; }
+        #sidebar-toggle .toggle-text { display: none; } /* Hide any text, show only icon */
         #sidebar-toggle:hover { background: var(--sidebar-link-hover-bg); color: #fff; }
         .sidebar.collapsed #sidebar-toggle { height: 60px; justify-content: center; gap: 0; padding: .65rem 0; }
 
@@ -172,7 +173,7 @@
         .sidebar.collapsed .profile-text { max-width: 0; opacity: 0; }
 
         /* Floating profile menu (detached from sidebar) */
-        .profile-menu { position: fixed; top:0; left:0; opacity:0; visibility:hidden; transform:translateY(4px); transition:opacity .18s ease, transform .18s ease, visibility .18s; background: var(--card-bg); color: var(--text-color); border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.18); padding:.5rem 0; width:220px; list-style:none; margin:0; z-index:1000; }
+        .profile-menu { position: fixed; top:0; left:0; opacity:0; visibility:hidden; transform:translateY(4px); transition:opacity .18s ease, transform .18s ease, visibility .18s; background: var(--card-bg); color: var(--text-color); border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.18); padding:.5rem 0; width:220px; list-style:none; margin:0; z-index:40; }
         .profile-menu.open { opacity:1; visibility:visible; transform:translateY(0); }
         .profile-menu button, .profile-menu a { display:flex; align-items:center; gap:.65rem; width:100%; background:none; border:0; padding:.55rem 1rem; text-align:left; text-decoration:none; font-size:.9rem; color:inherit; cursor:pointer; }
         .profile-menu button:hover, .profile-menu a:hover { background: var(--nav-tabs-link-hover-bg, #f1f5f9); }
