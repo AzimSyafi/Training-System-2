@@ -40,24 +40,24 @@
           <!-- Info Fields -->
           <div id="personal-info-fields" class="text-left">
             <div class="text-gray-500 text-sm">Full Name</div>
-            <div class="font-semibold text-lg" id="full_name_display">{{ user.full_name }}</div>
+            <div class="font-semibold text-lg" id="full_name_display">{{ user.full_name or '-' }}</div>
             <div class="text-gray-500 text-sm mt-2">User ID</div>
-            <div class="font-semibold text-lg">{{ user.displayed_id }}</div>
+            <div class="font-semibold text-lg">{{ user.displayed_id or '-' }}</div>
             <div class="text-gray-500 text-sm mt-2">Email</div>
-            <div class="font-semibold text-lg" id="email_display">{{ user.email }}</div>
+            <div class="font-semibold text-lg" id="email_display">{{ user.email or '-' }}</div>
             <div class="text-gray-500 text-sm mt-2">Address</div>
-            <div class="font-semibold text-lg" id="address_display">{{ user.address }}</div>
+            <div class="font-semibold text-lg" id="address_display">{{ user.address or '-' }}</div>
             <div class="text-gray-500 text-sm mt-2">Postcode</div>
-            <div class="font-semibold text-lg" id="postcode_display">{{ user.postcode }}</div>
+            <div class="font-semibold text-lg" id="postcode_display">{{ user.postcode or '-' }}</div>
             <div class="text-gray-500 text-sm mt-2">State</div>
-            <div class="font-semibold text-lg" id="state_display">{{ user.state }}</div>
+            <div class="font-semibold text-lg" id="state_display">{{ user.state or '-' }}</div>
             <!-- Added Country display -->
             <div class="text-gray-500 text-sm mt-2">Country</div>
-            <div class="font-semibold text-lg" id="country_display">{{ user.country }}</div>
+            <div class="font-semibold text-lg" id="country_display">{{ user.country or '-' }}</div>
             <div class="text-gray-500 text-sm mt-2">IC Number</div>
-            <div class="font-semibold text-lg" id="ic_number_display">{{ user.ic_number }}</div>
+            <div class="font-semibold text-lg" id="ic_number_display">{{ user.ic_number or '-' }}</div>
             <div class="text-gray-500 text-sm mt-2">Passport Number</div>
-            <div class="font-semibold text-lg" id="passport_number_display">{{ user.passport_number }}</div>
+            <div class="font-semibold text-lg" id="passport_number_display">{{ user.passport_number or '-' }}</div>
           </div>
         </div>
       </div>
@@ -108,11 +108,11 @@
       </div>
       <div id="workplace-fields">
         <div class="text-gray-500 text-sm">Current Workplace</div>
-        <div class="font-semibold text-lg" id="current_workplace_display">{{ user.current_workplace }}</div>
+        <div class="font-semibold text-lg" id="current_workplace_display">{{ user.current_workplace or '-' }}</div>
         <div class="text-gray-500 text-sm">Agency ID</div>
-        <div class="font-semibold text-lg" id="agency_id_display">{{ user.agency_id }}</div>
+        <div class="font-semibold text-lg" id="agency_id_display">{{ user.agency_id or '-' }}</div>
         <div class="text-gray-500 text-sm">Agency Name</div>
-        <div class="font-semibold text-lg" id="agency_name_display">{{ user.agency.agency_name if user.agency else '' }}</div>
+        <div class="font-semibold text-lg" id="agency_name_display">{{ user.agency.agency_name if user.agency else '-' }}</div>
       </div>
       <div id="workplace-edit-actions" class="hidden flex gap-2 mt-4 justify-end">
         <button type="button" class="save-btn bg-blue-700 text-white px-4 py-2 rounded shadow hover:bg-blue-800 font-bold" data-section="workplace">Save</button>
@@ -128,11 +128,11 @@
       </div>
       <div id="emergency-fields">
         <div class="text-gray-500 text-sm">Emergency Contact Phone</div>
-        <div class="font-semibold text-lg" id="emergency_contact_phone_display">{{ user.emergency_contact_phone }}</div>
+        <div class="font-semibold text-lg" id="emergency_contact_phone_display">{{ user.emergency_contact_phone or '-' }}</div>
         <div class="text-gray-500 text-sm">Emergency Contact Name</div>
-        <div class="font-semibold text-lg" id="emergency_contact_display">{{ user.emergency_contact_name }}</div>
+        <div class="font-semibold text-lg" id="emergency_contact_display">{{ user.emergency_contact_name or '-' }}</div>
         <div class="text-gray-500 text-sm">Emergency Relationship</div>
-        <div class="font-semibold text-lg" id="emergency_relationship_display">{{ user.emergency_contact_relationship }}</div>
+        <div class="font-semibold text-lg" id="emergency_relationship_display">{{ user.emergency_contact_relationship or '-' }}</div>
       </div>
       <div id="emergency-edit-actions" class="hidden flex gap-2 mt-4 justify-end">
         <button type="button" class="save-btn bg-blue-700 text-white px-4 py-2 rounded shadow hover:bg-blue-800 font-bold" data-section="emergency">Save</button>
@@ -191,35 +191,6 @@
           </select>
         </div>
         {% if not is_authority %}
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Working Experience (summary)</label>
-          <input type="text" name="working_experience" value="{{ user.working_experience }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Recruitment Date</label>
-          <input type="date" name="recruitment_date" value="{{ user.recruitment_date }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Visa Number</label>
-          <input type="text" name="visa_number" value="{{ user.visa_number }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Visa Expiry Date</label>
-          <input type="date" name="visa_expiry_date" value="{{ user.visa_expiry_date }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Current Workplace</label>
-          <input type="text" name="current_workplace" value="{{ user.current_workplace }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Agency ID</label>
-          <input type="text" name="agency_id" value="{{ user.agency_id }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Agency Name</label>
-          <input type="text" name="agency_name" value="{{ user.agency.agency_name if user.agency else '' }}" class="w-full border rounded px-2 py-1" />
-        </div>
-
         <!-- Multi Working Experiences Editor -->
         <div class="mt-4 p-3 border rounded-lg">
           <div class="flex items-center justify-between mb-2">
@@ -304,6 +275,19 @@
               </div>
             {% endif %}
           </div>
+        </div>
+
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Current Workplace</label>
+          <input type="text" name="current_workplace" value="{{ user.current_workplace }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Agency ID</label>
+          <input type="text" name="agency_id" value="{{ user.agency_id }}" class="w-full border rounded px-2 py-1" />
+        </div>
+        <div class="mb-2">
+          <label class="block text-gray-500 text-sm">Agency Name</label>
+          <input type="text" name="agency_name" value="{{ user.agency.agency_name if user.agency else '' }}" class="w-full border rounded px-2 py-1" />
         </div>
 
         <div class="mb-2">
@@ -423,15 +407,46 @@ document.addEventListener('DOMContentLoaded', function() {
   const modal = document.getElementById('profile-modal');
   const closeModalBtn = document.getElementById('close-profile-modal');
   const cancelModalBtn = document.getElementById('cancel-profile-modal');
+
+  // Function to lock body scroll
+  function lockBodyScroll() {
+    document.body.style.overflow = 'hidden';
+  }
+
+  // Function to unlock body scroll
+  function unlockBodyScroll() {
+    document.body.style.overflow = '';
+  }
+
   if (openModalBtn && modal) {
-    openModalBtn.onclick = () => { modal.classList.remove('hidden'); initModalExperienceEditor(); };
+    openModalBtn.onclick = () => {
+      modal.classList.remove('hidden');
+      lockBodyScroll();
+      initModalExperienceEditor();
+    };
   }
   if (closeModalBtn && modal) {
-    closeModalBtn.onclick = () => { modal.classList.add('hidden'); };
+    closeModalBtn.onclick = () => {
+      modal.classList.add('hidden');
+      unlockBodyScroll();
+    };
   }
   if (cancelModalBtn && modal) {
-    cancelModalBtn.onclick = () => { modal.classList.add('hidden'); };
+    cancelModalBtn.onclick = () => {
+      modal.classList.add('hidden');
+      unlockBodyScroll();
+    };
   }
+
+  // Also unlock scroll when form is submitted successfully
+  const editProfileForm = document.getElementById('edit-profile-form');
+  if (editProfileForm) {
+    editProfileForm.addEventListener('submit', function() {
+      // Unlock scroll when form submits (page will reload anyway)
+      unlockBodyScroll();
+    });
+  }
+
   // Ensure the Save button performs a normal form submit (avoid JS override)
   const saveProfileBtn = document.getElementById('save-profile-modal');
   if (saveProfileBtn) {
