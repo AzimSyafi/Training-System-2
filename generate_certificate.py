@@ -27,6 +27,16 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None)
     if not module:
         raise ValueError(f"No module found for course type {course_type}")
     module_name = module.module_name
+
+    # Get active certificate template settings
+    from models import CertificateTemplate
+    template_settings = CertificateTemplate.query.filter_by(is_active=True).first()
+    if not template_settings:
+        # Create default template if none exists
+        template_settings = CertificateTemplate(name='Default Template')
+        db.session.add(template_settings)
+        db.session.commit()
+
     # Create overlay PDF with user info
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
@@ -40,24 +50,43 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None)
     # Try to fetch existing certificate for this user/module
     cert = Certificate.query.filter_by(user_id=user_id, module_id=module.module_id).order_by(Certificate.issue_date.desc()).first()
     passport_ic = getattr(user, 'passport_number', None) or getattr(user, 'ic_number', None) or getattr(user, 'number_series', None) or 'N/A'
-    # Place Name (centered at 425, 290), Times New Roman, 28pt, Black
-    can.setFont("Times-Roman", 28)
-    can.setFillColorRGB(0, 0, 0)
-    can.drawCentredString(425, 290, name)
-    # Passport/IC, Module, Date text, Date all Times New Roman, 14pt, Black
-    can.setFont("Times-Roman", 14)
-    can.drawCentredString(425, 260, f"Passport/IC: {passport_ic}")
-    can.drawCentredString(425, 230, course_type.upper())
 
-    # Display overall percentage
-    can.setFont("Times-Roman", 14)
-    can.drawCentredString(425, 200, f"Overall Percentage: {overall_percentage}%")
-    # Display Course Grade (attempt-based)
-    can.drawCentredString(425, 185, f"Course Grade: {course_grade}")
-    # Set font size for text and date to 12
-    can.setFont("Times-Roman", 12)
-    can.drawCentredString(425, 170, "received training and fulfilled the requirements on")
-    can.drawCentredString(425, 150, date_str)
+    # Place Name using template settings (only if visible)
+    if getattr(template_settings, 'name_visible', True):
+        can.setFont("Times-Roman", template_settings.name_font_size)
+        can.setFillColorRGB(0, 0, 0)
+        can.drawCentredString(template_settings.name_x, template_settings.name_y, name)
+
+    # Passport/IC using template settings (only if visible)
+    if getattr(template_settings, 'ic_visible', True):
+        can.setFont("Times-Roman", template_settings.ic_font_size)
+        can.drawCentredString(template_settings.ic_x, template_settings.ic_y, f"Passport/IC: {passport_ic}")
+
+    # Course type using template settings (only if visible)
+    if getattr(template_settings, 'course_type_visible', True):
+        can.setFont("Times-Roman", template_settings.course_type_font_size)
+        can.drawCentredString(template_settings.course_type_x, template_settings.course_type_y, course_type.upper())
+
+    # Display overall percentage using template settings (only if visible)
+    if getattr(template_settings, 'percentage_visible', True):
+        can.setFont("Times-Roman", template_settings.percentage_font_size)
+        can.drawCentredString(template_settings.percentage_x, template_settings.percentage_y, f"Overall Percentage: {overall_percentage}%")
+
+    # Display Course Grade using template settings (only if visible)
+    if getattr(template_settings, 'grade_visible', True):
+        can.setFont("Times-Roman", template_settings.grade_font_size)
+        can.drawCentredString(template_settings.grade_x, template_settings.grade_y, f"Course Grade: {course_grade}")
+
+    # Text using template settings (only if visible)
+    if getattr(template_settings, 'text_visible', True):
+        can.setFont("Times-Roman", template_settings.text_font_size)
+        can.drawCentredString(template_settings.text_x, template_settings.text_y, "received training and fulfilled the requirements on")
+
+    # Date using template settings (only if visible)
+    if getattr(template_settings, 'date_visible', True):
+        can.setFont("Times-Roman", template_settings.date_font_size)
+        can.drawCentredString(template_settings.date_x, template_settings.date_y, date_str)
+
     can.save()
     packet.seek(0)
 

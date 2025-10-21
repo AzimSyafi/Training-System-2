@@ -417,6 +417,51 @@ class Certificate(db.Model):
         # Validate certificate authenticity
         return self.certificate_id is not None and self.issue_date is not None
 
+class CertificateTemplate(db.Model):
+    __tablename__ = 'certificate_template'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, default='Default Template')
+    # Field positions (x, y coordinates)
+    name_x = db.Column(db.Integer, default=425)
+    name_y = db.Column(db.Integer, default=290)
+    name_font_size = db.Column(db.Integer, default=28)
+    name_visible = db.Column(db.Boolean, default=True)
+
+    ic_x = db.Column(db.Integer, default=425)
+    ic_y = db.Column(db.Integer, default=260)
+    ic_font_size = db.Column(db.Integer, default=14)
+    ic_visible = db.Column(db.Boolean, default=True)
+
+    course_type_x = db.Column(db.Integer, default=425)
+    course_type_y = db.Column(db.Integer, default=230)
+    course_type_font_size = db.Column(db.Integer, default=14)
+    course_type_visible = db.Column(db.Boolean, default=True)
+
+    percentage_x = db.Column(db.Integer, default=425)
+    percentage_y = db.Column(db.Integer, default=200)
+    percentage_font_size = db.Column(db.Integer, default=14)
+    percentage_visible = db.Column(db.Boolean, default=True)
+
+    grade_x = db.Column(db.Integer, default=425)
+    grade_y = db.Column(db.Integer, default=185)
+    grade_font_size = db.Column(db.Integer, default=14)
+    grade_visible = db.Column(db.Boolean, default=True)
+
+    text_x = db.Column(db.Integer, default=425)
+    text_y = db.Column(db.Integer, default=170)
+    text_font_size = db.Column(db.Integer, default=12)
+    text_visible = db.Column(db.Boolean, default=True)
+
+    date_x = db.Column(db.Integer, default=425)
+    date_y = db.Column(db.Integer, default=150)
+    date_font_size = db.Column(db.Integer, default=12)
+    date_visible = db.Column(db.Boolean, default=True)
+
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class Trainer(UserMixin, db.Model):
     __tablename__ = 'trainer'
 

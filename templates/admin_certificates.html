@@ -21,8 +21,13 @@
         <!-- Upload Certificate Template -->
         <div class="card mb-4">
             <div class="card-body">
-                <h5>Upload Certificate Template</h5>
-                <form action="{{ safe_url_for('upload_cert_template') }}" method="post" enctype="multipart/form-data">
+                <h5>Certificate Template Management</h5>
+                <div class="mb-3">
+                    <a href="{{ url_for('main.certificate_template_editor') }}" class="btn btn-success mb-2">
+                        <i class="fas fa-edit"></i> Edit Field Placement
+                    </a>
+                </div>
+                <form action="{{ safe_url_for('main.upload_cert_template') }}" method="post" enctype="multipart/form-data">
                     <div class="mb-3">
                         <input type="file" name="cert_template" accept="application/pdf,image/*" class="form-control" required>
                     </div>
@@ -94,7 +99,7 @@
             <div class="card">
                 <div class="card-body">
                     <div class="table-responsive">
-                        <form action="{{ safe_url_for('delete_certificates_bulk') }}" method="post" onsubmit="return confirm('Are you sure you want to delete the selected certificates?');">
+                        <form action="{{ safe_url_for('main.delete_certificates_bulk') }}" method="post" onsubmit="return confirm('Are you sure you want to delete the selected certificates?');">
                         <table class="table table-striped">
                             <thead>
                                 <tr>
@@ -104,6 +109,7 @@
                                     <th>Module Type</th>
                                     <th>Issue Date</th>
                                     <th>Score</th>
+                                    <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -117,9 +123,26 @@
                                     <td>{{ certificate.issue_date.strftime('%Y-%m-%d') }}</td>
                                     <td>{{ certificate.score }}%</td>
                                     <td>
-                                        <a href="{{ certificate.certificate_url }}" class="btn btn-sm btn-outline-primary" target="_blank">
-                                            <i class="fas fa-download"></i> Download
-                                        </a>
+                                        {% if certificate.status == 'approved' %}
+                                            <span class="badge bg-success">Approved</span>
+                                        {% elif certificate.status == 'rejected' %}
+                                            <span class="badge bg-danger">Rejected</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if certificate.status == 'approved' and certificate.certificate_url %}
+                                            <a href="{{ url_for('static', filename='certificates/' ~ certificate.certificate_url.replace('static/', '').replace('static\\', '').replace('certificates/', '').replace('certificates\\', '')) }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                                <i class="fas fa-download"></i> Download
+                                            </a>
+                                        {% elif certificate.status == 'approved' %}
+                                            <span class="text-muted small">Ready for generation</span>
+                                        {% elif certificate.status == 'pending' %}
+                                            <span class="text-muted small">Awaiting authority approval</span>
+                                        {% else %}
+                                            <span class="text-muted small">Rejected</span>
+                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}

@@ -1351,7 +1351,289 @@ def admin_certificates():
         certs = Certificate.query.order_by(Certificate.issue_date.desc()).all()
     except Exception:
         logging.exception('[ADMIN CERTIFICATES] Failed loading certificates')
-    return render_template('admin_certificates.html', certificates=certs)
+    # Discover current certificate template URL if present
+    cert_template_url = None
+    try:
+        templates_dir = os.path.join(current_app.static_folder or 'static', 'cert_templates')
+        if os.path.isdir(templates_dir):
+            latest_file = None
+            latest_mtime = -1
+            for name in os.listdir(templates_dir):
+                path = os.path.join(templates_dir, name)
+                if os.path.isfile(path):
+                    mtime = os.path.getmtime(path)
+                    if mtime > latest_mtime:
+                        latest_mtime = mtime
+                        latest_file = name
+            if latest_file:
+                cert_template_url = url_for('static', filename=f'cert_templates/{latest_file}')
+    except Exception:
+        logging.exception('[ADMIN CERTIFICATES] Error discovering cert template')
+    # Load filter dropdown data
+    agencies = []
+    courses = []
+    try:
+        agencies = Agency.query.order_by(Agency.agency_name.asc()).all()
+    except Exception:
+        logging.exception('[ADMIN CERTIFICATES] Failed loading agencies')
+    try:
+        courses = Course.query.order_by(Course.name.asc()).all()
+    except Exception:
+        logging.exception('[ADMIN CERTIFICATES] Failed loading courses')
+    return render_template('admin_certificates.html', certificates=certs, cert_template_url=cert_template_url, agencies=agencies, courses=courses)
+
+# Upload certificate template (POST)
+@main_bp.route('/upload_cert_template', methods=['POST'], endpoint='upload_cert_template')
+@login_required
+def upload_cert_template():
+    # Admin-only
+    if not (current_user.is_authenticated and isinstance(current_user, Admin)):
+        return redirect(url_for('main.login'))
+    file = request.files.get('cert_template')
+    if not file or file.filename.strip() == '':
+        flash('No template file selected.', 'danger')
+        return redirect(url_for('main.admin_certificates'))
+    try:
+        filename = secure_filename(file.filename)
+        # Prefix with timestamp to avoid collisions
+        ts = datetime.now().strftime('%Y%m%d%H%M%S')
+        name, ext = os.path.splitext(filename)
+        safe_name = f'{name}_{ts}{ext}' if ext else f'{filename}_{ts}'
+        target_dir = os.path.join(current_app.static_folder or 'static', 'cert_templates')
+        os.makedirs(target_dir, exist_ok=True)
+        save_path = os.path.join(target_dir, safe_name)
+        file.save(save_path)
+        flash('Certificate template uploaded successfully.', 'success')
+    except Exception as e:
+        logging.exception('[UPLOAD CERT TEMPLATE] Failed to upload')
+        flash(f'Failed to upload certificate template: {e}', 'danger')
+    return redirect(url_for('main.admin_certificates'))
+
+# Delete certificates in bulk (POST)
+@main_bp.route('/delete_certificates_bulk', methods=['POST'], endpoint='delete_certificates_bulk')
+@login_required
+def delete_certificates_bulk():
+    if not (current_user.is_authenticated and isinstance(current_user, Admin)):
+        return redirect(url_for('main.login'))
+    ids = request.form.getlist('cert_ids')
+    if not ids:
+        flash('No certificates selected for deletion.', 'warning')
+        return redirect(url_for('main.admin_certificates'))
+    deleted = 0
+    errors = 0
+    try:
+        int_ids = []
+        for _id in ids:
+            try:
+                int_ids.append(int(_id))
+            except Exception:
+                continue
+        if not int_ids:
+            flash('No valid certificate IDs provided.', 'warning')
+            return redirect(url_for('main.admin_certificates'))
+        # Fetch and delete
+        certs = Certificate.query.filter(Certificate.certificate_id.in_(int_ids)).all()
+        for cert in certs:
+            # Attempt to delete associated file if stored under static/certificates
+            try:
+                if cert.certificate_url:
+                    # Normalize URL path
+                    url_path = cert.certificate_url
+                    # Expected like '/certificates/filename.pdf' or 'certificates/filename.pdf'
+                    url_path = url_path.lstrip('/')
+                    base_static = current_app.static_folder or 'static'
+                    if url_path.startswith('certificates/'):
+                        fs_path = os.path.join(base_static, url_path)
+                        if os.path.exists(fs_path):
+                            os.remove(fs_path)
+            except Exception:
+                logging.exception('[DELETE CERT] Failed removing file for cert_id=%s', getattr(cert, 'certificate_id', '?'))
+            try:
+                db.session.delete(cert)
+                deleted += 1
+            except Exception:
+                logging.exception('[DELETE CERT] Failed deleting cert_id=%s', getattr(cert, 'certificate_id', '?'))
+                errors += 1
+        db.session.commit()
+        if deleted:
+            flash(f'Deleted {deleted} certificate(s).', 'success')
+        if errors:
+            flash(f'Failed to delete {errors} certificate(s).', 'danger')
+    except Exception as e:
+        db.session.rollback()
+        logging.exception('[DELETE CERT] Transaction failed')
+        flash(f'Failed to delete certificates: {e}', 'danger')
+    return redirect(url_for('main.admin_certificates'))
+
+# Certificate Template Editor
+@main_bp.route('/certificate_template_editor', methods=['GET'], endpoint='certificate_template_editor')
+@login_required
+def certificate_template_editor():
+    if not (current_user.is_authenticated and isinstance(current_user, Admin)):
+        return redirect(url_for('main.login'))
+
+    from models import CertificateTemplate
+    template = CertificateTemplate.query.filter_by(is_active=True).first()
+    if not template:
+        # Create default template if none exists
+        template = CertificateTemplate(name='Default Template')
+        db.session.add(template)
+        db.session.commit()
+
+    # Get the certificate template path for preview
+    cert_template_path = os.path.join('static', 'cert_templates', 'Training_cert.pdf')
+    cert_template_exists = os.path.exists(cert_template_path)
+
+    # Generate URL for the PDF to be loaded in the editor
+    pdf_url = url_for('static', filename='cert_templates/Training_cert.pdf') if cert_template_exists else ''
+
+    return render_template('certificate_template_editor.html',
+                         template=template,
+                         cert_template_exists=cert_template_exists,
+                         pdf_url=pdf_url)
+
+@main_bp.route('/update_certificate_template', methods=['POST'], endpoint='update_certificate_template')
+@login_required
+def update_certificate_template():
+    if not (current_user.is_authenticated and isinstance(current_user, Admin)):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+    from models import CertificateTemplate
+    try:
+        template = CertificateTemplate.query.filter_by(is_active=True).first()
+        if not template:
+            template = CertificateTemplate(name='Default Template')
+            db.session.add(template)
+
+        # Update positions from request
+        data = request.get_json()
+
+        # Name field
+        if 'name_x' in data:
+            template.name_x = int(data['name_x'])
+        if 'name_y' in data:
+            template.name_y = int(data['name_y'])
+        if 'name_font_size' in data:
+            template.name_font_size = int(data['name_font_size'])
+        if 'name_visible' in data:
+            template.name_visible = bool(data['name_visible'])
+
+        # IC field
+        if 'ic_x' in data:
+            template.ic_x = int(data['ic_x'])
+        if 'ic_y' in data:
+            template.ic_y = int(data['ic_y'])
+        if 'ic_font_size' in data:
+            template.ic_font_size = int(data['ic_font_size'])
+        if 'ic_visible' in data:
+            template.ic_visible = bool(data['ic_visible'])
+
+        # Course type field
+        if 'course_type_x' in data:
+            template.course_type_x = int(data['course_type_x'])
+        if 'course_type_y' in data:
+            template.course_type_y = int(data['course_type_y'])
+        if 'course_type_font_size' in data:
+            template.course_type_font_size = int(data['course_type_font_size'])
+        if 'course_type_visible' in data:
+            template.course_type_visible = bool(data['course_type_visible'])
+
+        # Percentage field
+        if 'percentage_x' in data:
+            template.percentage_x = int(data['percentage_x'])
+        if 'percentage_y' in data:
+            template.percentage_y = int(data['percentage_y'])
+        if 'percentage_font_size' in data:
+            template.percentage_font_size = int(data['percentage_font_size'])
+        if 'percentage_visible' in data:
+            template.percentage_visible = bool(data['percentage_visible'])
+
+        # Grade field
+        if 'grade_x' in data:
+            template.grade_x = int(data['grade_x'])
+        if 'grade_y' in data:
+            template.grade_y = int(data['grade_y'])
+        if 'grade_font_size' in data:
+            template.grade_font_size = int(data['grade_font_size'])
+        if 'grade_visible' in data:
+            template.grade_visible = bool(data['grade_visible'])
+
+        # Text field
+        if 'text_x' in data:
+            template.text_x = int(data['text_x'])
+        if 'text_y' in data:
+            template.text_y = int(data['text_y'])
+        if 'text_font_size' in data:
+            template.text_font_size = int(data['text_font_size'])
+        if 'text_visible' in data:
+            template.text_visible = bool(data['text_visible'])
+
+        # Date field
+        if 'date_x' in data:
+            template.date_x = int(data['date_x'])
+        if 'date_y' in data:
+            template.date_y = int(data['date_y'])
+        if 'date_font_size' in data:
+            template.date_font_size = int(data['date_font_size'])
+        if 'date_visible' in data:
+            template.date_visible = bool(data['date_visible'])
+
+        template.updated_at = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': 'Template updated successfully'})
+    except Exception as e:
+        db.session.rollback()
+        logging.exception('[UPDATE CERT TEMPLATE] Failed')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# Generate and download certificate
+@main_bp.route('/generate_certificate/<int:certificate_id>')
+@login_required
+def generate_and_download_certificate(certificate_id):
+    """Generate a certificate PDF and serve it for download"""
+    try:
+        # Get the certificate record
+        cert = db.session.get(Certificate, certificate_id)
+        if not cert:
+            flash('Certificate not found.', 'danger')
+            return redirect(url_for('main.my_certificates'))
+
+        # Verify the user owns this certificate
+        if not isinstance(current_user, Admin) and cert.user_id != current_user.User_id:
+            flash('Unauthorized access to certificate.', 'danger')
+            return redirect(url_for('main.my_certificates'))
+
+        # Check if certificate is approved
+        if cert.status != 'approved':
+            flash('Certificate must be approved before it can be generated.', 'warning')
+            return redirect(url_for('main.my_certificates'))
+
+        # Import the generate_certificate function
+        from generate_certificate import generate_certificate
+
+        # Generate the certificate
+        cert_path = generate_certificate(
+            user_id=cert.user_id,
+            course_type=cert.module_type,
+            overall_percentage=cert.score if cert.score else 0,
+            cert_id=cert.certificate_id
+        )
+
+        # Update the certificate URL in the database
+        cert.certificate_url = cert_path.replace('static/', '').replace('static\\', '')
+        db.session.commit()
+
+        # Serve the file for download
+        directory = os.path.dirname(cert_path)
+        filename = os.path.basename(cert_path)
+        return send_from_directory(directory, filename, as_attachment=True)
+
+    except Exception as e:
+        logging.exception('[GENERATE CERTIFICATE] Failed to generate certificate')
+        flash(f'Error generating certificate: {str(e)}', 'danger')
+        return redirect(url_for('main.my_certificates'))
+
 
 # File serving routes
 @main_bp.route('/uploads/<path:filename>')

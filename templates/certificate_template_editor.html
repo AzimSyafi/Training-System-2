@@ -1,0 +1,1526 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Add PDF.js library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<style>
+    .editor-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .editor-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .editor-grid {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+
+    .preview-container {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        position: relative;
+    }
+
+    .preview-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+
+    .preview-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    .btn-preview-card {
+        background: #10b981;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 14px;
+        transition: all 0.2s;
+    }
+
+    .btn-preview-card:hover {
+        background: #059669;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    }
+
+    .certificate-canvas {
+        width: 100%;
+        max-width: 100%;
+        min-height: 400px;
+        background: #f5f5f5;
+        border: 2px dashed #ccc;
+        position: relative;
+        overflow: hidden;
+        margin: 0 auto;
+        cursor: crosshair;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #pdfCanvas {
+        display: block;
+        max-width: 100%;
+        height: auto;
+    }
+
+    .field-marker {
+        position: absolute;
+        padding: 8px 12px;
+        background: rgba(102, 126, 234, 0.9);
+        color: white;
+        border-radius: 5px;
+        cursor: move;
+        user-select: none;
+        font-size: 14px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        transition: all 0.2s;
+        border: 2px solid #4a5dc8;
+        z-index: 10;
+    }
+
+    .field-marker:hover {
+        background: rgba(118, 75, 162, 0.9);
+        transform: scale(1.05);
+        z-index: 100;
+    }
+
+    .field-marker.active {
+        background: rgba(239, 68, 68, 0.9);
+        border-color: #dc2626;
+        z-index: 99;
+    }
+
+    .field-marker .field-label {
+        font-weight: bold;
+        display: block;
+        margin-bottom: 3px;
+    }
+
+    .field-marker .field-coords {
+        font-size: 10px;
+        opacity: 0.8;
+    }
+
+    .controls-panel {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+
+    .field-control {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        border-left: 4px solid #667eea;
+    }
+
+    .field-control.active {
+        border-left-color: #ef4444;
+        background: #fef2f2;
+    }
+
+    .field-control h4 {
+        margin: 0 0 10px 0;
+        color: #333;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .input-group {
+        margin-bottom: 10px;
+    }
+
+    .input-group label {
+        display: block;
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 4px;
+    }
+
+    .input-group input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 13px;
+    }
+
+    .input-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .btn-save {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        width: 100%;
+        transition: all 0.3s;
+    }
+
+    .btn-save:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-reset {
+        background: #6c757d;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        width: 100%;
+        margin-top: 10px;
+    }
+
+    .btn-toggle-fields {
+        background: #3b82f6;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        width: 100%;
+        margin-top: 10px;
+    }
+
+    .btn-toggle-fields:hover {
+        background: #2563eb;
+    }
+
+    .btn-preview {
+        background: #10b981;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        width: 100%;
+        margin-top: 10px;
+        font-weight: 600;
+    }
+
+    .btn-preview:hover {
+        background: #059669;
+    }
+
+    .preview-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 50;
+    }
+
+    .preview-text {
+        position: absolute;
+        font-family: 'Arial', sans-serif;
+        font-weight: bold;
+        color: #1a1a1a;
+        text-shadow: 0 1px 2px rgba(255,255,255,0.5);
+        transition: all 0.3s ease;
+        white-space: nowrap;
+    }
+
+    .field-marker.hidden {
+        display: none !important;
+    }
+
+    .custom-field-marker {
+        background: rgba(16, 185, 129, 0.9);
+        border-color: #059669;
+    }
+
+    .custom-field-marker:hover {
+        background: rgba(5, 150, 105, 0.9);
+    }
+
+    .custom-field-control {
+        border-left-color: #10b981;
+    }
+
+    .btn-add-field {
+        background: #10b981;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        width: 100%;
+        margin-top: 10px;
+        font-weight: 600;
+    }
+
+    .btn-add-field:hover {
+        background: #059669;
+    }
+
+    .btn-delete-field {
+        background: #ef4444;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 11px;
+        margin-top: 8px;
+        width: 100%;
+    }
+
+    .btn-delete-field:hover {
+        background: #dc2626;
+    }
+
+    .custom-field-input {
+        margin-top: 10px;
+    }
+
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+    }
+
+    .modal-overlay.active {
+        display: flex;
+    }
+
+    .modal-content {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    }
+
+    .modal-content h3 {
+        margin-top: 0;
+        color: #333;
+    }
+
+    .modal-buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .modal-buttons button {
+        flex: 1;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+
+    .btn-modal-primary {
+        background: #667eea;
+        color: white;
+    }
+
+    .btn-modal-primary:hover {
+        background: #5568d3;
+    }
+
+    .btn-modal-secondary {
+        background: #e5e7eb;
+        color: #333;
+    }
+
+    .btn-modal-secondary:hover {
+        background: #d1d5db;
+    }
+
+    .alert-info-box {
+        background: #e7f3ff;
+        border-left: 4px solid #2196F3;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 4px;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 1024px) {
+        .editor-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .controls-panel {
+            max-height: none;
+        }
+
+        .certificate-canvas {
+            height: 400px;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .editor-container {
+            padding: 10px;
+        }
+
+        .editor-header {
+            padding: 20px;
+        }
+
+        .editor-header h2 {
+            font-size: 1.5rem;
+        }
+
+        .certificate-canvas {
+            height: 300px;
+        }
+
+        .field-marker {
+            font-size: 11px;
+            padding: 6px 8px;
+        }
+
+        .input-row {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .success-message {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #10b981;
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        z-index: 1000;
+        animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+</style>
+
+<div class="editor-container">
+    <div class="editor-header">
+        <h2><i class="fas fa-certificate"></i> Certificate Template Editor</h2>
+        <p style="margin: 10px 0 0 0; opacity: 0.9;">Drag the field markers to position them on your certificate template. Click a marker to edit its properties.</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="alert-info-box">
+        <i class="fas fa-info-circle"></i> <strong>Instructions:</strong> Drag the colored markers to position each field on your certificate. Coordinates are automatically saved. The Y-axis is inverted (0 at bottom, higher values at top).
+    </div>
+
+    <div class="editor-grid">
+        <div class="preview-container">
+            <div class="preview-header">
+                <h3 style="margin-bottom: 0;"><i class="fas fa-eye"></i> Certificate Preview</h3>
+                <div class="preview-actions">
+                </div>
+            </div>
+
+            <div id="certificateCanvas" class="certificate-canvas">
+                <canvas id="pdfCanvas"></canvas>
+                <!-- Field markers will be dynamically created here -->
+            </div>
+
+            <!-- Preview overlay for mock data -->
+            <div class="preview-overlay" id="previewOverlay">
+                <!-- Mock data preview elements will be injected here by JavaScript -->
+            </div>
+        </div>
+
+        <div class="controls-panel">
+            <h3 style="margin-bottom: 20px;"><i class="fas fa-sliders-h"></i> Field Controls</h3>
+
+            <div class="field-control" data-field="name">
+                <h4><i class="fas fa-user"></i> Name Field</h4>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>X Position</label>
+                        <input type="number" id="name_x" value="{{ template.name_x }}" min="0" max="850">
+                    </div>
+                    <div class="input-group">
+                        <label>Y Position</label>
+                        <input type="number" id="name_y" value="{{ template.name_y }}" min="0" max="600">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Font Size</label>
+                    <input type="number" id="name_font_size" value="{{ template.name_font_size }}" min="8" max="72">
+                </div>
+                <button class="field-toggle-btn" onclick="toggleFieldVisibility('name')">
+                    <i class="fas fa-eye"></i> Hide Field
+                </button>
+            </div>
+
+            <div class="field-control" data-field="ic">
+                <h4><i class="fas fa-id-card"></i> IC/Passport Field</h4>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>X Position</label>
+                        <input type="number" id="ic_x" value="{{ template.ic_x }}" min="0" max="850">
+                    </div>
+                    <div class="input-group">
+                        <label>Y Position</label>
+                        <input type="number" id="ic_y" value="{{ template.ic_y }}" min="0" max="600">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Font Size</label>
+                    <input type="number" id="ic_font_size" value="{{ template.ic_font_size }}" min="8" max="72">
+                </div>
+                <button class="field-toggle-btn" onclick="toggleFieldVisibility('ic')">
+                    <i class="fas fa-eye"></i> Hide Field
+                </button>
+            </div>
+
+            <div class="field-control" data-field="course_type">
+                <h4><i class="fas fa-book"></i> Course Type Field</h4>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>X Position</label>
+                        <input type="number" id="course_type_x" value="{{ template.course_type_x }}" min="0" max="850">
+                    </div>
+                    <div class="input-group">
+                        <label>Y Position</label>
+                        <input type="number" id="course_type_y" value="{{ template.course_type_y }}" min="0" max="600">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Font Size</label>
+                    <input type="number" id="course_type_font_size" value="{{ template.course_type_font_size }}" min="8" max="72">
+                </div>
+                <button class="field-toggle-btn" onclick="toggleFieldVisibility('course_type')">
+                    <i class="fas fa-eye"></i> Hide Field
+                </button>
+            </div>
+
+            <div class="field-control" data-field="percentage">
+                <h4><i class="fas fa-percent"></i> Percentage Field</h4>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>X Position</label>
+                        <input type="number" id="percentage_x" value="{{ template.percentage_x }}" min="0" max="850">
+                    </div>
+                    <div class="input-group">
+                        <label>Y Position</label>
+                        <input type="number" id="percentage_y" value="{{ template.percentage_y }}" min="0" max="600">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Font Size</label>
+                    <input type="number" id="percentage_font_size" value="{{ template.percentage_font_size }}" min="8" max="72">
+                </div>
+                <button class="field-toggle-btn" onclick="toggleFieldVisibility('percentage')">
+                    <i class="fas fa-eye"></i> Hide Field
+                </button>
+            </div>
+
+            <div class="field-control" data-field="grade">
+                <h4><i class="fas fa-graduation-cap"></i> Grade Field</h4>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>X Position</label>
+                        <input type="number" id="grade_x" value="{{ template.grade_x }}" min="0" max="850">
+                    </div>
+                    <div class="input-group">
+                        <label>Y Position</label>
+                        <input type="number" id="grade_y" value="{{ template.grade_y }}" min="0" max="600">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Font Size</label>
+                    <input type="number" id="grade_font_size" value="{{ template.grade_font_size }}" min="8" max="72">
+                </div>
+                <button class="field-toggle-btn" onclick="toggleFieldVisibility('grade')">
+                    <i class="fas fa-eye"></i> Hide Field
+                </button>
+            </div>
+
+            <div class="field-control" data-field="text">
+                <h4><i class="fas fa-align-left"></i> Text Field</h4>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>X Position</label>
+                        <input type="number" id="text_x" value="{{ template.text_x }}" min="0" max="850">
+                    </div>
+                    <div class="input-group">
+                        <label>Y Position</label>
+                        <input type="number" id="text_y" value="{{ template.text_y }}" min="0" max="600">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Font Size</label>
+                    <input type="number" id="text_font_size" value="{{ template.text_font_size }}" min="8" max="72">
+                </div>
+                <button class="field-toggle-btn" onclick="toggleFieldVisibility('text')">
+                    <i class="fas fa-eye"></i> Hide Field
+                </button>
+            </div>
+
+            <div class="field-control" data-field="date">
+                <h4><i class="fas fa-calendar"></i> Date Field</h4>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>X Position</label>
+                        <input type="number" id="date_x" value="{{ template.date_x }}" min="0" max="850">
+                    </div>
+                    <div class="input-group">
+                        <label>Y Position</label>
+                        <input type="number" id="date_y" value="{{ template.date_y }}" min="0" max="600">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Font Size</label>
+                    <input type="number" id="date_font_size" value="{{ template.date_font_size }}" min="8" max="72">
+                </div>
+                <button class="field-toggle-btn" onclick="toggleFieldVisibility('date')">
+                    <i class="fas fa-eye"></i> Hide Field
+                </button>
+            </div>
+
+            <button class="btn-save" onclick="saveTemplate()">
+                <i class="fas fa-save"></i> Save Template
+            </button>
+            <button class="btn-reset" onclick="resetToDefaults()">
+                <i class="fas fa-undo"></i> Reset to Defaults
+            </button>
+            <button class="btn-toggle-fields" onclick="toggleFieldMarkers()">
+                <i class="fas fa-eye"></i> Hide/Show Field Markers
+            </button>
+        </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 20px;">
+        <a href="{{ url_for('main.admin_certificates') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Certificates
+        </a>
+    </div>
+
+    <!-- Modal for adding custom field -->
+    <div class="modal-overlay" id="addFieldModal">
+        <div class="modal-content">
+            <h3><i class="fas fa-plus"></i> Add Custom Field</h3>
+            <div class="input-group">
+                <label>Field Name</label>
+                <input type="text" id="custom_field_name" placeholder="Enter field name">
+            </div>
+            <div class="input-group">
+                <label>X Position</label>
+                <input type="number" id="custom_field_x" value="100" min="0" max="850">
+            </div>
+            <div class="input-group">
+                <label>Y Position</label>
+                <input type="number" id="custom_field_y" value="100" min="0" max="600">
+            </div>
+            <div class="input-group">
+                <label>Font Size</label>
+                <input type="number" id="custom_field_font_size" value="12" min="8" max="72">
+            </div>
+            <div class="modal-buttons">
+                <button class="btn-modal-primary" onclick="addCustomField()">Add Field</button>
+                <button class="btn-modal-secondary" onclick="closeAddFieldModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const fields = [
+    { name: 'name', label: 'Name', icon: 'user' },
+    { name: 'ic', label: 'IC/Passport', icon: 'id-card' },
+    { name: 'course_type', label: 'Course Type', icon: 'book' },
+    { name: 'percentage', label: 'Percentage', icon: 'percent' },
+    { name: 'grade', label: 'Grade', icon: 'graduation-cap' },
+    { name: 'text', label: 'Text', icon: 'align-left' },
+    { name: 'date', label: 'Date', icon: 'calendar' }
+];
+
+let activeField = null;
+let isDragging = false;
+let dragOffset = { x: 0, y: 0 };
+let markersVisible = true;
+let pdfScale = 1;
+let pdfOriginalWidth = 0;
+let pdfOriginalHeight = 0;
+let fieldVisibility = {
+    name: {{ 'true' if template.name_visible else 'false' }},
+    ic: {{ 'true' if template.ic_visible else 'false' }},
+    course_type: {{ 'true' if template.course_type_visible else 'false' }},
+    percentage: {{ 'true' if template.percentage_visible else 'false' }},
+    grade: {{ 'true' if template.grade_visible else 'false' }},
+    text: {{ 'true' if template.text_visible else 'false' }},
+    date: {{ 'true' if template.date_visible else 'false' }}
+};
+
+function initializeEditor() {
+    const canvas = document.getElementById('certificateCanvas');
+
+    // Create field markers
+    fields.forEach(field => {
+        const marker = document.createElement('div');
+        marker.className = 'field-marker';
+        marker.dataset.field = field.name;
+        marker.innerHTML = `
+            <span class="field-label"><i class="fas fa-${field.icon}"></i> ${field.label}</span>
+            <span class="field-coords"></span>
+        `;
+
+        // Position marker
+        updateMarkerPosition(marker, field.name);
+
+        // Apply visibility state
+        if (!fieldVisibility[field.name]) {
+            marker.classList.add('hidden');
+        }
+
+        // Add event listeners
+        marker.addEventListener('mousedown', startDrag);
+        marker.addEventListener('touchstart', startDrag);
+        marker.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectField(field.name);
+        });
+
+        canvas.appendChild(marker);
+    });
+
+    // Update toggle buttons to reflect initial state
+    fields.forEach(field => {
+        updateToggleButton(field.name);
+    });
+
+    // Canvas event listeners
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('touchmove', drag);
+    document.addEventListener('mouseup', stopDrag);
+    document.addEventListener('touchend', stopDrag);
+
+    // Input change listeners
+    fields.forEach(field => {
+        ['x', 'y', 'font_size'].forEach(prop => {
+            const input = document.getElementById(`${field.name}_${prop}`);
+            if (input) {
+                input.addEventListener('input', () => {
+                    updateMarkerPosition(
+                        document.querySelector(`[data-field="${field.name}"]`),
+                        field.name
+                    );
+                    updatePreviewText(field.name);
+                });
+            }
+        });
+    });
+
+    // Load and display the PDF
+    loadAndDisplayPDF();
+}
+
+function updateMarkerPosition(marker, fieldName) {
+    const x = parseInt(document.getElementById(`${fieldName}_x`).value);
+    const y = parseInt(document.getElementById(`${fieldName}_y`).value);
+    const fontSize = parseInt(document.getElementById(`${fieldName}_font_size`).value);
+
+    // Get the PDF canvas element's actual position and size
+    const pdfCanvas = document.getElementById('pdfCanvas');
+    const pdfRect = pdfCanvas.getBoundingClientRect();
+    const canvas = document.getElementById('certificateCanvas');
+    const canvasRect = canvas.getBoundingClientRect();
+
+    // Calculate scale ratio between stored coordinates and displayed size
+    const scaleX = pdfRect.width / pdfOriginalWidth;
+    const scaleY = pdfRect.height / pdfOriginalHeight;
+
+    // Position relative to the canvas container
+    const offsetX = pdfRect.left - canvasRect.left;
+    const offsetY = pdfRect.top - canvasRect.top;
+
+    // Y coordinate: PDF uses bottom-origin (0=bottom), CSS uses top-origin (0=top)
+    // We also offset by half the marker's height to vertically center it on the coordinate.
+    const markerHeight = marker.offsetHeight;
+
+    const cssX = offsetX + (x * scaleX); // Horizontal position is fine
+    const cssY = offsetY + (pdfRect.height - (y * scaleY)) - (markerHeight / 2);
+
+    marker.style.left = `${cssX}px`;
+    marker.style.top = `${cssY}px`;
+    marker.style.fontSize = `${Math.max(10, fontSize * 0.5)}px`;
+
+    const coordsSpan = marker.querySelector('.field-coords');
+    coordsSpan.textContent = `(${x}, ${y})`;
+}
+
+function updatePreviewText(fieldName) {
+    const overlay = document.getElementById('previewOverlay');
+
+    const mockData = {
+        name: 'Ahmad bin Abdullah',
+        ic: '901234-56-7890',
+        course_type: 'Cybersecurity Awareness Training',
+        percentage: '92%',
+        grade: 'A',
+        text: 'Has successfully completed the course requirements',
+        date: '14 October 2025'
+    };
+
+    // Check if it's a custom field
+    const sampleInput = document.getElementById(`${fieldName}_sample`);
+    if (sampleInput) {
+        mockData[fieldName] = sampleInput.value || `Sample ${fieldName}`;
+    }
+
+    let previewText = document.getElementById(`preview_${fieldName}`);
+    if (!previewText) {
+        previewText = document.createElement('div');
+        previewText.className = 'preview-text';
+        previewText.id = `preview_${fieldName}`;
+        overlay.appendChild(previewText);
+    }
+
+    previewText.textContent = mockData[fieldName] || 'Sample Text';
+
+    const x = parseInt(document.getElementById(`${fieldName}_x`)?.value || 0);
+    const y = parseInt(document.getElementById(`${fieldName}_y`)?.value || 0);
+    const fontSize = parseInt(document.getElementById(`${fieldName}_font_size`)?.value || 12);
+
+    const pdfCanvas = document.getElementById('pdfCanvas');
+    const pdfRect = pdfCanvas.getBoundingClientRect();
+    const canvas = document.getElementById('certificateCanvas');
+    const canvasRect = canvas.getBoundingClientRect();
+
+    if (pdfOriginalWidth === 0) return;
+
+    const scaleX = pdfRect.width / pdfOriginalWidth;
+    const scaleY = pdfRect.height / pdfOriginalHeight;
+    const offsetX = pdfRect.left - canvasRect.left;
+    const offsetY = pdfRect.top - canvasRect.top;
+
+    const cssX = offsetX + (x * scaleX);
+    const cssY = offsetY + (pdfRect.height - (y * scaleY));
+
+    previewText.style.left = `${cssX}px`;
+    previewText.style.top = `${cssY}px`;
+    previewText.style.fontSize = `${fontSize * scaleX}px`;
+    previewText.style.transform = 'none';
+    previewText.style.transformOrigin = 'top left';
+
+    if (!fieldVisibility[fieldName]) {
+        previewText.style.display = 'none';
+    } else {
+        previewText.style.display = 'block';
+    }
+}
+
+
+function startDrag(e) {
+    e.preventDefault();
+    const marker = e.currentTarget;
+    isDragging = true;
+    activeField = marker.dataset.field;
+
+    const markerRect = marker.getBoundingClientRect();
+    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+    const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+
+    dragOffset.x = clientX - markerRect.left;
+    dragOffset.y = clientY - markerRect.top;
+
+    marker.classList.add('active');
+    selectField(activeField);
+}
+
+function drag(e) {
+    if (!isDragging || !activeField) return;
+
+    e.preventDefault();
+    const canvas = document.getElementById('certificateCanvas');
+    const canvasRect = canvas.getBoundingClientRect();
+    const pdfCanvas = document.getElementById('pdfCanvas');
+    const pdfRect = pdfCanvas.getBoundingClientRect();
+
+    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+    const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+
+    const scaleX = pdfRect.width / pdfOriginalWidth;
+    const scaleY = pdfRect.height / pdfOriginalHeight;
+
+    const offsetX = pdfRect.left - canvasRect.left;
+    const offsetY = pdfRect.top - canvasRect.top;
+
+    let cssX = clientX - canvasRect.left - dragOffset.x;
+    let cssY = clientY - canvasRect.top - dragOffset.y;
+
+    cssX = Math.max(offsetX, Math.min(cssX, offsetX + pdfRect.width - 50));
+    cssY = Math.max(offsetY, Math.min(cssY, offsetY + pdfRect.height - 30));
+
+    const pdfX = Math.round((cssX - offsetX) / scaleX);
+    const pdfY = Math.round((pdfRect.height - (cssY - offsetY)) / scaleY);
+
+    document.getElementById(`${activeField}_x`).value = pdfX;
+    document.getElementById(`${activeField}_y`).value = pdfY;
+
+    const marker = document.querySelector(`[data-field="${activeField}"]`);
+    if (marker) {
+        marker.style.left = `${cssX}px`;
+        marker.style.top = `${cssY}px`;
+
+        const coordsSpan = marker.querySelector('.field-coords');
+        if (coordsSpan) {
+            coordsSpan.textContent = `(${pdfX}, ${pdfY})`;
+        }
+    }
+
+    updatePreviewText(activeField);
+}
+
+function stopDrag(e) {
+    if (isDragging) {
+        const marker = document.querySelector(`[data-field="${activeField}"]`);
+        if (marker) {
+            marker.classList.remove('active');
+        }
+        isDragging = false;
+        activeField = null;
+    }
+}
+
+function toggleFieldVisibility(field) {
+    fieldVisibility[field] = !fieldVisibility[field];
+
+    const marker = document.querySelector(`[data-field="${field}"]`);
+    if (marker) {
+        marker.classList.toggle('hidden');
+    }
+
+    updatePreviewText(field);
+    updateToggleButton(field);
+}
+
+function updateToggleButton(field) {
+    const button = document.querySelector(`.field-control[data-field="${field}"] .field-toggle-btn`);
+    if (button) {
+        if (fieldVisibility[field]) {
+            button.innerHTML = '<i class="fas fa-eye"></i> Hide Field';
+        } else {
+            button.innerHTML = '<i class="fas fa-eye-slash"></i> Show Field';
+        }
+    }
+}
+
+function saveTemplate() {
+    const templateData = {
+        name_x: document.getElementById('name_x').value,
+        name_y: document.getElementById('name_y').value,
+        name_font_size: document.getElementById('name_font_size').value,
+        ic_x: document.getElementById('ic_x').value,
+        ic_y: document.getElementById('ic_y').value,
+        ic_font_size: document.getElementById('ic_font_size').value,
+        course_type_x: document.getElementById('course_type_x').value,
+        course_type_y: document.getElementById('course_type_y').value,
+        course_type_font_size: document.getElementById('course_type_font_size').value,
+        percentage_x: document.getElementById('percentage_x').value,
+        percentage_y: document.getElementById('percentage_y').value,
+        percentage_font_size: document.getElementById('percentage_font_size').value,
+        grade_x: document.getElementById('grade_x').value,
+        grade_y: document.getElementById('grade_y').value,
+        grade_font_size: document.getElementById('grade_font_size').value,
+        text_x: document.getElementById('text_x').value,
+        text_y: document.getElementById('text_y').value,
+        text_font_size: document.getElementById('text_font_size').value,
+        date_x: document.getElementById('date_x').value,
+        date_y: document.getElementById('date_y').value,
+        date_font_size: document.getElementById('date_font_size').value,
+        name_visible: fieldVisibility.name,
+        ic_visible: fieldVisibility.ic,
+        course_type_visible: fieldVisibility.course_type,
+        percentage_visible: fieldVisibility.percentage,
+        grade_visible: fieldVisibility.grade,
+        text_visible: fieldVisibility.text,
+        date_visible: fieldVisibility.date
+    };
+
+    console.log('Saving template:', templateData);
+
+    // Show loading state
+    const saveButton = document.querySelector('.btn-save');
+    const originalText = saveButton.innerHTML;
+    saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    saveButton.disabled = true;
+
+    fetch('/update_certificate_template', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(templateData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Template saved:', data);
+        if (data.success) {
+            showSuccessMessage('Template saved successfully!');
+        } else {
+            showSuccessMessage('Error: ' + (data.message || 'Failed to save template'));
+        }
+        // Restore button
+        saveButton.innerHTML = originalText;
+        saveButton.disabled = false;
+    })
+    .catch(error => {
+        console.error('Error saving template:', error);
+        showSuccessMessage('Error saving template. Please try again.');
+        // Restore button
+        saveButton.innerHTML = originalText;
+        saveButton.disabled = false;
+    });
+}
+
+function resetToDefaults() {
+    const defaultValues = {
+        name_x: 100, name_y: 500, name_font_size: 24,
+        ic_x: 100, ic_y: 460, ic_font_size: 18,
+        course_type_x: 100, course_type_y: 420, course_type_font_size: 18,
+        percentage_x: 600, percentage_y: 500, percentage_font_size: 24,
+        grade_x: 600, grade_y: 460, grade_font_size: 18,
+        text_x: 100, text_y: 350, text_font_size: 18,
+        date_x: 600, date_y: 350, date_font_size: 18
+    };
+
+    fields.forEach(field => {
+        const name = field.name;
+        document.getElementById(`${name}_x`).value = defaultValues[`${name}_x`];
+        document.getElementById(`${name}_y`).value = defaultValues[`${name}_y`];
+        document.getElementById(`${name}_font_size`).value = defaultValues[`${name}_font_size`];
+
+        fieldVisibility[name] = true;
+        const marker = document.querySelector(`[data-field="${name}"]`);
+        if (marker) {
+            marker.classList.remove('hidden');
+        }
+        updateToggleButton(name);
+
+        updateMarkerPosition(marker, name);
+        updatePreviewText(name);
+    });
+
+    showSuccessMessage('Template reset to default values.');
+}
+
+function showSuccessMessage(message) {
+    const successBox = document.createElement('div');
+    successBox.className = 'success-message';
+    successBox.textContent = message;
+
+    document.body.appendChild(successBox);
+
+    setTimeout(() => {
+        successBox.remove();
+    }, 3000);
+}
+
+function selectField(fieldName) {
+    document.querySelectorAll('.field-marker').forEach(m => m.classList.remove('active'));
+    document.querySelectorAll('.field-control').forEach(c => c.classList.remove('active'));
+
+    const marker = document.querySelector(`[data-field="${fieldName}"]`);
+    const control = document.querySelector(`.field-control[data-field="${fieldName}"]`);
+
+    if (marker) marker.classList.add('active');
+    if (control) {
+        control.classList.add('active');
+        control.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    activeField = fieldName;
+}
+
+function toggleFieldMarkers() {
+    markersVisible = !markersVisible;
+
+    const markers = document.querySelectorAll('.field-marker');
+    markers.forEach(marker => {
+        const fieldName = marker.dataset.field;
+        if (markersVisible && fieldVisibility[fieldName]) {
+            marker.classList.remove('hidden');
+        } else if (!markersVisible) {
+            marker.classList.add('hidden');
+        }
+    });
+}
+
+// Custom field management
+function openAddFieldModal() {
+    document.getElementById('addFieldModal').classList.add('active');
+    document.getElementById('custom_field_name').value = '';
+    document.getElementById('custom_field_x').value = 100;
+    document.getElementById('custom_field_y').value = 100;
+    document.getElementById('custom_field_font_size').value = 12;
+}
+
+function closeAddFieldModal() {
+    document.getElementById('addFieldModal').classList.remove('active');
+}
+
+function addCustomField() {
+    const fieldName = document.getElementById('custom_field_name').value.trim();
+
+    if (!fieldName) {
+        alert('Please enter a field name');
+        return;
+    }
+
+    // Check if field already exists
+    if (document.getElementById(`${fieldName}_x`)) {
+        alert('A field with this name already exists');
+        return;
+    }
+
+    const x = parseInt(document.getElementById('custom_field_x').value);
+    const y = parseInt(document.getElementById('custom_field_y').value);
+    const fontSize = parseInt(document.getElementById('custom_field_font_size').value);
+
+    // Create the field control in the panel
+    const controlsPanel = document.querySelector('.controls-panel');
+    const fieldControl = document.createElement('div');
+    fieldControl.className = 'field-control custom-field-control';
+    fieldControl.dataset.field = fieldName;
+    fieldControl.innerHTML = `
+        <h4><i class="fas fa-tag"></i> ${fieldName} (Custom)</h4>
+        <div class="input-row">
+            <div class="input-group">
+                <label>X Position</label>
+                <input type="number" id="${fieldName}_x" value="${x}" min="0" max="850">
+            </div>
+            <div class="input-group">
+                <label>Y Position</label>
+                <input type="number" id="${fieldName}_y" value="${y}" min="0" max="600">
+            </div>
+        </div>
+        <div class="input-group">
+            <label>Font Size</label>
+            <input type="number" id="${fieldName}_font_size" value="${fontSize}" min="8" max="72">
+        </div>
+        <div class="input-group custom-field-input">
+            <label>Sample Text</label>
+            <input type="text" id="${fieldName}_sample" placeholder="Enter sample text" value="Sample ${fieldName}">
+        </div>
+        <button class="field-toggle-btn" onclick="toggleFieldVisibility('${fieldName}')">
+            <i class="fas fa-eye"></i> Hide Field
+        </button>
+        <button class="btn-delete-field" onclick="deleteCustomField('${fieldName}')">
+            <i class="fas fa-trash"></i> Delete Field
+        </button>
+    `;
+
+    // Insert before the save button
+    const saveButton = controlsPanel.querySelector('.btn-save');
+    controlsPanel.insertBefore(fieldControl, saveButton);
+
+    // Create marker on canvas
+    const canvas = document.getElementById('certificateCanvas');
+    const marker = document.createElement('div');
+    marker.className = 'field-marker custom-field-marker';
+    marker.dataset.field = fieldName;
+    marker.innerHTML = `
+        <span class="field-label"><i class="fas fa-tag"></i> ${fieldName}</span>
+        <span class="field-coords"></span>
+    `;
+
+    marker.addEventListener('mousedown', startDrag);
+    marker.addEventListener('touchstart', startDrag);
+    marker.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectField(fieldName);
+    });
+
+    canvas.appendChild(marker);
+
+    // Initialize field visibility
+    fieldVisibility[fieldName] = true;
+
+    // Position the marker
+    updateMarkerPosition(marker, fieldName);
+    updatePreviewText(fieldName);
+
+    // Add input change listeners
+    ['x', 'y', 'font_size', 'sample'].forEach(prop => {
+        const input = document.getElementById(`${fieldName}_${prop}`);
+        if (input) {
+            input.addEventListener('input', () => {
+                updateMarkerPosition(
+                    document.querySelector(`[data-field="${fieldName}"]`),
+                    fieldName
+                );
+                updatePreviewText(fieldName);
+            });
+        }
+    });
+
+    // Save custom fields to localStorage
+    saveCustomFieldsToStorage();
+
+    closeAddFieldModal();
+    showSuccessMessage(`Custom field "${fieldName}" added successfully!`);
+}
+
+function deleteCustomField(fieldName) {
+    if (!confirm(`Are you sure you want to delete the field "${fieldName}"?`)) {
+        return;
+    }
+
+    // Remove marker
+    const marker = document.querySelector(`[data-field="${fieldName}"]`);
+    if (marker) {
+        marker.remove();
+    }
+
+    // Remove control panel
+    const control = document.querySelector(`.field-control[data-field="${fieldName}"]`);
+    if (control) {
+        control.remove();
+    }
+
+    // Remove preview text
+    const preview = document.getElementById(`preview_${fieldName}`);
+    if (preview) {
+        preview.remove();
+    }
+
+    // Remove from visibility tracking
+    delete fieldVisibility[fieldName];
+
+    // Save to localStorage
+    saveCustomFieldsToStorage();
+
+    showSuccessMessage(`Custom field "${fieldName}" deleted successfully!`);
+}
+
+function saveCustomFieldsToStorage() {
+    const customFields = [];
+    document.querySelectorAll('.custom-field-control').forEach(control => {
+        const fieldName = control.dataset.field;
+        const x = document.getElementById(`${fieldName}_x`)?.value;
+        const y = document.getElementById(`${fieldName}_y`)?.value;
+        const fontSize = document.getElementById(`${fieldName}_font_size`)?.value;
+        const sample = document.getElementById(`${fieldName}_sample`)?.value;
+
+        if (x && y && fontSize) {
+            customFields.push({
+                name: fieldName,
+                x: parseInt(x),
+                y: parseInt(y),
+                fontSize: parseInt(fontSize),
+                sample: sample || `Sample ${fieldName}`,
+                visible: fieldVisibility[fieldName] !== false
+            });
+        }
+    });
+
+    localStorage.setItem('certificate_custom_fields', JSON.stringify(customFields));
+}
+
+function loadCustomFieldsFromStorage() {
+    try {
+        const stored = localStorage.getItem('certificate_custom_fields');
+        if (!stored) return;
+
+        const customFields = JSON.parse(stored);
+        customFields.forEach(field => {
+            // Simulate adding the field
+            document.getElementById('custom_field_name').value = field.name;
+            document.getElementById('custom_field_x').value = field.x;
+            document.getElementById('custom_field_y').value = field.y;
+            document.getElementById('custom_field_font_size').value = field.fontSize;
+
+            // Add without showing modal
+            const fieldName = field.name;
+            const x = field.x;
+            const y = field.y;
+            const fontSize = field.fontSize;
+            const sample = field.sample;
+
+            if (document.getElementById(`${fieldName}_x`)) {
+                return; // Field already exists
+            }
+
+            // Create the field control
+            const controlsPanel = document.querySelector('.controls-panel');
+            const fieldControl = document.createElement('div');
+            fieldControl.className = 'field-control custom-field-control';
+            fieldControl.dataset.field = fieldName;
+            fieldControl.innerHTML = `
+                <h4><i class="fas fa-tag"></i> ${fieldName} (Custom)</h4>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>X Position</label>
+                        <input type="number" id="${fieldName}_x" value="${x}" min="0" max="850">
+                    </div>
+                    <div class="input-group">
+                        <label>Y Position</label>
+                        <input type="number" id="${fieldName}_y" value="${y}" min="0" max="600">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Font Size</label>
+                    <input type="number" id="${fieldName}_font_size" value="${fontSize}" min="8" max="72">
+                </div>
+                <div class="input-group custom-field-input">
+                    <label>Sample Text</label>
+                    <input type="text" id="${fieldName}_sample" placeholder="Enter sample text" value="${sample}">
+                </div>
+                <button class="field-toggle-btn" onclick="toggleFieldVisibility('${fieldName}')">
+                    <i class="fas fa-eye"></i> Hide Field
+                </button>
+                <button class="btn-delete-field" onclick="deleteCustomField('${fieldName}')">
+                    <i class="fas fa-trash"></i> Delete Field
+                </button>
+            `;
+
+            const saveButton = controlsPanel.querySelector('.btn-save');
+            controlsPanel.insertBefore(fieldControl, saveButton);
+
+            // Create marker
+            const canvas = document.getElementById('certificateCanvas');
+            const marker = document.createElement('div');
+            marker.className = 'field-marker custom-field-marker';
+            marker.dataset.field = fieldName;
+            marker.innerHTML = `
+                <span class="field-label"><i class="fas fa-tag"></i> ${fieldName}</span>
+                <span class="field-coords"></span>
+            `;
+
+            marker.addEventListener('mousedown', startDrag);
+            marker.addEventListener('touchstart', startDrag);
+            marker.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectField(fieldName);
+            });
+
+            canvas.appendChild(marker);
+
+            // Initialize field visibility
+            fieldVisibility[fieldName] = field.visible !== false;
+
+            if (!fieldVisibility[fieldName]) {
+                marker.classList.add('hidden');
+            }
+
+            // Position the marker
+            setTimeout(() => {
+                updateMarkerPosition(marker, fieldName);
+                updatePreviewText(fieldName);
+                updateToggleButton(fieldName);
+            }, 100);
+
+            // Add input change listeners
+            ['x', 'y', 'font_size', 'sample'].forEach(prop => {
+                const input = document.getElementById(`${fieldName}_${prop}`);
+                if (input) {
+                    input.addEventListener('input', () => {
+                        updateMarkerPosition(
+                            document.querySelector(`[data-field="${fieldName}"]`),
+                            fieldName
+                        );
+                        updatePreviewText(fieldName);
+                        saveCustomFieldsToStorage();
+                    });
+                }
+            });
+        });
+    } catch (error) {
+        console.error('Error loading custom fields:', error);
+    }
+}
+
+async function loadAndDisplayPDF() {
+    const url = '{{ pdf_url }}';
+
+    if (!url) {
+        console.log('No PDF URL provided');
+        return;
+    }
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    try {
+        const loadingTask = pdfjsLib.getDocument(url);
+        const pdf = await loadingTask.promise;
+        console.log('PDF loaded');
+
+        const page = await pdf.getPage(1);
+        console.log('Page loaded');
+
+        const viewport = page.getViewport({ scale: 1 });
+        pdfOriginalWidth = viewport.width;
+        pdfOriginalHeight = viewport.height;
+
+        const containerMaxWidth = 900;
+        pdfScale = Math.min(1, containerMaxWidth / pdfOriginalWidth);
+
+        const scaledViewport = page.getViewport({ scale: pdfScale });
+
+        const pdfCanvas = document.getElementById('pdfCanvas');
+        const canvas = document.getElementById('certificateCanvas');
+        const context = pdfCanvas.getContext('2d');
+
+        pdfCanvas.width = scaledViewport.width;
+        pdfCanvas.height = scaledViewport.height;
+
+        canvas.style.height = `${scaledViewport.height}px`;
+
+        const renderContext = {
+            canvasContext: context,
+            viewport: scaledViewport
+        };
+
+        await page.render(renderContext).promise;
+        console.log('Page rendered at scale:', pdfScale);
+
+        fields.forEach(field => {
+            const marker = document.querySelector(`[data-field="${field.name}"]`);
+            if (marker) {
+                updateMarkerPosition(marker, field.name);
+            }
+            updatePreviewText(field.name);
+        });
+
+        // Load custom fields after PDF is loaded
+        loadCustomFieldsFromStorage();
+
+    } catch (error) {
+        console.error('PDF loading error:', error);
+    }
+}
+
+// Update updatePreviewText to handle custom fields
+const originalUpdatePreviewText = updatePreviewText;
+updatePreviewText = function(fieldName) {
+    const overlay = document.getElementById('previewOverlay');
+
+    const mockData = {
+        name: 'Ahmad bin Abdullah',
+        ic: '901234-56-7890',
+        course_type: 'Cybersecurity Awareness Training',
+        percentage: '92%',
+        grade: 'A',
+        text: 'Has successfully completed the course requirements',
+        date: '14 October 2025'
+    };
+
+    // Check if it's a custom field
+    const sampleInput = document.getElementById(`${fieldName}_sample`);
+    if (sampleInput) {
+        mockData[fieldName] = sampleInput.value || `Sample ${fieldName}`;
+    }
+
+    let previewText = document.getElementById(`preview_${fieldName}`);
+    if (!previewText) {
+        previewText = document.createElement('div');
+        previewText.className = 'preview-text';
+        previewText.id = `preview_${fieldName}`;
+        overlay.appendChild(previewText);
+    }
+
+    previewText.textContent = mockData[fieldName] || 'Sample Text';
+
+    const x = parseInt(document.getElementById(`${fieldName}_x`)?.value || 0);
+    const y = parseInt(document.getElementById(`${fieldName}_y`)?.value || 0);
+    const fontSize = parseInt(document.getElementById(`${fieldName}_font_size`)?.value || 12);
+
+    const pdfCanvas = document.getElementById('pdfCanvas');
+    const pdfRect = pdfCanvas.getBoundingClientRect();
+    const canvas = document.getElementById('certificateCanvas');
+    const canvasRect = canvas.getBoundingClientRect();
+
+    if (pdfOriginalWidth === 0) return;
+
+    const scaleX = pdfRect.width / pdfOriginalWidth;
+    const scaleY = pdfRect.height / pdfOriginalHeight;
+    const offsetX = pdfRect.left - canvasRect.left;
+    const offsetY = pdfRect.top - canvasRect.top;
+
+    const cssX = offsetX + (x * scaleX);
+    const cssY = offsetY + (pdfRect.height - (y * scaleY));
+
+    previewText.style.left = `${cssX}px`;
+    previewText.style.top = `${cssY}px`;
+    previewText.style.fontSize = `${fontSize * scaleX}px`;
+    previewText.style.transform = 'none';
+    previewText.style.transformOrigin = 'top left';
+
+    if (!fieldVisibility[fieldName]) {
+        previewText.style.display = 'none';
+    } else {
+        previewText.style.display = 'block';
+    }
+};
+
+document.addEventListener('DOMContentLoaded', initializeEditor);
+</script>
+{% endblock %}
+

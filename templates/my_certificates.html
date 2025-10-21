@@ -31,13 +31,6 @@
                                 </div>
                             </div>
                             <div class="card-body">
-                                {# Optional image preview if present #}
-                                {% if certificate.module and certificate.module.quiz_image and certificate.module.quiz_image|trim %}
-                                <div class="mb-3 text-center" style="border:2px dashed #ccc; min-height:190px; display:flex; align-items:center; justify-content:center; background:#f8f9fa;">
-                                    <img src="{{ url_for('static', filename='uploads/' ~ certificate.module.quiz_image) }}" alt="Quiz Image" class="img-fluid rounded" style="max-height:180px;">
-                                </div>
-                                {% endif %}
-
                                 {# Course info #}
                                 {% set module_type_map = {
                                     'TNG': 'NEPAL SECURITY GUARD TRAINING (TNG)',
@@ -76,7 +69,7 @@
                                         <i class="fas fa-download"></i> Download Certificate
                                     </a>
                                 {% elif is_approved and not certificate.certificate_url %}
-                                    <a href="{{ url_for('generate_and_download_certificate', certificate_id=certificate.certificate_id) }}" class="btn btn-success">
+                                    <a href="{{ url_for('main.generate_and_download_certificate', certificate_id=certificate.certificate_id) }}" class="btn btn-success">
                                         <i class="fas fa-file-pdf"></i> Generate &amp; Download
                                     </a>
                                 {% else %}
