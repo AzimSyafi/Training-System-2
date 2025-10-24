@@ -64,7 +64,7 @@
               <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
                 <h6 class="mb-0 fw-semibold"><i class="fas fa-circle-info text-primary me-1"></i>Course Details</h6>
                 <div class="d-flex gap-2">
-                  <form method="post" action="{{ safe_url_for('main.delete_course', course_id=course.course_id) }}" onsubmit="return confirm('Delete this course?');">
+                  <form method="post" action="{{ safe_url_for('main.delete_course', course_id=course.course_id) }}" class="delete-course-form" data-course-name="{{ course.name }}">
                     <button class="btn btn-sm btn-outline-danger" type="submit" title="Delete"><i class="fas fa-trash"></i></button>
                   </form>
                 </div>
@@ -130,7 +130,7 @@
                         <span class="badge bg-secondary-subtle text-secondary-emphasis fw-normal border small">Series {{ m.series_number or '-' }}</span>
                       </div>
                       <div class="btn-group btn-group-sm ms-2">
-                        <form method="post" action="{{ safe_url_for('main.delete_course_module', module_id=m.module_id) }}" onsubmit="return confirm('Delete module?');">
+                        <form method="post" action="{{ safe_url_for('main.delete_course_module', module_id=m.module_id) }}" class="delete-module-form" data-module-name="{{ m.module_name }}">
                           <button class="btn btn-outline-danger" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
                       </div>
@@ -400,11 +400,19 @@
     document.body.classList.add('showing-manager');
   }
   backBtn.addEventListener('click', ()=>{ showOverview(); });
-  document.addEventListener('click', e=>{
+  document.addEventListener('click', async e=>{
     const manageBtn = e.target.closest('.manage-course-btn');
     if(manageBtn){ e.preventDefault(); showCourse(manageBtn.getAttribute('data-course-id')); }
     const delCourseBtn = e.target.closest('.delete-course-btn');
-    if(delCourseBtn){ e.preventDefault(); if(confirm('Delete this course?')){ const cid=delCourseBtn.getAttribute('data-course-id'); const f=document.getElementById('delete-course-form-'+cid); if(f) f.submit(); } }
+    if(delCourseBtn){
+      e.preventDefault();
+      const confirmed = await customConfirm('Delete this course?', 'Confirm Delete', {type: 'danger', confirmText: 'Delete', confirmClass: 'btn-danger'});
+      if(confirmed){
+        const cid=delCourseBtn.getAttribute('data-course-id');
+        const f=document.getElementById('delete-course-form-'+cid);
+        if(f) f.submit();
+      }
+    }
     const toggleAdd = e.target.closest('.toggle-add-module');
     if(toggleAdd){
       e.preventDefault();
@@ -420,7 +428,7 @@
       }
     }
   });
-  try { const last = localStorage.getItem('adminCourseMgmt.selectedCourse'); if(last){ const exists = document.getElementById('course-manage-'+last); if(exists){ showCourse(last); } } } catch(e){}
+  // Removed localStorage restoration - always start on courses overview
 })();
 </script>
 <script>
@@ -937,6 +945,31 @@ document.addEventListener('DOMContentLoaded', function(){
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',arguments.callee);return;}
   document.addEventListener('keydown', e=>{
     if(e.key==='Enter'){ const card = e.target.closest('.course-card'); if(card){ const btn = card.querySelector('.manage-course-btn'); if(btn){ btn.click(); e.preventDefault(); } } }
+  });
+
+  // Handle delete-course-form and delete-module-form submissions with custom modal
+  document.addEventListener('submit', async function(e){
+    const form = e.target;
+
+    // Handle course deletion in detail panel
+    if(form.classList.contains('delete-course-form')){
+      e.preventDefault();
+      const courseName = form.getAttribute('data-course-name') || 'this course';
+      const confirmed = await customConfirm(`Delete ${courseName}? This cannot be undone.`, 'Confirm Delete', {type: 'danger', confirmText: 'Delete', confirmClass: 'btn-danger'});
+      if(confirmed){
+        form.submit();
+      }
+    }
+
+    // Handle module deletion
+    if(form.classList.contains('delete-module-form')){
+      e.preventDefault();
+      const moduleName = form.getAttribute('data-module-name') || 'this module';
+      const confirmed = await customConfirm(`Delete module "${moduleName}"? This cannot be undone.`, 'Confirm Delete', {type: 'danger', confirmText: 'Delete', confirmClass: 'btn-danger'});
+      if(confirmed){
+        form.submit();
+      }
+    }
   });
 })();
 </script>

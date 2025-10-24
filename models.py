@@ -580,7 +580,24 @@ class Management:
             # Fallback to empty list on any DB error to keep dashboard rendering
             completion_rows = []
 
-        performance_metrics = None  # Placeholder (kept for template compatibility)
+        # Calculate performance metrics
+        try:
+            scores = db.session.query(
+                func.avg(UserModule.score).label('avg_score'),
+                func.max(UserModule.score).label('max_score'),
+                func.min(UserModule.score).label('min_score')
+            ).filter(UserModule.is_completed == True, UserModule.score.isnot(None)).first()
+            if scores:
+                performance_metrics = {
+                    'avg_score': float(scores.avg_score or 0),
+                    'max_score': float(scores.max_score or 0),
+                    'min_score': float(scores.min_score or 0)
+                }
+            else:
+                performance_metrics = None
+        except Exception:
+            performance_metrics = None
+
         return {
             'total_users': total_users,
             'total_modules': total_modules,

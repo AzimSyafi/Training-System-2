@@ -1,329 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    {% block styles %}
+    <style>
+        /* A simple style to make the page background a light gray */
+        body {
+            background-color: #f7fafc;
+        }
+    </style>
+    {% endblock %}
+</head>
+<body>
+
 {% extends "base.html" %}
+
+{% block title %}My Profile{% endblock %}
+
 {% block content %}
-<div class="max-w-5xl mx-auto p-4">
-  <!-- Header -->
-  <div class="flex justify-between items-center mb-4">
-    <h1 class="text-2xl font-bold">My Profile</h1>
-    <div class="flex flex-col gap-2 relative">
-      <div class="relative inline-block text-left">
-        <button id="exportDropdownBtn" type="button" class="px-4 py-2 bg-green-600 text-white rounded shadow hover:bg-green-700 font-bold flex items-center" tabindex="0">
-          <span>Export</span>
-          <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+<div class="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
+  <!-- Header: stack buttons on small screens, inline on md+ so desktop shows title and buttons in one line -->
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-3">
+    <h1 class="text-3xl font-bold text-gray-800">My Profile</h1>
+    <div class="flex items-center">
+      <!-- Export button (separate) -->
+      <div class="relative mr-2">
+        <button id="exportBtn" aria-haspopup="true" aria-expanded="false" aria-controls="exportMenu" class="inline-flex items-center justify-center h-10 w-10 bg-gray-100 hover:bg-gray-200 rounded-full p-2 text-gray-700 shadow-sm" title="Export">
+          <i class="fas fa-file-export"></i>
         </button>
-        <div id="exportDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded shadow-lg z-10">
-          <button onclick="printProfileSection()" class="block w-full text-left px-4 py-2 hover:bg-gray-100">Print</button>
-          <button onclick="downloadProfilePDF()" class="block w-full text-left px-4 py-2 hover:bg-gray-100">Download PDF</button>
+        <div id="exportMenu" role="menu" aria-hidden="true" class="hidden absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-md shadow-lg z-30">
+          <button role="menuitem" onclick="printProfileSection()" class="block w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-800"><i class="fas fa-print mr-2 text-green-600"></i>Print</button>
+          <button role="menuitem" onclick="downloadProfilePDF()" class="block w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-800"><i class="fas fa-download mr-2 text-green-600"></i>Download PDF</button>
         </div>
-        <!-- Add a visible debug span to confirm JS loads -->
-        <span id="export-debug-msg" class="text-xs text-red-600 ml-2"></span>
       </div>
-      <a href="{{ url_for('main.change_password') }}" class="px-6 py-2 bg-yellow-600 text-white rounded shadow hover:bg-yellow-700 font-bold text-center inline-flex items-center justify-center gap-2" style="background-color: #d97706 !important; color: white !important;">
-        <i class="fas fa-key"></i> Change Password
-      </a>
-      <button id="open-profile-modal" class="px-6 py-2 bg-blue-700 text-white rounded shadow hover:bg-blue-800 font-bold">Edit Profile</button>
+
+      <!-- Settings menu: gear icon that opens a dropdown with Change Password / Edit Profile -->
+      <div class="relative">
+        <button id="settingsBtn" aria-haspopup="true" aria-expanded="false" aria-controls="settingsMenu" class="inline-flex items-center justify-center h-10 w-10 bg-gray-100 hover:bg-gray-200 rounded-full p-2 text-gray-700 shadow-sm" title="Settings">
+          <i class="fas fa-cog"></i>
+        </button>
+        <div id="settingsMenu" role="menu" aria-hidden="true" class="hidden absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+          <a href="{{ url_for('main.change_password') }}" role="menuitem" class="block px-4 py-2 hover:bg-gray-50 text-gray-800"><i class="fas fa-key mr-2 text-yellow-600"></i>Change Password</a>
+          <button id="settingsEditProfile" role="menuitem" class="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-800"><i class="fas fa-user-edit mr-2 text-blue-600"></i>Edit Profile</button>
+        </div>
+      </div>
     </div>
   </div>
 
   <div id="profile-export-section">
-    <!-- Personal Information -->
-    <div class="bg-white rounded-xl shadow p-6 mb-8" id="personal-info-section">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold text-blue-900">Personal Information</h2>
-      </div>
-      <div class="flex justify-start mb-4">
-        <div class="flex gap-6">
+    <!-- Personal Information Card -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-8" id="personal-info-section">
+      <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Personal Information</h2>
+      <div class="flex flex-col md:flex-row items-start gap-8">
           <!-- Profile Picture -->
-          <div class="w-32 flex flex-col items-start">
-            <img id="profile-img" src="{{ user.profile_pic_url or url_for('static', filename='default_avatar.png') }}" alt="Profile Picture" class="w-28 h-28 rounded-full object-cover border-4 border-blue-200 mb-2">
+          <!-- responsive profile image: smaller on mobile, full circle container -->
+          <div class="w-24 sm:w-32 flex-shrink-0 text-center">
+            <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-blue-200 shadow-md mx-auto">
+              <img id="profile-img" src="{{ user.profile_pic_url or url_for('static', filename='default_avatar.png') }}" alt="Profile Picture" class="w-full h-full object-cover">
+            </div>
           </div>
 
-          <!-- Info Fields -->
-          <div id="personal-info-fields" class="text-left">
-            <div class="text-gray-500 text-sm">Full Name</div>
-            <div class="font-semibold text-lg" id="full_name_display">{{ user.full_name or '-' }}</div>
-            <div class="text-gray-500 text-sm mt-2">User ID</div>
-            <div class="font-semibold text-lg">{{ user.displayed_id or '-' }}</div>
-            <div class="text-gray-500 text-sm mt-2">Email</div>
-            <div class="font-semibold text-lg" id="email_display">{{ user.email or '-' }}</div>
-            <div class="text-gray-500 text-sm mt-2">Address</div>
-            <div class="font-semibold text-lg" id="address_display">{{ user.address or '-' }}</div>
-            <div class="text-gray-500 text-sm mt-2">Postcode</div>
-            <div class="font-semibold text-lg" id="postcode_display">{{ user.postcode or '-' }}</div>
-            <div class="text-gray-500 text-sm mt-2">State</div>
-            <div class="font-semibold text-lg" id="state_display">{{ user.state or '-' }}</div>
-            <!-- Added Country display -->
-            <div class="text-gray-500 text-sm mt-2">Country</div>
-            <div class="font-semibold text-lg" id="country_display">{{ user.country or '-' }}</div>
-            <div class="text-gray-500 text-sm mt-2">IC Number</div>
-            <div class="font-semibold text-lg" id="ic_number_display">{{ user.ic_number or '-' }}</div>
-            <div class="text-gray-500 text-sm mt-2">Passport Number</div>
-            <div class="font-semibold text-lg" id="passport_number_display">{{ user.passport_number or '-' }}</div>
+          <!-- Info Fields Grid -->
+          <div id="personal-info-fields" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6 w-full">
+            <div>
+              <div class="text-gray-500 text-sm font-medium">Full Name</div>
+              <div class="font-semibold text-lg text-gray-800" id="full_name_display">{{ user.full_name or '-' }}</div>
+            </div>
+            <div>
+              <div class="text-gray-500 text-sm font-medium">User ID</div>
+              <div class="font-semibold text-lg text-gray-800">{{ user.displayed_id or '-' }}</div>
+            </div>
+            <div>
+              <div class="text-gray-500 text-sm font-medium">Email</div>
+              <div class="font-semibold text-lg text-gray-800" id="email_display">{{ user.email or '-' }}</div>
+            </div>
+            <div>
+              <div class="text-gray-500 text-sm font-medium">Address</div>
+              <div class="font-semibold text-lg text-gray-800" id="address_display">{{ user.address or '-' }}</div>
+            </div>
+             <div>
+              <div class="text-gray-500 text-sm font-medium">Postcode</div>
+              <div class="font-semibold text-lg text-gray-800" id="postcode_display">{{ user.postcode or '-' }}</div>
+            </div>
+            <div>
+              <div class="text-gray-500 text-sm font-medium">State</div>
+              <div class="font-semibold text-lg text-gray-800" id="state_display">{{ user.state or '-' }}</div>
+            </div>
+            <div>
+              <div class="text-gray-500 text-sm font-medium">Country</div>
+              <div class="font-semibold text-lg text-gray-800" id="country_display">{{ user.country or '-' }}</div>
+            </div>
+            <div>
+              <div class="text-gray-500 text-sm font-medium">IC Number</div>
+              <div class="font-semibold text-lg text-gray-800" id="ic_number_display">{{ user.ic_number or '-' }}</div>
+            </div>
+            <div>
+              <div class="text-gray-500 text-sm font-medium">Passport Number</div>
+              <div class="font-semibold text-lg text-gray-800" id="passport_number_display">{{ user.passport_number or '-' }}</div>
+            </div>
           </div>
-        </div>
       </div>
-      <div class="flex justify-end mt-4">
-        <!-- Removed Edit Profile button from here -->
-      </div>
-      <div id="personal-info-errors" class="mt-2 text-red-600 text-sm"></div>
     </div>
 
     {% set is_authority = (current_user.role | default('')) == 'authority' %}
-
     {% if not is_authority %}
-    <!-- Working Info -->
-    <div class="bg-white rounded-xl shadow p-6 mb-8" id="working-info-section">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold text-blue-900">Working Experience</h2>
-      </div>
-      <div id="working-info-fields">
-        {% if experiences and experiences|length > 0 %}
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {% for exp in experiences %}
-              <div class="border border-gray-200 rounded-lg p-4 shadow-sm">
-                <div class="font-semibold text-lg">{{ exp.company_name }}</div>
-                {% if exp.position_title %}
-                  <div class="text-gray-600">Position: {{ exp.position_title }}</div>
-                {% endif %}
-                <div class="text-gray-600">Recruitment Date: {{ exp.recruitment_date.strftime('%Y-%m-%d') if exp.recruitment_date else (exp.start_date.strftime('%Y-%m-%d') if exp.start_date else '-') }}</div>
-                <div class="text-gray-600">Period: {{ exp.start_date.strftime('%Y-%m-%d') if exp.start_date else '-' }} to {{ exp.end_date.strftime('%Y-%m-%d') if exp.end_date else '-' }}</div>
-                {% if exp.visa_number %}
-                  <div class="text-gray-600">Visa Number: {{ exp.visa_number }}</div>
-                {% endif %}
-                {% if exp.visa_expiry_date %}
-                  <div class="text-gray-600">Visa Expiry: {{ exp.visa_expiry_date.strftime('%Y-%m-%d') }}</div>
-                {% endif %}
-              </div>
-            {% endfor %}
-          </div>
-        {% else %}
-          <div class="text-gray-600">No working experience found.</div>
-        {% endif %}
-      </div>
+    <!-- Working Experience Card -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-8" id="working-info-section">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Working Experience</h2>
+        <div id="working-info-fields">
+          {% if experiences and experiences|length > 0 %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {% for exp in experiences %}
+                <div class="border border-gray-200 rounded-lg p-4 shadow-sm bg-gray-50">
+                  <div class="font-semibold text-lg text-blue-800">{{ exp.company_name }}</div>
+                  {% if exp.position_title %}
+                    <div class="text-gray-600 mt-1"><strong>Position:</strong> {{ exp.position_title }}</div>
+                  {% endif %}
+                  <div class="text-gray-600 mt-1"><strong>Recruitment Date:</strong> {{ exp.recruitment_date.strftime('%Y-%m-%d') if exp.recruitment_date else (exp.start_date.strftime('%Y-%m-%d') if exp.start_date else '-') }}</div>
+                  <div class="text-gray-600 mt-1"><strong>Period:</strong> {{ exp.start_date.strftime('%Y-%m-%d') if exp.start_date else '-' }} to {{ exp.end_date.strftime('%Y-%m-%d') if exp.end_date else '-' }}</div>
+                  {% if exp.visa_number %}
+                    <div class="text-gray-600 mt-1"><strong>Visa Number:</strong> {{ exp.visa_number }}</div>
+                  {% endif %}
+                  {% if exp.visa_expiry_date %}
+                    <div class="text-gray-600 mt-1"><strong>Visa Expiry:</strong> {{ exp.visa_expiry_date.strftime('%Y-%m-%d') }}</div>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-gray-600">No working experience found.</div>
+          {% endif %}
+        </div>
     </div>
+    
+    <!-- Workplace & Contact Info in a Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Current Workplace & Agency Info Card -->
+        <div class="bg-white rounded-xl shadow-lg p-6" id="workplace-section">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Workplace & Agency</h2>
+            <div id="workplace-fields" class="space-y-4">
+                <div>
+                    <div class="text-gray-500 text-sm font-medium">Current Workplace</div>
+                    <div class="font-semibold text-lg text-gray-800" id="current_workplace_display">{{ user.current_workplace or '-' }}</div>
+                </div>
+                <div>
+                    <div class="text-gray-500 text-sm font-medium">Agency ID</div>
+                    <div class="font-semibold text-lg text-gray-800" id="agency_id_display">{{ user.agency_id or '-' }}</div>
+                </div>
+                <div>
+                    <div class="text-gray-500 text-sm font-medium">Agency Name</div>
+                    <div class="font-semibold text-lg text-gray-800" id="agency_name_display">{{ user.agency.agency_name if user.agency else '-' }}</div>
+                </div>
+            </div>
+        </div>
 
-    <!-- Current Workplace & Agency Info -->
-    <div class="bg-white rounded-xl shadow p-6 mb-8" id="workplace-section">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold text-blue-900">Current Workplace & Agency Info</h2>
-      </div>
-      <div id="workplace-fields">
-        <div class="text-gray-500 text-sm">Current Workplace</div>
-        <div class="font-semibold text-lg" id="current_workplace_display">{{ user.current_workplace or '-' }}</div>
-        <div class="text-gray-500 text-sm">Agency ID</div>
-        <div class="font-semibold text-lg" id="agency_id_display">{{ user.agency_id or '-' }}</div>
-        <div class="text-gray-500 text-sm">Agency Name</div>
-        <div class="font-semibold text-lg" id="agency_name_display">{{ user.agency.agency_name if user.agency else '-' }}</div>
-      </div>
-      <div id="workplace-edit-actions" class="hidden flex gap-2 mt-4 justify-end">
-        <button type="button" class="save-btn bg-blue-700 text-white px-4 py-2 rounded shadow hover:bg-blue-800 font-bold" data-section="workplace">Save</button>
-        <button type="button" class="cancel-btn bg-gray-200 text-gray-700 px-4 py-2 rounded shadow hover:bg-gray-300 font-bold" data-section="workplace">Cancel</button>
-      </div>
-      <div id="workplace-errors" class="mt-2 text-red-600 text-sm"></div>
-    </div>
-
-    <!-- Emergency Contact -->
-    <div class="bg-white rounded-xl shadow p-6 mb-8" id="emergency-section">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold text-blue-900">Emergency Contact</h2>
-      </div>
-      <div id="emergency-fields">
-        <div class="text-gray-500 text-sm">Emergency Contact Phone</div>
-        <div class="font-semibold text-lg" id="emergency_contact_phone_display">{{ user.emergency_contact_phone or '-' }}</div>
-        <div class="text-gray-500 text-sm">Emergency Contact Name</div>
-        <div class="font-semibold text-lg" id="emergency_contact_display">{{ user.emergency_contact_name or '-' }}</div>
-        <div class="text-gray-500 text-sm">Emergency Relationship</div>
-        <div class="font-semibold text-lg" id="emergency_relationship_display">{{ user.emergency_contact_relationship or '-' }}</div>
-      </div>
-      <div id="emergency-edit-actions" class="hidden flex gap-2 mt-4 justify-end">
-        <button type="button" class="save-btn bg-blue-700 text-white px-4 py-2 rounded shadow hover:bg-blue-800 font-bold" data-section="emergency">Save</button>
-        <button type="button" class="cancel-btn bg-gray-200 text-gray-700 px-4 py-2 rounded shadow hover:bg-gray-300 font-bold" data-section="emergency">Cancel</button>
-      </div>
-      <div id="emergency-errors" class="mt-2 text-red-600 text-sm"></div>
+        <!-- Emergency Contact Card -->
+        <div class="bg-white rounded-xl shadow-lg p-6" id="emergency-section">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Emergency Contact</h2>
+            <div id="emergency-fields" class="space-y-4">
+                <div>
+                    <div class="text-gray-500 text-sm font-medium">Contact Name</div>
+                    <div class="font-semibold text-lg text-gray-800" id="emergency_contact_display">{{ user.emergency_contact_name or '-' }}</div>
+                </div>
+                <div>
+                    <div class="text-gray-500 text-sm font-medium">Relationship</div>
+                    <div class="font-semibold text-lg text-gray-800" id="emergency_relationship_display">{{ user.emergency_contact_relationship or '-' }}</div>
+                </div>
+                <div>
+                    <div class="text-gray-500 text-sm font-medium">Contact Phone</div>
+                    <div class="font-semibold text-lg text-gray-800" id="emergency_contact_phone_display">{{ user.emergency_contact_phone or '-' }}</div>
+                </div>
+            </div>
+        </div>
     </div>
     {% endif %}
   </div>
 
   <!-- Profile Edit Modal -->
-  <div id="profile-modal" class="fixed inset-0 bg-gray-900 bg-opacity-40 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
-      <button id="close-profile-modal" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700">&times;</button>
-      <h2 class="text-xl font-bold mb-4">Edit Personal Information</h2>
+  <div id="profile-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
+      <button id="close-profile-modal" class="absolute top-4 right-4 text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+      <h2 class="text-2xl font-bold mb-4 text-gray-800">Edit Personal Information</h2>
       <form id="edit-profile-form" method="POST" action="{{ url_for('main.profile') }}" enctype="multipart/form-data">
         <div class="mb-4 flex flex-col items-center">
-          <img id="modal-profile-img" src="{{ user.profile_pic_url or url_for('static', filename='default_avatar.png') }}" alt="Profile Picture" class="w-24 h-24 rounded-full object-cover border-4 border-blue-200 mb-2">
-          <input type="file" name="profile_pic" accept="image/*" class="mt-2" />
+            <!-- modal image: wrap to ensure perfect circle and consistent cropping -->
+            <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-blue-200 mb-2">
+              <img id="modal-profile-img" src="{{ user.profile_pic_url or url_for('static', filename='default_avatar.png') }}" alt="Profile Picture" class="w-full h-full object-cover">
+            </div>
+            <label class="cursor-pointer mt-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-lg text-sm">
+                <span>Change Picture</span>
+                <input type="file" name="profile_pic" accept="image/*" class="hidden" />
+            </label>
         </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Full Name</label>
-          <input type="text" name="full_name" value="{{ user.full_name }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Email</label>
-          <input type="email" name="email" value="{{ user.email }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Address</label>
-          <input type="text" name="address" value="{{ user.address }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Postcode</label>
-          <input type="text" name="postcode" value="{{ user.postcode }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">State</label>
-          <select name="state" class="w-full border rounded px-2 py-1">
-            <option value="">Select State</option>
-            {% for state in malaysian_states %}
-              <option value="{{ state }}" {% if user.state == state %}selected{% endif %}>{{ state }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <!-- Added Country select -->
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Country</label>
-          <select name="country" class="w-full border rounded px-2 py-1">
-            <option value="">Select country</option>
-            <!-- keep existing country options -->
-            {% for opt in [
-              'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia','Australia','Austria','Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados','Belarus','Belgium','Belize','Benin','Bhutan','Bolivia','Bosnia and Herzegovina','Botswana','Brazil','Brunei','Bulgaria','Burkina Faso','Burundi','Cambodia','Cameroon','Canada','Cape Verde','Central African Republic','Chad','Chile','China','Colombia','Comoros','Congo, Democratic Republic of the','Congo, Republic of the','Costa Rica','Cote d\'Ivoire','Croatia','Cuba','Cyprus','Czech Republic','Denmark','Djibouti','Dominica','Dominican Republic','Ecuador','Egypt','El Salvador','Equatorial Guinea','Eritrea','Estonia','Eswatini','Ethiopia','Fiji','Finland','France','Gabon','Gambia','Georgia','Germany','Ghana','Greece','Grenada','Guatemala','Guinea','Guinea-Bissau','Guyana','Haiti','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kiribati','Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho','Liberia','Libya','Liechtenstein','Lithuania','Luxembourg','Madagascar','Malawi','Malaysia','Maldives','Mali','Malta','Marshall Islands','Mauritania','Mauritius','Mexico','Micronesia','Moldova','Monaco','Mongolia','Montenegro','Morocco','Mozambique','Myanmar','Namibia','Nauru','Nepal','Netherlands','New Zealand','Nicaragua','Niger','Nigeria','North Korea','North Macedonia','Norway','Oman','Pakistan','Palau','Panama','Papua New Guinea','Paraguay','Peru','Philippines','Poland','Portugal','Qatar','Romania','Russia','Rwanda','Saint Kitts and Nevis','Saint Lucia','Saint Vincent and the Grenadines','Samoa','San Marino','Sao Tome and Principe','Saudi Arabia','Senegal','Serbia','Seychelles','Sierra Leone','Singapore','Slovakia','Slovenia','Solomon Islands','Somalia','South Africa','South Korea','South Sudan','Spain','Sri Lanka','Sudan','Suriname','Sweden','Switzerland','Syria','Taiwan','Tajikistan','Tanzania','Thailand','Timor-Leste','Togo','Tonga','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Tuvalu','Uganda','Ukraine','United Arab Emirates','United Kingdom','United States','Uruguay','Uzbekistan','Vanuatu','Vatican City','Venezuela','Vietnam','Yemen','Zambia','Zimbabwe' ] %}
-              <option value="{{ opt }}" {% if user.country == opt %}selected{% endif %}>{{ opt }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        {% if not is_authority %}
-        <!-- Multi Working Experiences Editor -->
-        <div class="mt-4 p-3 border rounded-lg">
-          <div class="flex items-center justify-between mb-2">
-            <h3 class="font-semibold">Working Experiences</h3>
-            <button type="button" id="modal-add-experience" class="px-3 py-1 text-sm bg-blue-100 text-blue-900 rounded hover:bg-blue-200">Add experience</button>
-          </div>
-          <div class="text-xs text-gray-500 mb-2">Tip: For each experience, please provide at least Company and Start Date (or Recruitment Date) so it can be saved.</div>
-          <div id="modal-experience-list" class="flex flex-col gap-3">
-            {% if experiences and experiences|length > 0 %}
-              {% for exp in experiences %}
-                <div class="border rounded p-3 experience-item">
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <div>
-                      <label class="block text-gray-500 text-xs">Company</label>
-                      <input type="text" name="exp_company" value="{{ exp.company_name }}" class="w-full border rounded px-2 py-1" />
-                    </div>
-                    <div>
-                      <label class="block text-gray-500 text-xs">Position</label>
-                      <input type="text" name="exp_position" value="{{ exp.position_title or '' }}" class="w-full border rounded px-2 py-1" />
-                    </div>
-                    <div>
-                      <label class="block text-gray-500 text-xs">Recruitment Date</label>
-                      <input type="date" name="exp_recruitment" value="{{ exp.recruitment_date.strftime('%Y-%m-%d') if exp.recruitment_date else (exp.start_date.strftime('%Y-%m-%d') if exp.start_date else '') }}" class="w-full border rounded px-2 py-1" />
-                    </div>
-                    <div>
-                      <label class="block text-gray-500 text-xs">Visa Number</label>
-                      <input type="text" name="exp_visa_number" value="{{ exp.visa_number or '' }}" class="w-full border rounded px-2 py-1" />
-                    </div>
-                    <div>
-                      <label class="block text-gray-500 text-xs">Start Date</label>
-                      <input type="date" name="exp_start" value="{{ exp.start_date.strftime('%Y-%m-%d') if exp.start_date else '' }}" class="w-full border rounded px-2 py-1" />
-                    </div>
-                    <div>
-                      <label class="block text-gray-500 text-xs">End Date</label>
-                      <input type="date" name="exp_end" value="{{ exp.end_date.strftime('%Y-%m-%d') if exp.end_date else '' }}" class="w-full border rounded px-2 py-1" />
-                    </div>
-                    <div>
-                      <label class="block text-gray-500 text-xs">Visa Expiry</label>
-                      <input type="date" name="exp_visa_expiry" value="{{ exp.visa_expiry_date.strftime('%Y-%m-%d') if exp.visa_expiry_date else '' }}" class="w-full border rounded px-2 py-1" />
-                    </div>
-                  </div>
-                  <div class="flex justify-end mt-2">
-                    <button type="button" class="remove-exp px-3 py-1 text-sm bg-red-100 text-red-800 rounded hover:bg-red-200">Remove</button>
-                  </div>
-                </div>
-              {% endfor %}
-            {% else %}
-              <div class="border rounded p-3 experience-item">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <div>
-                    <label class="block text-gray-500 text-xs">Company</label>
-                    <input type="text" name="exp_company" class="w-full border rounded px-2 py-1" />
-                  </div>
-                  <div>
-                    <label class="block text-gray-500 text-xs">Position</label>
-                    <input type="text" name="exp_position" class="w-full border rounded px-2 py-1" />
-                  </div>
-                  <div>
-                    <label class="block text-gray-500 text-xs">Recruitment Date</label>
-                    <input type="date" name="exp_recruitment" class="w-full border rounded px-2 py-1" />
-                  </div>
-                  <div>
-                    <label class="block text-gray-500 text-xs">Visa Number</label>
-                    <input type="text" name="exp_visa_number" class="w-full border rounded px-2 py-1" />
-                  </div>
-                  <div>
-                    <label class="block text-gray-500 text-xs">Start Date</label>
-                    <input type="date" name="exp_start" class="w-full border rounded px-2 py-1" />
-                  </div>
-                  <div>
-                    <label class="block text-gray-500 text-xs">End Date</label>
-                    <input type="date" name="exp_end" class="w-full border rounded px-2 py-1" />
-                  </div>
-                  <div>
-                    <label class="block text-gray-500 text-xs">Visa Expiry</label>
-                    <input type="date" name="exp_visa_expiry" class="w-full border rounded px-2 py-1" />
-                  </div>
-                </div>
-                <div class="flex justify-end mt-2">
-                  <button type="button" class="remove-exp px-3 py-1 text-sm bg-red-100 text-red-800 rounded hover:bg-red-200">Remove</button>
-                </div>
-              </div>
-            {% endif %}
+        
+        <div class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+            <div>
+              <label for="full_name" class="block text-sm font-medium text-gray-700">Full Name</label>
+              <input id="full_name" name="full_name" type="text" value="{{ user.full_name or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
+            </div>
+
+            <div>
+              <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+              <input id="email" name="email" type="email" value="{{ user.email or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
+            </div>
+
+            <div class="md:col-span-2">
+              <label for="address" class="block text-sm font-medium text-gray-700">Address</label>
+              <input id="address" name="address" type="text" value="{{ user.address or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
+            </div>
+
+            <div>
+              <label for="postcode" class="block text-sm font-medium text-gray-700">Postcode</label>
+              <input id="postcode" name="postcode" type="text" value="{{ user.postcode or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
+            </div>
+
+            <div>
+              <label for="state" class="block text-sm font-medium text-gray-700">State</label>
+              <input id="state" name="state" type="text" value="{{ user.state or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
+            </div>
+
+            <div>
+              <label for="country" class="block text-sm font-medium text-gray-700">Country</label>
+              <input id="country" name="country" type="text" value="{{ user.country or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
+            </div>
+
+            <div>
+              <label for="ic_number" class="block text-sm font-medium text-gray-700">IC Number</label>
+              <input id="ic_number" name="ic_number" type="text" value="{{ user.ic_number or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
+            </div>
+
+            <div>
+              <label for="passport_number" class="block text-sm font-medium text-gray-700">Passport Number</label>
+              <input id="passport_number" name="passport_number" type="text" value="{{ user.passport_number or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
+            </div>
+
+            <div>
+              <label for="current_workplace" class="block text-sm font-medium text-gray-700">Current Workplace</label>
+              <input id="current_workplace" name="current_workplace" type="text" value="{{ user.current_workplace or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
+            </div>
+
+            <div>
+              <label for="agency_id" class="block text-sm font-medium text-gray-700">Agency ID</label>
+              <input id="agency_id" name="agency_id" type="text" value="{{ user.agency_id or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
+            </div>
+
+            <div class="md:col-span-2">
+              <label for="agency_name" class="block text-sm font-medium text-gray-700">Agency Name</label>
+              <input id="agency_name" name="agency_name" type="text" value="{{ user.agency.agency_name if user.agency else '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
+            </div>
+
+            <div class="md:col-span-2">
+              <label for="emergency_contact_name" class="block text-sm font-medium text-gray-700">Emergency Contact Name</label>
+              <input id="emergency_contact_name" name="emergency_contact_name" type="text" value="{{ user.emergency_contact_name or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
+            </div>
+
+            <div>
+              <label for="emergency_contact_relationship" class="block text-sm font-medium text-gray-700">Emergency Relationship</label>
+              <input id="emergency_contact_relationship" name="emergency_contact_relationship" type="text" value="{{ user.emergency_contact_relationship or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
+            </div>
+
+            <div>
+              <label for="emergency_contact_phone" class="block text-sm font-medium text-gray-700">Emergency Contact Phone</label>
+              <input id="emergency_contact_phone" name="emergency_contact_phone" type="text" value="{{ user.emergency_contact_phone or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
+            </div>
           </div>
         </div>
 
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Current Workplace</label>
-          <input type="text" name="current_workplace" value="{{ user.current_workplace }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Agency ID</label>
-          <input type="text" name="agency_id" value="{{ user.agency_id }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Agency Name</label>
-          <input type="text" name="agency_name" value="{{ user.agency.agency_name if user.agency else '' }}" class="w-full border rounded px-2 py-1" />
-        </div>
-
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Emergency Contact</label>
-          <input type="text" name="emergency_contact_name" value="{{ user.emergency_contact_name }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Emergency Relationship</label>
-          <input type="text" name="emergency_contact_relationship" value="{{ user.emergency_contact_relationship }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div class="mb-2">
-          <label class="block text-gray-500 text-sm">Emergency Contact Phone</label>
-          <input type="text" name="emergency_contact_phone" value="{{ user.emergency_contact_phone }}" class="w-full border rounded px-2 py-1" />
-        </div>
-        {% endif %}
-        <div id="modal-profile-errors" class="text-red-600 text-sm mb-2"></div>
-        <div class="flex justify-end gap-2 mt-4">
-          <button type="button" id="cancel-profile-modal" class="bg-gray-200 text-gray-700 px-4 py-2 rounded shadow hover:bg-gray-300 font-bold">Cancel</button>
-          <button type="submit" id="save-profile-modal" class="bg-blue-700 text-white px-4 py-2 rounded shadow hover:bg-blue-800 font-bold">Save</button>
+        <div id="modal-profile-errors" class="text-red-600 text-sm my-4"></div>
+        <div class="flex justify-end gap-3 mt-6 border-t pt-4">
+          <button type="button" id="cancel-profile-modal" class="bg-gray-200 text-gray-800 px-6 py-2 rounded-lg shadow-md hover:bg-gray-300 font-bold">Cancel</button>
+          <button type="submit" id="save-profile-modal" class="bg-blue-700 text-white px-6 py-2 rounded-lg shadow-md hover:bg-blue-800 font-bold">Save Changes</button>
         </div>
       </form>
     </div>
   </div>
 
-  <div id="profile-success" class="hidden bg-green-100 text-green-800 px-4 py-2 rounded mb-4"></div>
-  <div id="profile-error" class="hidden bg-red-100 text-red-800 px-4 py-2 rounded mb-4"></div>
 </div>
+{% endblock %}
 
-<script src="{{ url_for('static', filename='profile_edit.js') }}"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<!-- Inline script moved to ensure html2pdf is loaded first -->
+{% block scripts %}
+<!-- Scripts for interactivity -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
-function printProfileSection() {
+async function printProfileSection() {
   const printContents = document.getElementById('profile-export-section').outerHTML;
   const win = window.open('', '', 'height=700,width=900');
-  win.document.write('<html><head><title>Print Profile</title>');
+  win.document.write('<html lang="en"><head><title>Print Profile</title>');
+  // This will need a link to your compiled tailwind css file
   win.document.write('<link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">');
   win.document.write('</head><body>');
   win.document.write(printContents);
@@ -333,8 +303,9 @@ function printProfileSection() {
   setTimeout(() => { win.print(); win.close(); }, 500);
 }
 
-function downloadProfilePDF() {
-  if (confirm('Download as PDF?')) {
+async function downloadProfilePDF() {
+  const confirmed = await customConfirm('Download as PDF?', 'Download Profile', {type: 'info', confirmText: 'Download'});
+  if (confirmed) {
     const element = document.getElementById('profile-export-section');
     html2pdf().set({
       margin: 0.5,
@@ -346,74 +317,16 @@ function downloadProfilePDF() {
   }
 }
 
-function initModalExperienceEditor(){
-  const list = document.getElementById('modal-experience-list');
-  const addBtn = document.getElementById('modal-add-experience');
-  if(!list || !addBtn) return;
-  function bindRemove(btn){
-    btn.addEventListener('click', function(){
-      const item = this.closest('.experience-item');
-      if(item){ item.remove(); }
-    });
-  }
-  list.querySelectorAll('.remove-exp').forEach(bindRemove);
-  function createItem(){
-    const wrapper = document.createElement('div');
-    wrapper.className = 'border rounded p-3 experience-item';
-    wrapper.innerHTML = `
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <div>
-          <label class="block text-gray-500 text-xs">Company</label>
-          <input type="text" name="exp_company" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div>
-          <label class="block text-gray-500 text-xs">Position</label>
-          <input type="text" name="exp_position" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div>
-          <label class="block text-gray-500 text-xs">Recruitment Date</label>
-          <input type="date" name="exp_recruitment" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div>
-          <label class="block text-gray-500 text-xs">Visa Number</label>
-          <input type="text" name="exp_visa_number" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div>
-          <label class="block text-gray-500 text-xs">Start Date</label>
-          <input type="date" name="exp_start" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div>
-          <label class="block text-gray-500 text-xs">End Date</label>
-          <input type="date" name="exp_end" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div>
-          <label class="block text-gray-500 text-xs">Visa Expiry</label>
-          <input type="date" name="exp_visa_expiry" class="w-full border rounded px-2 py-1" />
-        </div>
-      </div>
-      <div class="flex justify-end mt-2">
-        <button type="button" class="remove-exp px-3 py-1 text-sm bg-red-100 text-red-800 rounded hover:bg-red-200">Remove</button>
-      </div>`;
-    bindRemove(wrapper.querySelector('.remove-exp'));
-    return wrapper;
-  }
-  addBtn.addEventListener('click', function(){
-    list.appendChild(createItem());
-  });
-}
-
 document.addEventListener('DOMContentLoaded', function() {
   const openModalBtn = document.getElementById('open-profile-modal');
   const modal = document.getElementById('profile-modal');
   const closeModalBtn = document.getElementById('close-profile-modal');
   const cancelModalBtn = document.getElementById('cancel-profile-modal');
 
-  // Function to lock body scroll
   function lockBodyScroll() {
     document.body.style.overflow = 'hidden';
   }
 
-  // Function to unlock body scroll
   function unlockBodyScroll() {
     document.body.style.overflow = '';
   }
@@ -422,7 +335,6 @@ document.addEventListener('DOMContentLoaded', function() {
     openModalBtn.onclick = () => {
       modal.classList.remove('hidden');
       lockBodyScroll();
-      initModalExperienceEditor();
     };
   }
   if (closeModalBtn && modal) {
@@ -438,41 +350,112 @@ document.addEventListener('DOMContentLoaded', function() {
     };
   }
 
-  // Also unlock scroll when form is submitted successfully
   const editProfileForm = document.getElementById('edit-profile-form');
-  if (editProfileForm) {
-    editProfileForm.addEventListener('submit', function() {
-      // Unlock scroll when form submits (page will reload anyway)
-      unlockBodyScroll();
+    if (editProfileForm) {
+        editProfileForm.addEventListener('submit', function() {
+            unlockBodyScroll();
+        });
+    }
+
+  const settingsBtn = document.getElementById('settingsBtn');
+  const settingsMenu = document.getElementById('settingsMenu');
+  const settingsEditProfile = document.getElementById('settingsEditProfile');
+  const exportBtn = document.getElementById('exportBtn');
+  const exportMenu = document.getElementById('exportMenu');
+
+  // helper to close both menus
+  function closeAllMenus() {
+    if (settingsMenu && !settingsMenu.classList.contains('hidden')) {
+      settingsMenu.classList.add('hidden');
+      settingsBtn && settingsBtn.setAttribute('aria-expanded', 'false');
+      settingsMenu.setAttribute('aria-hidden', 'true');
+    }
+    if (exportMenu && !exportMenu.classList.contains('hidden')) {
+      exportMenu.classList.add('hidden');
+      exportBtn && exportBtn.setAttribute('aria-expanded', 'false');
+      exportMenu.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  // toggle function for a menu, closing the other
+  function toggleMenu(menu, toggleBtn, otherMenu) {
+    const isOpen = !menu.classList.contains('hidden');
+    // close other menu
+    if (otherMenu && !otherMenu.classList.contains('hidden')) {
+      otherMenu.classList.add('hidden');
+      if (otherMenu === settingsMenu) settingsBtn && settingsBtn.setAttribute('aria-expanded', 'false');
+      if (otherMenu === exportMenu) exportBtn && exportBtn.setAttribute('aria-expanded', 'false');
+      otherMenu.setAttribute('aria-hidden', 'true');
+    }
+    // toggle this menu
+    menu.classList.toggle('hidden');
+    menu.setAttribute('aria-hidden', String(isOpen));
+    toggleBtn && toggleBtn.setAttribute('aria-expanded', String(!isOpen));
+  }
+
+  if (settingsBtn && settingsMenu) {
+    settingsBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleMenu(settingsMenu, settingsBtn, exportMenu);
+    });
+    settingsBtn.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); settingsBtn.click(); }
+    });
+    if (settingsEditProfile && modal) {
+      settingsEditProfile.addEventListener('click', function() {
+        modal.classList.remove('hidden');
+        lockBodyScroll();
+        closeAllMenus();
+      });
+    }
+  }
+
+  if (exportBtn && exportMenu) {
+    exportBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleMenu(exportMenu, exportBtn, settingsMenu);
+    });
+    exportBtn.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); exportBtn.click(); }
     });
   }
 
-  // Ensure the Save button performs a normal form submit (avoid JS override)
-  const saveProfileBtn = document.getElementById('save-profile-modal');
-  if (saveProfileBtn) {
-    saveProfileBtn.onclick = null;
-  }
-  // Dropdown functionality
-  const exportDropdownBtn = document.getElementById('exportDropdownBtn');
-  const exportDropdown = document.getElementById('exportDropdown');
-  if (exportDropdownBtn && exportDropdown) {
-    exportDropdownBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      if (exportDropdown.classList.contains('hidden')) {
-        exportDropdown.classList.remove('hidden');
-      } else {
-        exportDropdown.classList.add('hidden');
+  // close menus when clicking outside either menu or their buttons
+  document.addEventListener('click', function(e) {
+    if (settingsMenu && !settingsMenu.classList.contains('hidden')) {
+      if (!settingsMenu.contains(e.target) && !(settingsBtn && settingsBtn.contains(e.target))) {
+        settingsMenu.classList.add('hidden');
+        settingsBtn && settingsBtn.setAttribute('aria-expanded', 'false');
+        settingsMenu.setAttribute('aria-hidden', 'true');
       }
-    });
-    exportDropdown.addEventListener('click', function(e) {
-      e.stopPropagation();
-    });
-    document.addEventListener('click', function(e) {
-      if (!exportDropdown.classList.contains('hidden')) {
-        exportDropdown.classList.add('hidden');
+    }
+    if (exportMenu && !exportMenu.classList.contains('hidden')) {
+      if (!exportMenu.contains(e.target) && !(exportBtn && exportBtn.contains(e.target))) {
+        exportMenu.classList.add('hidden');
+        exportBtn && exportBtn.setAttribute('aria-expanded', 'false');
+        exportMenu.setAttribute('aria-hidden', 'true');
       }
-    });
-  }
+    }
+  });
+
+  // close menus when any menuitem is activated (click)
+  [settingsMenu, exportMenu].forEach((m) => {
+    if (m) {
+      m.addEventListener('click', function(e) {
+        const menuItem = e.target.closest('[role="menuitem"]');
+        if (menuItem) setTimeout(closeAllMenus, 50);
+      });
+    }
+  });
+
+  // Close menus on Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeAllMenus();
+    }
+  });
 });
 </script>
 {% endblock %}
+</body>
+</html>

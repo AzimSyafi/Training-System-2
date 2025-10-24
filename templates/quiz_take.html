@@ -533,7 +533,8 @@
       }
       const data = await r.json();
       if(!data.success){
-        alert(data.message || 'Submission failed'); btnSubmit.disabled = false; btnSubmit.innerHTML = '<i class="fas fa-check me-1"></i>Submit'; return;
+        await customAlert(data.message || 'Submission failed', 'Submission Error', {type: 'danger'});
+        btnSubmit.disabled = false; btnSubmit.innerHTML = '<i class="fas fa-check me-1"></i>Submit'; return;
       }
       // Use backend-provided normalized answers for review if available
       if (Array.isArray(data.answers)){
@@ -551,7 +552,7 @@
       document.getElementById('quiz-container').classList.add('d-none');
       confetti();
     }catch(err){
-      alert('Error submitting quiz: '+err);
+      await customAlert('Error submitting quiz: '+err, 'Error', {type: 'danger'});
       btnSubmit.disabled = false; btnSubmit.innerHTML = '<i class="fas fa-check me-1"></i>Submit';
     }
   }
@@ -613,7 +614,10 @@
   btnNext.addEventListener('click', ()=>{ nextQuestion(); scheduleAutoSave(); });
   btnSubmit.addEventListener('click', submitQuiz);
   btnSaveExit.addEventListener('click', async ()=>{ await autoSaveAnswers(); window.location.href = root.dataset.backUrl; });
-  btnReattempt?.addEventListener('click', ()=>{ if(confirm('Start a reattempt? Your previous score is kept but this will count as another attempt.')) startReattempt(); });
+  btnReattempt?.addEventListener('click', async ()=>{
+    const confirmed = await customConfirm('Start a reattempt? Your previous score is kept but this will count as another attempt.', 'Confirm Reattempt', {type: 'warning', confirmText: 'Start Reattempt'});
+    if(confirmed) startReattempt();
+  });
 
   // Save on navigation
   btnPrev.addEventListener('click', scheduleAutoSave);

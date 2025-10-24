@@ -133,7 +133,7 @@
                                     </td>
                                     <td>
                                         {% if certificate.status == 'approved' and certificate.certificate_url %}
-                                            <a href="{{ url_for('static', filename='certificates/' ~ certificate.certificate_url.replace('static/', '').replace('static\\', '').replace('certificates/', '').replace('certificates\\', '')) }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                            <a href="{{ url_for('static', filename=certificate.certificate_url.lstrip('/')) }}" class="btn btn-sm btn-outline-primary" target="_blank">
                                                 <i class="fas fa-download"></i> Download
                                             </a>
                                         {% elif certificate.status == 'approved' %}

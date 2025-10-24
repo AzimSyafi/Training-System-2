@@ -90,6 +90,7 @@
       if (navToggle) {
         navToggle.classList.add('active');
         navToggle.setAttribute('aria-expanded', 'true');
+        navToggle.innerHTML = '<i class="fas fa-times"></i>'; // Change to times icon
       }
       document.body.style.overflow = 'hidden';
     }
@@ -101,6 +102,7 @@
       if (navToggle) {
         navToggle.classList.remove('active');
         navToggle.setAttribute('aria-expanded', 'false');
+        navToggle.innerHTML = '<i class="fas fa-bars"></i>'; // Change back to bars icon
       }
       document.body.style.overflow = '';
     }
@@ -108,9 +110,20 @@
     // Close menu when nav link is clicked
     const navLinks = sidebar.querySelectorAll('.nav-link');
     navLinks.forEach(function(link) {
-      link.addEventListener('click', function() {
-        setTimeout(closeMenu, 200);
+      link.addEventListener('click', function(e) {
+        // Don't prevent default - let the link navigate normally
+        // Just close the menu immediately
+        closeMenu();
       });
+    });
+
+    // Also close menu when clicking inside the sidebar (but not on the toggle button)
+    sidebar.addEventListener('click', function(e) {
+      // If clicked element is a link or inside a link, close menu
+      if (e.target.closest('.nav-link')) {
+        // Let the navigation happen, menu will close
+        setTimeout(closeMenu, 100);
+      }
     });
 
     // Close menu on Escape key

@@ -125,6 +125,13 @@ body:not(.sidebar-open) .desktop-nav-toggle {
   left: 15px;
 }
 
+/* On mobile, keep hamburger at left edge even when open */
+@media (max-width: 768px) {
+  .desktop-nav-toggle {
+    left: 15px !important;
+  }
+}
+
 .desktop-nav-toggle:hover,
 .desktop-nav-toggle:focus {
   background: var(--sidebar-link-hover-bg, #3b82f6);
@@ -173,15 +180,17 @@ body:not(.sidebar-open) .desktop-nav-toggle {
   width: 100vw;
   height: 100vh;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 9998;
+  z-index: 9998; /* Below sidebar (9999) so sidebar is clickable */
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.3s ease, visibility 0.3s ease;
+  pointer-events: none; /* Don't block clicks when hidden */
 }
 
 .nav-overlay.active {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto; /* Enable clicks when visible (will close menu) */
 }
 
 /* Ensure profile menu appears on top of sidebar */
@@ -275,6 +284,48 @@ body:not(.sidebar-open) .desktop-nav-toggle {
   .sidebar {
     max-width: 85vw !important;
   }
+}
+
+/* ========================================
+   DROPDOWN MENU FIXES FOR ALL SCREENS
+   ======================================== */
+
+/* Ensure dropdown buttons have proper touch targets */
+.dropdown .btn,
+.dropdown button {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.75rem;
+}
+
+/* Ensure dropdown menu is positioned correctly and visible */
+.dropdown-menu {
+  z-index: 1050 !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Ensure dropdown items are touch-friendly */
+.dropdown-item {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.dropdown-item:active,
+.dropdown-item:focus {
+  background-color: #0d6efd;
+  color: #fff;
+}
+
+.dropdown-item:hover {
+  background-color: #f8f9fa;
+  color: #1e2125;
 }
 
 /* ========================================
@@ -769,6 +820,17 @@ body:not(.sidebar-open) .desktop-nav-toggle {
     width: 100% !important;
   }
 
+  /* Mobile-specific dropdown adjustments */
+  .dropdown-menu {
+    min-width: 200px !important;
+    font-size: 1rem !important;
+  }
+
+  .dropdown-item i {
+    width: 24px !important;
+    font-size: 1rem !important;
+  }
+
   /* ========================================
      ALERTS AND NOTIFICATIONS
      ======================================== */
@@ -860,4 +922,3 @@ body:not(.sidebar-open) .desktop-nav-toggle {
     height: 36px !important;
   }
 }
-

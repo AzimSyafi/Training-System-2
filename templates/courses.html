@@ -61,29 +61,37 @@ function completeCourse(courseCode) {
     body: JSON.stringify({ course_code: courseCode })
   })
   .then(res => res.json().then(data => ({ ok: res.ok, status: res.status, data })).catch(() => ({ ok: res.ok, status: res.status, data: {} })))
-  .then(({ ok, data }) => {
+  .then(async ({ ok, data }) => {
     if (ok && data && data.success) {
       if (data.already_submitted) {
-        alert('Already submitted for approval.');
+        await customAlert('Already submitted for approval.', 'Course Status', {type: 'info'});
       } else if (data.submitted) {
-        alert('Course completed! Sent for approval.');
+        await customAlert('Course completed! Sent for approval.', 'Success', {type: 'success'});
       } else {
-        alert('Course completion recorded.');
+        await customAlert('Course completion recorded.', 'Success', {type: 'success'});
       }
       location.reload();
     } else {
       const msg = (data && data.message) ? data.message : 'Could not complete course.';
-      alert('Error: ' + msg);
+      await customAlert('Error: ' + msg, 'Error', {type: 'danger'});
     }
   })
-  .catch(()=>alert('Request failed.'));
+  .catch(async ()=> await customAlert('Request failed.', 'Error', {type: 'danger'}));
 }
-function reattemptCourse(courseCode){
-  if(!confirm('Reattempt will reset all module progress for this course. Continue?')) return;
+async function reattemptCourse(courseCode){
+  const confirmed = await customConfirm('Reattempt will reset all module progress for this course. Continue?', 'Confirm Reattempt', {type: 'danger', confirmText: 'Reset Progress', confirmClass: 'btn-danger'});
+  if(!confirmed) return;
   fetch('/api/reattempt_course/' + courseCode, {method:'POST', headers:{'Content-Type':'application/json'}})
     .then(r=>r.json())
-    .then(d=>{ if(d.success){ alert('Course reset. You can start again.'); location.reload(); } else { alert('Reattempt failed: ' + (d.message||'Unknown error')); } })
-    .catch(()=>alert('Request failed.'));
+    .then(async d=>{
+      if(d.success){
+        await customAlert('Course reset. You can start again.', 'Success', {type: 'success'});
+        location.reload();
+      } else {
+        await customAlert('Reattempt failed: ' + (d.message||'Unknown error'), 'Error', {type: 'danger'});
+      }
+    })
+    .catch(async ()=> await customAlert('Request failed.', 'Error', {type: 'danger'}));
 }
 </script>
 {% endblock %}

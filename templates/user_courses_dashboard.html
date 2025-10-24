@@ -76,8 +76,8 @@
         <div class="font-semibold text-lg">{{ user.current_workplace }}</div>
       </div>
       <div>
-        <div class="text-gray-500 text-sm">Agency ID</div>
-        <div class="font-semibold text-lg">{{ user.agency_id }}</div>
+        <div class="text-gray-500 text-sm">Agency</div>
+        <div class="font-semibold text-lg">{{ user.agency.agency_name if user.agency else '—' }}</div>
       </div>
     </div>
   </div>

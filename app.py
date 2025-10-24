@@ -6,6 +6,7 @@ from routes import main_bp
 from authority_routes import authority_bp
 from flask_mail import Mail
 import os
+import logging
 
 app = Flask(__name__, static_url_path='/static')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
@@ -15,7 +16,9 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///security_training.db'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:password@localhost:5432/Training_system'
+
+logging.info(f"Using database: {app.config['SQLALCHEMY_DATABASE_URI']}")
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
@@ -33,6 +36,10 @@ mail = Mail(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'main.login'
+
+# Create database tables if they don't exist
+with app.app_context():
+    db.create_all()
 
 # Restore the user loader so flask-login can resolve current_user
 @login_manager.user_loader

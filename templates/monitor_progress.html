@@ -73,14 +73,13 @@
   {% if rows and rows|length > 0 %}
   <div class="card shadow-sm">
     <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-striped mb-0 align-middle">
+      <div class="table-responsive px-4 pt-4 pb-2">
+        <table class="table table-striped mb-0 align-middle" id="progressTable" data-paginate="true" data-items-per-page="50">
           <thead class="table-light">
             <tr>
               <th>User</th>
               <th>Course</th>
               <th>Agency</th>
-              <th>Completed</th>
               <th>Progress</th>
               <th>Avg Score</th>
               <th>Status</th>
@@ -92,15 +91,14 @@
               <td>{{ r.user_name }}</td>
               <td>{{ r.course_name }} <span class="badge bg-secondary">{{ r.course_code }}</span></td>
               <td>{{ r.agency_name }}</td>
-              <td>{{ r.completed_modules }}/{{ r.total_modules }}</td>
               <td>
                 <div class="progress" style="height: 20px;">
                   <div class="progress-bar {% if r.progress_pct >= 100 %}bg-success{% elif r.progress_pct >= 50 %}bg-primary{% else %}bg-warning text-dark{% endif %}" role="progressbar" style="width: {{ r.progress_pct }}%;" aria-valuenow="{{ r.progress_pct }}" aria-valuemin="0" aria-valuemax="100">{{ r.progress_pct }}%</div>
                 </div>
               </td>
               <td>
-                {% if r.avg_score is not none %}
-                  <span class="fw-semibold {% if r.avg_score <= 50 %}text-danger{% elif r.avg_score > 75 %}text-success{% else %}text-primary{% endif %}">{{ r.avg_score }}</span>%
+                {% if r.score is not none %}
+                  <span class="fw-semibold {% if r.score <= 50 %}text-danger{% elif r.score > 75 %}text-success{% else %}text-primary{% endif %}">{{ r.score }}</span>%
                 {% else %}-{% endif %}
               </td>
               <td>

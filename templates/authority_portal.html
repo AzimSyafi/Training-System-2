@@ -45,9 +45,9 @@
   </div>
 
   <div class="card">
-    <div class="card-body">
-      <div class="table-responsive">
-        <table class="table table-striped align-middle" id="pendingTable">
+    <div class="card-body p-0">
+      <div class="table-responsive px-4 pt-4 pb-2">
+        <table class="table table-striped align-middle" id="pendingTable" data-paginate="true" data-items-per-page="50">
           <thead>
             <tr>
               {% if selected_status=='pending' %}
@@ -111,7 +111,7 @@
           </tbody>
         </table>
       </div>
-      <div id="resultArea" class="mt-3" aria-live="polite"></div>
+      <div id="resultArea" class="mt-3 px-4 pb-3" aria-live="polite"></div>
     </div>
   </div>
 </div>

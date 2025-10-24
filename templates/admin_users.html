@@ -85,13 +85,12 @@
         {% if merged_accounts %}
         <div class="card shadow-sm">
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-striped mb-0 align-middle">
+                <div class="table-responsive px-4 pt-4 pb-2">
+                    <table class="table table-striped mb-0 align-middle" id="mergedAccountsTable" data-paginate="true" data-items-per-page="50">
                         <thead class="table-light">
                             <tr>
                                 <th>Type</th>
                                 <th>ID</th>
-                                <th>Series</th>
                                 <th>Name</th>
                                 <th>Email</th>
                                 <th>Agency</th>
@@ -126,7 +125,6 @@
                                         A-{{ acc.id }}
                                     {% endif %}
                                 </td>
-                                <td>{% if acc.type == 'user' or acc.type == 'trainer' %}{{ acc.number_series or '' }}{% else %}&mdash;{% endif %}</td>
                                 <td>{{ acc.name }}</td>
                                 <td>{{ acc.email }}</td>
                                 <td>{% if acc.type == 'user' or acc.type == 'authority' %}{{ acc.agency }}{% else %}&mdash;{% endif %}</td>
@@ -143,9 +141,9 @@
                                             <i class="fas fa-ellipsis-h"></i>
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end">
-                                            <li><button class="dropdown-item" onclick="openChangeRoleModal('{{ acc.id }}', '{{ acc.type }}')"><i class="fas fa-user-cog me-2 text-primary"></i>Change Role</button></li>
+                                            <li><a class="dropdown-item" href="#" onclick="openChangeRoleModal('{{ acc.id }}', '{{ acc.type }}'); return false;"><i class="fas fa-user-cog me-2 text-primary"></i>Change Role</a></li>
                                             <li><hr class="dropdown-divider"></li>
-                                            <li><button class="dropdown-item text-danger" onclick="deleteUserOrTrainer('{{ acc.id }}', '{{ acc.name }}', '{{ acc.type }}')"><i class="fas fa-trash-alt me-2"></i>Delete</button></li>
+                                            <li><a class="dropdown-item text-danger" href="#" onclick="deleteUserOrTrainer('{{ acc.id }}', '{{ acc.name }}', '{{ acc.type }}'); return false;"><i class="fas fa-trash-alt me-2"></i>Delete</a></li>
                                         </ul>
                                     </div>
                                 </td>
@@ -231,6 +229,7 @@
       <form id="changeRoleForm">
         <div class="modal-body">
           <input type="hidden" id="changeRoleUserId" name="user_id">
+          <input type="hidden" id="changeRoleOrigType" name="orig_type">
           <div class="mb-3">
             <label for="newRole" class="form-label">Select New Role</label>
             <select class="form-select" id="newRole" name="new_role" required>
@@ -270,6 +269,7 @@
 
 {% block scripts %}
 <script>
+// Define all functions globally so they're accessible from onclick attributes
 function showTempAlert(message, type = 'success', duration = 1500) {
     const container = document.getElementById('tempAlertContainer');
     if (!container) return;
@@ -286,7 +286,7 @@ function showTempAlert(message, type = 'success', duration = 1500) {
 function viewUserProgress(userId) {
     fetch(`/api/user_progress/${userId}`)
         .then(response => response.json())
-        .then data => {
+        .then(data => {
             let content = '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Module</th><th>Status</th><th>Score</th><th>Completion Date</th></tr></thead><tbody>';
 
             data.forEach(module => {
@@ -294,111 +294,261 @@ function viewUserProgress(userId) {
                     '<span class="badge bg-success">Completed</span>' :
                     '<span class="badge bg-warning">In Progress</span>';
 
-                let scoreClass = '';
-                if (module.score <= 50) scoreClass = 'text-danger';
-                else if (module.score > 75) scoreClass = 'text-success';
-                else scoreClass = 'text-primary';
+                let scoreClass = (module.score === null || module.score === undefined) ? 'text-muted' : (module.score <= 50 ? 'text-danger' : (module.score > 75 ? 'text-success' : 'text-primary'));
 
                 content += `<tr>
                     <td>${module.module_name}</td>
                     <td>${statusBadge}</td>
-                    <td><span class="${scoreClass}">${module.score}%</span></td>
-                    <td>${module.completion_date && module.completion_date.trim() ? new Date(module.completion_date).toLocaleDateString() : 'N/A'}</td>
+                    <td><span class="${scoreClass}">${module.score !== null && module.score !== undefined ? module.score + '%' : 'N/A'}</span></td>
+                    <td>${module.completion_date && module.completion_date.toString().trim() ? new Date(module.completion_date).toLocaleDateString() : 'N/A'}</td>
                 </tr>`;
             });
 
             content += '</tbody></table></div>';
-            document.getElementById('userProgressContent').innerHTML = content;
+            const container = document.getElementById('userProgressContent');
+            if (container) container.innerHTML = content;
 
             new bootstrap.Modal(document.getElementById('userProgressModal')).show();
         })
         .catch(error => {
             console.error('Error:', error);
-            document.getElementById('userProgressContent').innerHTML = '<div class="alert alert-danger">Error loading user progress.</div>';
+            const container = document.getElementById('userProgressContent');
+            if (container) container.innerHTML = '<div class="alert alert-danger">Error loading user progress.</div>';
         });
 }
 
-function resetUserProgress(userId, userName) {
-    if (!confirm(`Reset all progress for ${userName}?`)) return;
-    const resetUrl = "{{ safe_url_for('main.reset_user_progress') }}";
-    if (!resetUrl || resetUrl === '#' || resetUrl.startsWith('#')) {
-        showTempAlert('Reset endpoint not available.', 'danger');
-        return;
-    }
-    fetch(resetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `user_id=${userId}`
-    })
-    .then(response => response.json())
-    .then(data => {
-        showTempAlert(data.message || 'Progress reset.', data.success ? 'success' : 'danger');
+async function resetUserProgress(userId, userName) {
+    console.log('Reset progress function called:', { userId, userName });
+
+    try {
+        const confirmed = await customConfirm(`Reset all progress for "${userName}"? This will delete all module progress, course progress, and certificates. This action cannot be undone.`, 'Confirm Reset', {type: 'danger', confirmText: 'Reset Progress', confirmClass: 'btn-danger'});
+        console.log('User confirmed reset:', confirmed);
+
+        if (!confirmed) return;
+
+        const response = await fetch('/reset_user_progress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `user_id=${encodeURIComponent(userId)}`
+        });
+
+        console.log('Response status:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Response data:', data);
+
+        showTempAlert(data.message || 'Progress reset successfully.', data.success ? 'success' : 'danger', 2000);
+
         if (data.success) {
             const ratingCell = document.getElementById(`user-rating-${userId}`);
             if (ratingCell) {
                 ratingCell.innerHTML = '<i class="far fa-star text-muted"></i>'.repeat(5);
             }
+            // Optionally reload to show updated data
+            setTimeout(() => location.reload(), 2000);
         }
-    })
-    .catch(() => showTempAlert('Failed to reset progress.', 'danger'));
+    } catch (error) {
+        console.error('Reset progress error:', error);
+        showTempAlert(`Error: ${error.message || 'Failed to reset progress. Please check console for details.'}`, 'danger', 3000);
+    }
 }
 
 function openChangeRoleModal(userId, userType) {
-    document.getElementById('changeRoleUserId').value = userId;
-    document.getElementById('newRole').value = userType;
-    new bootstrap.Modal(document.getElementById('changeRoleModal')).show();
-}
+    console.log('openChangeRoleModal called with:', { userId, userType });
 
-document.getElementById('changeRoleForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const userId = document.getElementById('changeRoleUserId').value;
-    const newRole = document.getElementById('newRole').value;
-    fetch("/change_role", {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `user_id=${userId}&new_role=${newRole}`
-    })
-    .then(response => response.json())
-    .then(data => {
-        showTempAlert(data.message || 'Role updated.', data.success ? 'success' : 'danger', 1500);
-        if (data.success) {
-            setTimeout(() => location.reload(), 1500);
-        }
-    })
-    .catch(() => showTempAlert('Failed to change role.', 'danger', 2000));
-});
+    const input = document.getElementById('changeRoleUserId');
+    const select = document.getElementById('newRole');
+    const orig = document.getElementById('changeRoleOrigType');
 
-function deleteUserOrTrainer(userId, fullName, userType) {
-    if (!confirm(`Delete ${userType} ${fullName}? This cannot be undone.`)) return;
-    let url = userType === 'trainer' ? "{{ safe_url_for('main.delete_trainer') }}" : "{{ safe_url_for('main.delete_user') }}";
-    if (!url || url === '#' || url.startsWith('#')) {
-        showTempAlert('Delete endpoint not available.', 'danger');
+    if (!input || !select || !orig) {
+        console.error('Modal elements not found', { input: !!input, select: !!select, orig: !!orig });
         return;
     }
-    let key = userType === 'trainer' ? 'trainer_id' : 'user_id';
-    fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `${key}=${userId}`
-    })
-    .then(r => r.json())
-    .then(resp => {
-        if (resp.success) {
-            const row = document.getElementById(`${userType}-row-${userId}`);
-            if (row) row.remove();
-            showTempAlert(resp.message || (userType.charAt(0).toUpperCase() + userType.slice(1)) + ' deleted.', 'success');
-        } else {
-            showTempAlert(resp.message || 'Failed to delete.', 'danger');
-        }
-    })
-    .catch(() => showTempAlert('Error deleting.', 'danger'));
+
+    // Set the values
+    input.value = userId;
+    orig.value = userType;
+
+    console.log('After setting values:', {
+        userId: input.value,
+        origType: orig.value,
+        userType: userType
+    });
+
+    // Only set to a known role option; default to 'user' when unknown (eg. 'authority')
+    const allowed = Array.from(select.options).map(o => o.value);
+    select.value = allowed.includes(userType) ? userType : 'user';
+
+    console.log('Select value set to:', select.value, 'Allowed values:', allowed);
+
+    const modalElement = document.getElementById('changeRoleModal');
+    if (modalElement) {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } else {
+        console.error('Modal element not found');
+    }
 }
 
-// Auto-open modal if server indicated so via query param
-{% if request.args.get('show_create_modal') %}
-    document.addEventListener('DOMContentLoaded', function(){
-        new bootstrap.Modal(document.getElementById('createUserModal')).show();
+async function deleteUserOrTrainer(userId, fullName, userType) {
+    console.log('Delete function called:', { userId, fullName, userType });
+
+    try {
+        const confirmed = await customConfirm(`Delete ${userType} "${fullName}"? This action cannot be undone.`, 'Confirm Delete', {type: 'danger', confirmText: 'Delete', confirmClass: 'btn-danger'});
+        console.log('User confirmed:', confirmed);
+
+        if (!confirmed) return;
+
+        // Determine URL and parameter key based on user type
+        let url, key;
+        if (userType === 'trainer') {
+            url = '/delete_trainer';
+            key = 'trainer_id';
+        } else if (userType === 'user' || userType === 'authority') {
+            url = '/delete_user';
+            key = 'user_id';
+        } else if (userType === 'admin') {
+            showTempAlert('Cannot delete admin accounts from this interface.', 'warning');
+            return;
+        } else {
+            showTempAlert('Unknown user type: ' + userType, 'danger');
+            return;
+        }
+
+        console.log('Sending delete request to:', url, 'with', key, '=', userId);
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `${key}=${encodeURIComponent(userId)}`
+        });
+
+        console.log('Response status:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const resp = await response.json();
+        console.log('Response data:', resp);
+
+        if (resp.success) {
+            const row = document.getElementById(`${userType}-row-${userId}`);
+            if (row) {
+                row.remove();
+                console.log('Row removed from table');
+            }
+            showTempAlert(resp.message || `${userType.charAt(0).toUpperCase() + userType.slice(1)} deleted successfully.`, 'success', 2000);
+        } else {
+            showTempAlert(resp.message || 'Failed to delete. Please try again.', 'danger', 3000);
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        showTempAlert(`Error: ${error.message || 'Failed to delete. Please check console for details.'}`, 'danger', 3000);
+    }
+}
+
+// Initialize everything when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Admin users page loaded');
+
+    // Attach form submit listener
+    const changeRoleForm = document.getElementById('changeRoleForm');
+    if (changeRoleForm) {
+        changeRoleForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const userId = document.getElementById('changeRoleUserId').value;
+            const newRole = document.getElementById('newRole').value;
+            const origType = document.getElementById('changeRoleOrigType').value;
+
+            console.log('Change role request:', { userId, newRole, origType });
+
+            if (!userId || !newRole || !origType) {
+                showTempAlert('Missing required information. Please try again.', 'warning', 2000);
+                return;
+            }
+
+            try {
+                const response = await fetch('/change_role', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `user_id=${encodeURIComponent(userId)}&new_role=${encodeURIComponent(newRole)}&orig_type=${encodeURIComponent(origType)}`
+                });
+
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+
+                // Parse JSON response regardless of status
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (!response.ok) {
+                    // Show the actual error message from the server
+                    showTempAlert(data.message || `Server error: ${response.status}`, 'danger', 3000);
+                    return;
+                }
+
+                // Close modal
+                const modalElement = document.getElementById('changeRoleModal');
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) {
+                    modal.hide();
+                }
+
+                // Show result message
+                showTempAlert(data.message || 'Role updated successfully.', data.success ? 'success' : 'danger', 2000);
+
+                // Reload page on success
+                if (data.success) {
+                    setTimeout(() => location.reload(), 2000);
+                }
+            } catch (error) {
+                console.error('Role change error:', error);
+                showTempAlert(`Error: ${error.message || 'Failed to change role. Please check console for details.'}`, 'danger', 3000);
+            }
+        });
+    } else {
+        console.error('Change role form not found in DOM');
+    }
+
+    // Initialize all dropdowns explicitly
+    const dropdownElementList = document.querySelectorAll('.dropdown-toggle');
+    dropdownElementList.forEach(dropdownToggleEl => {
+        new bootstrap.Dropdown(dropdownToggleEl, {
+            autoClose: true,
+            boundary: 'viewport'
+        });
     });
-{% endif %}
+
+    // Add touch event handling for dropdown buttons (mobile support)
+    document.querySelectorAll('.dropdown-toggle').forEach(button => {
+        button.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            setTimeout(() => this.click(), 10);
+        }, { passive: false });
+    });
+
+    // Add specific handling for dropdown items
+    document.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.click();
+        }, { passive: false });
+    });
+
+    {% if request.args.get('show_create_modal') %}
+    // Auto-open modal if server indicated so
+    const createModal = document.getElementById('createUserModal');
+    if (createModal) {
+        new bootstrap.Modal(createModal).show();
+    }
+    {% endif %}
+});
 </script>
 {% endblock %}

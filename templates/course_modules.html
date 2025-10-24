@@ -731,13 +731,19 @@ function toggleModule(moduleId) {
   chevron.classList.toggle('fa-chevron-down', open);
   header.classList.toggle('collapsed', open === true); // add collapsed when hiding body
 }
-function reattemptCourse(courseType) {
-  if (confirm('Are you sure you want to reattempt this course? All your progress will be reset.')) {
+async function reattemptCourse(courseType) {
+  const confirmed = await customConfirm('Are you sure you want to reattempt this course? All your progress will be reset.', 'Confirm Reattempt', {type: 'danger', confirmText: 'Reset Progress', confirmClass: 'btn-danger'});
+  if (confirmed) {
     fetch(`/api/reattempt_course/${courseType}`, {method:'POST', headers:{'Content-Type':'application/json'}})
-      .then(r=>r.json()).then(data=>{
-        if(data.success){ alert('Course reset.'); location.reload(); }
-        else { alert('Failed: ' + (data.message||'Unknown')); }
-      }).catch(e=>alert('Error: '+e));
+      .then(r=>r.json()).then(async data=>{
+        if(data.success){
+          await customAlert('Course reset.', 'Success', {type: 'success'});
+          location.reload();
+        }
+        else {
+          await customAlert('Failed: ' + (data.message||'Unknown'), 'Error', {type: 'danger'});
+        }
+      }).catch(async e=> await customAlert('Error: '+e, 'Error', {type: 'danger'}));
   }
 }
 
