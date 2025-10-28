@@ -2,7 +2,7 @@
 Routes for Training System app, using Flask Blueprint.
 All route functions from app.py are moved here.
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory, abort, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory, abort, current_app, make_response
 from flask_login import login_user, login_required, logout_user, current_user
 from werkzeug.utils import secure_filename
 from datetime import datetime
@@ -18,6 +18,45 @@ import smtplib
 from email.mime.text import MIMEText
 
 main_bp = Blueprint('main', __name__)
+
+def resolve_uid():
+    """Return numeric User.User_id for the currently-authenticated user when possible.
+    - If `current_user` is a User instance, return `current_user.User_id`.
+    - Else try to use `session['user_type']` and `session['user_id']` to locate the User record.
+    - Returns None when no user id can be resolved.
+    """
+    try:
+        # If current_user is a User model instance, prefer that
+        if hasattr(current_user, 'User_id') and getattr(current_user, 'User_id'):
+            return getattr(current_user, 'User_id')
+    except Exception:
+        pass
+    try:
+        sid = session.get('user_id')
+    except Exception:
+        sid = None
+    if not sid:
+        return None
+    # If sid looks like an integer string, try using it as User_id
+    try:
+        if isinstance(sid, int):
+            candidate = User.query.filter_by(User_id=int(sid)).first()
+            if candidate:
+                return candidate.User_id
+        s = str(sid).strip()
+        if s.isdigit():
+            candidate = User.query.filter_by(User_id=int(s)).first()
+            if candidate:
+                return candidate.User_id
+        # Otherwise, session may store number_series (e.g. 'SG20250001'), try to find by number_series
+        candidate = User.query.filter_by(number_series=s).first()
+        if candidate:
+            return candidate.User_id
+    except Exception:
+        # Any DB error -> return None
+        logging.exception('[resolve_uid] Failed resolving user id from session')
+        return None
+    return None
 
 # Home route
 @main_bp.route('/')
@@ -97,7 +136,7 @@ def signup():
             session['user_type'] = 'user'
             session['user_id'] = new_user.get_id()
             flash('Account created successfully! Complete your profile to finalize registration.', 'success')
-            return redirect(url_for('main.onboarding', id=new_user.User_id))
+            return redirect(url_for('main.profile'))
         except ValueError as ve:
             flash(str(ve), 'danger')
         except Exception as e:
@@ -302,6 +341,96 @@ def user_modules_page(course_id):
         abort(500)
     return render_template('user_courses_dashboard.html', user=user, course=course, module_progress=module_progress)
 
+# Course modules page (by course code)
+@main_bp.route('/modules/<course_code>')
+@login_required
+def course_modules(course_code):
+    """Render the modules page for a course identified by its code (case-insensitive)."""
+    try:
+        # Find course by code (case-insensitive)
+        course = Course.query.filter(Course.code.ilike(course_code)).first()
+        if not course:
+            abort(404)
+        # Permission check: ensure user can access this course
+        if not (isinstance(current_user, Admin) or isinstance(current_user, Trainer) or getattr(current_user, 'role', None) == 'authority' or isinstance(current_user, AgencyAccount)):
+            cat = normalized_user_category(current_user)
+            if course.allowed_category not in (cat, 'both'):
+                abort(403)
+        # Load modules in defined order
+        modules = list(course.modules)
+        # Build user progress map for these modules
+        module_ids = [m.module_id for m in modules]
+        user_modules = {}
+        if module_ids:
+            ums = UserModule.query.filter(UserModule.user_id == current_user.User_id, UserModule.module_id.in_(module_ids)).all()
+            user_modules = {um.module_id: um for um in ums}
+        # Determine unlocked status: first module unlocked by default; subsequent unlocked if previous completed
+        prev_completed = True
+        for idx, m in enumerate(modules):
+            if idx == 0:
+                m.unlocked = True
+                prev_completed = user_modules.get(m.module_id).is_completed if user_modules.get(m.module_id) else False
+            else:
+                m.unlocked = bool(prev_completed)
+                prev_completed = user_modules.get(m.module_id).is_completed if user_modules.get(m.module_id) else False
+        # Compute overall percentage across completed modules (ignore None)
+        scores = [um.score for um in user_modules.values() if um and um.is_completed and um.score is not None]
+        overall_percentage = round(sum(scores)/len(scores),1) if scores else None
+    except Exception:
+        logging.exception('[COURSE MODULES] Failed building course modules page')
+        abort(500)
+    return render_template('course_modules.html', modules=modules, course_name=course.name, user_progress=user_modules, overall_percentage=overall_percentage)
+
+
+# API: check module disclaimer agreement status
+@main_bp.route('/api/check_module_disclaimer/<int:module_id>')
+@login_required
+def api_check_module_disclaimer(module_id):
+    try:
+        mod = db.session.get(Module, module_id)
+        if not mod:
+            return jsonify({'success': False, 'message': 'Module not found'}), 404
+        # Ensure we operate on a User instance (current_user should be a User for trainees)
+        if not hasattr(current_user, 'has_agreed_to_module_disclaimer'):
+            # Try to load the user record from DB if possible
+            try:
+                user = User.query.filter_by(User_id=resolve_uid()).first()
+            except Exception:
+                user = None
+            if not user:
+                return jsonify({'success': False, 'message': 'Not a trainee user'}), 400
+            has_agreed = user.has_agreed_to_module_disclaimer(module_id)
+        else:
+            has_agreed = current_user.has_agreed_to_module_disclaimer(module_id)
+        return jsonify({'success': True, 'has_agreed': bool(has_agreed)})
+    except Exception:
+        logging.exception('[API] check_module_disclaimer')
+        return jsonify({'success': False, 'message': 'Server error'}), 500
+
+
+# API: record agreement to module disclaimer
+@main_bp.route('/api/agree_module_disclaimer/<int:module_id>', methods=['POST'])
+@login_required
+def api_agree_module_disclaimer(module_id):
+    try:
+        mod = db.session.get(Module, module_id)
+        if not mod:
+            return jsonify({'success': False, 'message': 'Module not found'}), 404
+        if not hasattr(current_user, 'agree_to_module_disclaimer'):
+            try:
+                user = User.query.filter_by(User_id=resolve_uid()).first()
+            except Exception:
+                user = None
+            if not user:
+                return jsonify({'success': False, 'message': 'Not a trainee user'}), 400
+            user.agree_to_module_disclaimer(module_id)
+        else:
+            current_user.agree_to_module_disclaimer(module_id)
+        return jsonify({'success': True})
+    except Exception:
+        logging.exception('[API] agree_module_disclaimer')
+        return jsonify({'success': False, 'message': 'Server error'}), 500
+
 # Profile
 @main_bp.route('/profile', methods=['GET', 'POST'])
 @login_required
@@ -333,7 +462,9 @@ def profile():
                     file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'profile_pics', filename)
                     os.makedirs(os.path.dirname(file_path), exist_ok=True)
                     file.save(file_path)
-                    current_user.profile_pic = filename
+                    # Store relative path (including subfolder) so serve_uploaded_slide can locate it
+                    # Use forward slashes for URL compatibility across platforms
+                    current_user.Profile_picture = f"profile_pics/{filename}"
 
             # Handle working experiences
             # First, delete existing experiences
@@ -697,14 +828,33 @@ def admin_users():
     return render_template('admin_users.html', merged_accounts=merged_accounts, agencies=agencies)
 
 # Admin course management
-@main_bp.route('/admin_course_management')
+@main_bp.route('/admin_course_management', methods=['GET', 'POST'])
 @login_required
 def admin_course_management():
     if not isinstance(current_user, Admin):
         return redirect(url_for('main.login'))
+    if request.method == 'POST':
+        try:
+            module_id = request.form.get('module_id')
+            quiz_json = request.form.get('quiz_data')
+            if not module_id or not quiz_json:
+                flash('Missing module_id or quiz_json', 'danger')
+                return redirect(url_for('main.admin_course_management'))
+            module = db.session.get(Module, int(module_id))
+            if not module:
+                flash('Module not found', 'danger')
+                return redirect(url_for('main.admin_course_management'))
+            module.quiz_json = quiz_json
+            db.session.commit()
+            flash('Quiz updated successfully', 'success')
+        except Exception as e:
+            db.session.rollback()
+            logging.exception('[ADMIN COURSE MANAGEMENT] Failed to update quiz')
+            flash(f'Error updating quiz: {e}', 'danger')
+        return redirect(url_for('main.admin_course_management'))
     try:
         courses = Course.query.order_by(Course.name).all()
-        modules = Module.query.order_by(Module.module_name).all()
+        modules = Module.query.order_by(Module.series_number.asc()).all()
         # Group modules by course_id
         course_modules = {}
         for module in modules:
@@ -1083,3 +1233,578 @@ def admin_create_agency_account(agency_id):
         logging.exception('[ADMIN CREATE AGENCY ACCOUNT] Failed')
         flash('Failed to create agency account.', 'danger')
         return redirect(url_for('main.admin_agencies'))
+
+@main_bp.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    """Handle 'forgot password' requests: generate a token and email a reset link.
+    We do not reveal whether an account exists for the provided email.
+    """
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        if not email:
+            flash('Please enter your email address.', 'danger')
+            return render_template('forgot_password.html')
+
+        # Look up any account associated with this email (do not reveal existence)
+        try:
+            user = User.query.filter_by(email=email).first()
+            if not user:
+                user = Admin.query.filter_by(email=email).first()
+            if not user:
+                user = Trainer.query.filter_by(email=email).first()
+            if not user:
+                user = AgencyAccount.query.filter_by(email=email).first()
+        except Exception:
+            logging.exception('[FORGOT PASSWORD] DB lookup failed')
+            user = None
+
+        # Create a token regardless; if no user exists token won't be useful but we don't disclose that.
+        try:
+            serializer = URLSafeTimedSerializer(current_app.config.get('SECRET_KEY'))
+            token = serializer.dumps(email, salt='password-reset-salt')
+            reset_link = url_for('main.reset_password', token=token, _external=True)
+
+            subject = 'Password reset for Security Training System'
+            body = f"Hello,\n\nWe received a request to reset the password for the account associated with this email.\n\nIf this was you, click the link below to reset your password (link expires in 1 hour):\n\n{reset_link}\n\nIf you did not request this, please ignore this message.\n\n-- Security Training System"
+
+            # Try to use Flask-Mail if available
+            mail_ext = current_app.extensions.get('mail') if hasattr(current_app, 'extensions') else None
+            if mail_ext:
+                try:
+                    msg = Message(subject=subject, recipients=[email], body=body)
+                    mail_ext.send(msg)
+                except Exception:
+                    # Fall back to direct SMTP send below
+                    logging.exception('[FORGOT PASSWORD] Flask-Mail send failed, falling back to SMTP')
+                    mail_ext = None
+
+            if not mail_ext:
+                # Fallback: send via localhost SMTP (MailHog/Dev SMTP)
+                try:
+                    smtp_host = current_app.config.get('MAIL_SERVER', 'localhost')
+                    smtp_port = current_app.config.get('MAIL_PORT', 1025)
+                    from_addr = current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@example.com')
+                    with smtplib.SMTP(smtp_host, smtp_port) as smtp:
+                        msg = MIMEText(body)
+                        msg['Subject'] = subject
+                        msg['From'] = from_addr
+                        msg['To'] = email
+                        smtp.sendmail(from_addr, [email], msg.as_string())
+                except Exception:
+                    logging.exception('[FORGOT PASSWORD] SMTP send failed')
+                    # Don't reveal send failure details to user beyond a generic message
+                    flash('Failed to send reset email. Please contact support.', 'danger')
+                    return redirect(url_for('main.login'))
+
+            # Always show a neutral message so attackers cannot confirm account existence
+            flash('If an account with that email exists, a password reset link has been sent.', 'info')
+        except Exception:
+            logging.exception('[FORGOT PASSWORD] Error generating or sending reset link')
+            flash('An error occurred. Please try again later.', 'danger')
+        return redirect(url_for('main.login'))
+
+    return render_template('forgot_password.html')
+
+
+@main_bp.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    """Allow user to reset password using a token sent by email."""
+    serializer = URLSafeTimedSerializer(current_app.config.get('SECRET_KEY'))
+    try:
+        email = serializer.loads(token, salt='password-reset-salt', max_age=3600)  # 1 hour
+    except Exception:
+        flash('The password reset link is invalid or has expired.', 'danger')
+        return redirect(url_for('main.forgot_password'))
+
+    # Lookup user by email
+    try:
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            user = Admin.query.filter_by(email=email).first()
+        if not user:
+            user = Trainer.query.filter_by(email=email).first()
+        if not user:
+            user = AgencyAccount.query.filter_by(email=email).first()
+    except Exception:
+        logging.exception('[RESET PASSWORD] DB lookup failed')
+        user = None
+
+    if request.method == 'POST':
+        new_password = request.form.get('new_password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+        if not new_password or not confirm_password:
+            flash('Please provide and confirm your new password.', 'danger')
+            return render_template('reset_password.html', token=token)
+        if new_password != confirm_password:
+            flash('New password and confirmation do not match.', 'danger')
+            return render_template('reset_password.html', token=token)
+        if len(new_password) < 8:
+            flash('New password must be at least 8 characters long.', 'danger')
+            return render_template('reset_password.html', token=token)
+
+        if not user:
+            # If no user exists for this email, don't reveal it.
+            flash('Password reset completed. Please log in with your new password.', 'success')
+            return redirect(url_for('main.login'))
+
+        try:
+            user.set_password(new_password)
+            db.session.commit()
+            flash('Your password has been reset successfully. Please log in with your new password.', 'success')
+            return redirect(url_for('main.login'))
+        except Exception:
+            db.session.rollback()
+            logging.exception('[RESET PASSWORD] Failed to update password')
+            flash('Failed to reset password. Please try again later.', 'danger')
+            return render_template('reset_password.html', token=token)
+
+    return render_template('reset_password.html', token=token)
+
+# Module quiz player
+@main_bp.route('/module/<int:module_id>/quiz')
+@login_required
+def module_quiz(module_id):
+    """Render the quiz player for a specific module."""
+    try:
+        module = db.session.get(Module, module_id)
+        if not module:
+            abort(404)
+        course = None
+        try:
+            if getattr(module, 'course_id', None):
+                course = db.session.get(Course, module.course_id)
+        except Exception:
+            course = None
+        # Load user_module progress if available
+        user_module = None
+        try:
+            if hasattr(current_user, 'User_id'):
+                user_module = UserModule.query.filter_by(user_id=current_user.User_id, module_id=module_id).first()
+            else:
+                # fallback: attempt to resolve a User and load progress
+                u = None
+                try:
+                    u = User.query.filter_by(User_id=resolve_uid()).first()
+                except Exception:
+                    u = None
+                if u:
+                    user_module = UserModule.query.filter_by(user_id=u.User_id, module_id=module_id).first()
+        except Exception:
+            user_module = None
+        return render_template('quiz_take.html', module=module, course=course, user_module=user_module)
+    except Exception:
+        logging.exception('[MODULE QUIZ] Failed loading quiz page')
+        abort(500)
+
+# Quiz APIs
+@main_bp.route('/api/load_quiz/<int:module_id>')
+@login_required
+def api_load_quiz(module_id):
+    """Return quiz data for a module as JSON (list of questions).
+    Supports multiple storage shapes for Module.quiz_json.
+    """
+    try:
+        mod = db.session.get(Module, module_id)
+        if not mod:
+            return jsonify([]), 404
+        raw = mod.quiz_json
+        if not raw:
+            return jsonify([])
+        import json
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            # If it's not valid JSON, return empty
+            return jsonify([])
+        # Normalize to a list of questions: support list, or dict with 'questions'/'quiz' keys
+        questions = []
+        if isinstance(parsed, list):
+            questions = parsed
+        elif isinstance(parsed, dict):
+            # Try common keys
+            if 'questions' in parsed and isinstance(parsed['questions'], list):
+                questions = parsed['questions']
+            elif 'quiz' in parsed and isinstance(parsed['quiz'], list):
+                questions = parsed['quiz']
+            else:
+                # If dict looks like a single question, wrap it
+                # Accept keys 'text' and 'answers'
+                if 'text' in parsed and 'answers' in parsed:
+                    questions = [parsed]
+                else:
+                    # Unknown structure -> return empty
+                    questions = []
+        else:
+            questions = []
+        # Ensure each question has answers array with 'text' and optional 'isCorrect'
+        out = []
+        for q in questions:
+            if not isinstance(q, dict):
+                continue
+            q_text = q.get('text') or q.get('question') or ''
+            answers = []
+            raw_answers = q.get('answers') or q.get('choices') or []
+            if isinstance(raw_answers, dict):
+                # convert dict to list of {text:..., isCorrect:...}
+                for k, v in raw_answers.items():
+                    if isinstance(v, dict):
+                        answers.append({'text': v.get('text', str(v)), 'isCorrect': bool(v.get('isCorrect', False))})
+                    else:
+                        answers.append({'text': str(v), 'isCorrect': False})
+            elif isinstance(raw_answers, list):
+                for a in raw_answers:
+                    if isinstance(a, dict):
+                        answers.append({'text': a.get('text', ''), 'isCorrect': bool(a.get('isCorrect', False))})
+                    else:
+                        answers.append({'text': str(a), 'isCorrect': False})
+            # Find correct index
+            correct_idx = -1
+            if isinstance(q, dict):
+                if isinstance(q.get('correctIndex'), int):
+                    correct_idx = q.get('correctIndex')
+                elif isinstance(q.get('correct'), int):
+                    correct_idx = q.get('correct')
+                elif isinstance(q.get('correct'), str) and q.get('correct').isdigit():
+                    correct_idx = int(q.get('correct'))
+            # Inspect answers for isCorrect
+            if isinstance(raw_answers, list):
+                for i, a in enumerate(raw_answers):
+                    if isinstance(a, dict):
+                        if a.get('isCorrect') or a.get('is_correct') or a.get('correct') is True or a.get('isAnswer') or a.get('answer_is_correct'):
+                            correct_idx = i
+                            break
+            # Set isCorrect on the correct answer
+            if correct_idx != -1 and correct_idx < len(answers):
+                answers[correct_idx]['isCorrect'] = True
+            out.append({'text': q_text, 'answers': answers, 'correctIndex': correct_idx})
+        return jsonify(out)
+    except Exception:
+        logging.exception('[API] load_quiz')
+        return jsonify([]), 500
+
+
+@main_bp.route('/api/user_quiz_answers/<int:module_id>')
+@login_required
+def api_get_user_quiz_answers(module_id):
+    """Return saved answers array for the current user and module.
+    Simpler, robust behavior:
+    - Resolve the current user id.
+    - Return parsed JSON array when possible.
+    - If stored value is a non-JSON string or otherwise unparsable, attempt a safe fallback parsing (comma/bracket split) and return an array of values or nulls.
+    """
+    try:
+        # Resolve user id
+        uid = None
+        try:
+            uid = resolve_uid()
+        except Exception:
+            uid = getattr(current_user, 'User_id', None)
+            if not uid:
+                try:
+                    uid = int(session.get('user_id'))
+                except Exception:
+                    uid = None
+        if not uid:
+            logging.info('[API user_quiz_answers] No user id available')
+            return jsonify([]), 400
+
+        um = UserModule.query.filter_by(user_id=uid, module_id=module_id).first()
+        if not um or not getattr(um, 'quiz_answers', None):
+            return jsonify([])
+
+        raw = um.quiz_answers
+        # If already a Python list, return it
+        if isinstance(raw, (list, tuple)):
+            return jsonify(list(raw))
+
+        # If it's bytes, decode
+        if isinstance(raw, (bytes, bytearray)):
+            try:
+                raw = raw.decode('utf-8')
+            except Exception:
+                try:
+                    raw = raw.decode('latin-1')
+                except Exception:
+                    raw = str(raw)
+
+        # If it's a string, try JSON first
+        if isinstance(raw, str):
+            s = raw.strip()
+            try:
+                import json
+                parsed = json.loads(s)
+                if isinstance(parsed, list):
+                    return jsonify(parsed)
+                # Some systems may have stored a quoted JSON string, try again
+                if isinstance(parsed, str):
+                    try:
+                        parsed2 = json.loads(parsed)
+                        if isinstance(parsed2, list):
+                            return jsonify(parsed2)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            # Fallback: simple bracket or comma-split parsing
+            if s.startswith('[') and s.endswith(']'):
+                inner = s[1:-1].strip()
+                if inner == '':
+                    return jsonify([])
+                parts = [p.strip() for p in inner.split(',')]
+                out = []
+                for p in parts:
+                    if p.lower() in ('null', 'none'):
+                        out.append(None)
+                    elif (p.startswith('"') and p.endswith('"')) or (p.startswith("'") and p.endswith("'")):
+                        out.append(p[1:-1])
+                    else:
+                        # try numeric
+                        try:
+                            if '.' in p:
+                                f = float(p)
+                                if f.is_integer():
+                                    out.append(int(f))
+                                else:
+                                    out.append(f)
+                            else:
+                                out.append(int(p))
+                        except Exception:
+                            out.append(p)
+                return jsonify(out)
+
+            # Comma-separated without brackets
+            if ',' in s:
+                parts = [p.trim() if hasattr(p, 'trim') else p.strip() for p in s.split(',')]
+                out = []
+                for p in parts:
+                    if p.lower() in ('null', 'none'):
+                        out.append(None)
+                    else:
+                        try:
+                            out.append(int(p))
+                        except Exception:
+                            try:
+                                f = float(p)
+                                out.append(int(f) if f.is_integer() else f)
+                            except Exception:
+                                out.append(p)
+                return jsonify(out)
+
+        # As a last resort, return the raw string as single-element array
+        return jsonify([raw])
+    except Exception:
+        logging.exception('[API] user_quiz_answers')
+        return jsonify([]), 500
+
+
+@main_bp.route('/api/save_quiz_answers/<int:module_id>', methods=['POST'])
+@login_required
+def api_save_quiz_answers(module_id):
+    """Save partial answers for the logged-in user for a module.
+    This implementation accepts JSON bodies and will persist whatever array is provided (including arrays containing nulls).
+    """
+    try:
+        # Accept JSON body or raw data; prefer JSON
+        data = None
+        try:
+            data = request.get_json(force=False, silent=True)
+        except Exception:
+            data = None
+        if not data:
+            # Try raw bytes / form data
+            try:
+                raw = request.data or request.get_data(as_text=True)
+                import json
+                if raw:
+                    data = json.loads(raw)
+            except Exception:
+                data = None
+        answers = None
+        if isinstance(data, dict):
+            answers = data.get('answers')
+        # Also accept direct array payload (e.g., POST with raw JSON array)
+        if answers is None and isinstance(data, list):
+            answers = data
+        # If still None, try form value
+        if answers is None and 'answers' in request.form:
+            try:
+                import json
+                answers = json.loads(request.form.get('answers'))
+            except Exception:
+                answers = None
+
+        if answers is None:
+            # Nothing usable provided
+            return jsonify({'success': False, 'message': 'No answers provided'}), 400
+
+        uid = getattr(current_user, 'User_id', None)
+        if not uid:
+            try:
+                uid = int(session.get('user_id'))
+            except Exception:
+                uid = None
+        if not uid:
+            return jsonify({'success': False, 'message': 'User not identified'}), 400
+
+        import json
+        um = UserModule.query.filter_by(user_id=uid, module_id=module_id).first()
+        if not um:
+            um = UserModule(user_id=uid, module_id=module_id, quiz_answers=json.dumps(answers))
+            db.session.add(um)
+        else:
+            um.quiz_answers = json.dumps(answers)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception:
+        logging.exception('[API] save_quiz_answers')
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Server error'}), 500
+
+
+@main_bp.route('/api/debug_quiz_raw/<int:module_id>')
+@login_required
+def api_debug_quiz_raw(module_id):
+    """Return raw UserModule.quiz_answers for debugging (only for logged-in user).
+    Simpler debug output: raw stored value and a best-effort parsed JSON.
+    """
+    try:
+        uid = getattr(current_user, 'User_id', None)
+        if not uid:
+            try:
+                uid = int(session.get('user_id'))
+            except Exception:
+                uid = None
+        if not uid:
+            return jsonify({'success': False, 'message': 'User not identified'}), 400
+        um = UserModule.query.filter_by(user_id=uid, module_id=module_id).first()
+        if not um:
+            return jsonify({'success': False, 'message': 'No UserModule found', 'raw': None})
+        raw = um.quiz_answers
+        parsed = None
+        try:
+            import json
+            if isinstance(raw, str):
+                parsed = json.loads(raw)
+            elif isinstance(raw, (list, tuple)):
+                parsed = list(raw)
+        except Exception:
+            parsed = None
+        return jsonify({
+            'success': True,
+            'raw': raw,
+            'parsed': parsed,
+            'module_id': module_id,
+            'user_id': uid
+        })
+    except Exception:
+        logging.exception('[API] debug_quiz_raw')
+        return jsonify({'success': False, 'message': 'Server error'}), 500
+
+@main_bp.route('/api/submit_quiz/<int:module_id>', methods=['POST'])
+@login_required
+def api_submit_quiz(module_id):
+    """Evaluate submitted answers, update UserModule, and return score/grade."""
+    try:
+        payload = request.get_json() or {}
+        answers = payload.get('answers') if isinstance(payload, dict) else None
+        is_reattempt = bool(payload.get('is_reattempt')) if isinstance(payload, dict) else False
+        if answers is None:
+            return jsonify({'success': False, 'message': 'No answers provided'}), 400
+
+        mod = db.session.get(Module, module_id)
+        if not mod:
+            return jsonify({'success': False, 'message': 'Module not found'}), 404
+
+        # Load quiz canonical data
+        import json
+        try:
+            parsed = json.loads(mod.quiz_json) if mod.quiz_json else []
+        except Exception:
+            parsed = []
+
+        # Normalize to questions list (reuse same shape as api_load_quiz)
+        questions = []
+        if isinstance(parsed, list):
+            questions = parsed
+        elif isinstance(parsed, dict):
+            if 'questions' in parsed and isinstance(parsed['questions'], list):
+                questions = parsed['questions']
+            elif 'quiz' in parsed and isinstance(parsed['quiz'], list):
+                questions = parsed['quiz']
+            elif 'text' in parsed and 'answers' in parsed:
+                questions = [parsed]
+            else:
+                questions = []
+
+        # Extract correct indices using the robust detection rules
+        correct_indices = []
+        for q in questions:
+            raw_answers = q.get('answers') if isinstance(q, dict) else []
+            correct_idx = -1
+            # check question-level keys
+            if isinstance(q, dict):
+                if isinstance(q.get('correctIndex'), int):
+                    correct_idx = q.get('correctIndex')
+                elif isinstance(q.get('correct'), int):
+                    correct_idx = q.get('correct')
+                elif isinstance(q.get('correct'), str) and q.get('correct').isdigit():
+                    correct_idx = int(q.get('correct'))
+            # inspect answers
+            if isinstance(raw_answers, list):
+                for i, a in enumerate(raw_answers):
+                    if isinstance(a, dict):
+                        if a.get('isCorrect') or a.get('is_correct') or a.get('correct') is True or a.get('isAnswer') or a.get('answer_is_correct'):
+                            correct_idx = i
+                            break
+                        # if 'correct' is numeric index stored on an answer dict, handled above
+            correct_indices.append(correct_idx)
+
+        # Score calculation
+        total = len(correct_indices)
+        if total == 0:
+            score = 0
+        else:
+            correct_count = 0
+            for i in range(min(len(answers), total)):
+                try:
+                    user_ans = int(answers[i])
+                except Exception:
+                    user_ans = None
+                if user_ans is not None and user_ans == correct_indices[i] and correct_indices[i] != -1:
+                    correct_count += 1
+            score = round((correct_count / total) * 100, 0)
+
+        # Persist to UserModule
+        uid = getattr(current_user, 'User_id', None)
+        if not uid:
+            try:
+                uid = int(session.get('user_id'))
+            except Exception:
+                uid = None
+        if not uid:
+            return jsonify({'success': False, 'message': 'User not identified'}), 400
+
+        um = UserModule.query.filter_by(user_id=uid, module_id=module_id).first()
+        if not um:
+            um = UserModule(user_id=uid, module_id=module_id, quiz_answers=json.dumps(answers), is_completed=True, score=float(score), completion_date=datetime.utcnow(), reattempt_count=1 if is_reattempt else 0)
+            db.session.add(um)
+        else:
+            # Update answers
+            um.quiz_answers = json.dumps(answers)
+            # Increase reattempt count when reattempt
+            if is_reattempt:
+                um.reattempt_count = (um.reattempt_count or 0) + 1
+            # Mark completed and update score only if it's better
+            um.is_completed = True
+            if um.score is None or float(score) > float(um.score):
+                um.score = float(score)
+            um.completion_date = datetime.utcnow()
+        db.session.commit()
+        grade_letter = um.get_grade_letter() if um else 'A'
+        return jsonify({'success': True, 'score': int(score), 'grade_letter': grade_letter, 'reattempt_count': um.reattempt_count if um else 0, 'answers': answers, 'correct_indices': correct_indices})
+    except Exception:
+        logging.exception('[API] submit_quiz')
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Server error'}), 500
+

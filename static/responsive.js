@@ -144,4 +144,94 @@
     initUniversalNav();
   }
 
+  // ========================================
+  // MOBILE TABLE RESPONSIVE HANDLING
+  // ========================================
+
+  function initMobileTables() {
+    const isMobile = window.innerWidth <= 768;
+    const tables = document.querySelectorAll('table');
+
+    tables.forEach(table => {
+      const tbody = table.querySelector('tbody');
+      if (!tbody) return;
+
+      const rows = tbody.querySelectorAll('tr');
+      rows.forEach(row => {
+        const nameCell = row.querySelector('.name-column');
+        const emailCell = row.querySelector('.email-column');
+
+        if (isMobile) {
+          // Hide other cells except name
+          const cells = row.querySelectorAll('td');
+          cells.forEach((cell) => {
+            if (cell !== nameCell) {
+              cell.style.display = 'none';
+            }
+          });
+        } else {
+          // Desktop: show all cells except email (hidden by CSS)
+          const cells = row.querySelectorAll('td');
+          cells.forEach(cell => {
+            if (!cell.classList.contains('email-column')) {
+              cell.style.display = '';
+            }
+          });
+        }
+
+        // Always stack name and email in name cell
+        if (!nameCell.classList.contains('mobile-processed') && emailCell) {
+          const nameText = nameCell.textContent.trim();
+          const emailText = emailCell.textContent.trim();
+          nameCell.innerHTML = `<div class="mobile-name">${nameText}</div><div class="mobile-email">${emailText}</div>`;
+          nameCell.dataset.originalName = nameText;
+          nameCell.classList.add('mobile-processed');
+          nameCell.style.cursor = 'pointer';
+          nameCell.title = 'Click to view details';
+
+          // Add click handler
+          nameCell.addEventListener('click', () => showDetailsModal(row, table));
+        }
+      });
+    });
+  }
+
+  function showDetailsModal(row, table) {
+    const cells = row.querySelectorAll('td');
+    const headers = table.querySelectorAll('thead th');
+
+    let modalContent = '<div class="modal fade" id="detailsModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Details</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">';
+
+    headers.forEach((header, index) => {
+      if (cells[index]) {
+        if (header.textContent === 'Name') {
+          modalContent += `<p><strong>Name:</strong> ${cells[index].dataset.originalName || cells[index].textContent}</p>`;
+        } else {
+          modalContent += `<p><strong>${header.textContent}:</strong> ${cells[index].innerHTML}</p>`;
+        }
+      }
+    });
+
+    modalContent += '</div></div></div></div>';
+
+    // Remove existing modal if any
+    const existing = document.getElementById('detailsModal');
+    if (existing) existing.remove();
+
+    document.body.insertAdjacentHTML('beforeend', modalContent);
+    const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+    modal.show();
+  }
+
+  // Call initMobileTables on load and resize
+  document.addEventListener('DOMContentLoaded', initMobileTables);
+  window.addEventListener('resize', () => {
+    // Use RAF for resize
+    if (window.resizeRAF) return;
+    window.resizeRAF = requestAnimationFrame(() => {
+      window.resizeRAF = null;
+      initMobileTables();
+    });
+  });
+
 })();

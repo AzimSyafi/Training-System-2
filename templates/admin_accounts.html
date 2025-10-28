@@ -29,8 +29,8 @@
               <tr>
                 <th>ID</th>
                 <th>Series</th>
-                <th>Name</th>
-                <th>Email</th>
+                <th class="name-column">Name</th>
+                <th class="email-column">Email</th>
                 <th>Agency</th>
                 <!-- Changed header from Recruitment Date to Citizenship -->
                 <th>Citizenship</th>
@@ -42,8 +42,8 @@
               <tr id="user-row-{{ user.User_id }}">
                 <td>{% if user.number_series and user.number_series|length==10 and user.number_series.startswith('SG') %}U-{{ user.number_series[2:] }}{% else %}U-{{ user.User_id }}{% endif %}</td>
                 <td>{{ user.number_series or '' }}</td>
-                <td>{{ user.full_name }}</td>
-                <td>{{ user.email }}</td>
+                <td class="name-column">{{ user.full_name }}</td>
+                <td class="email-column">{{ user.email }}</td>
                 <td>{{ user.agency.agency_name }}</td>
                 <!-- Show user_category instead of recruitment_date -->
                 <td>{% if user.user_category %}{{ 'Citizen' if user.user_category.lower()=='citizen' else ('Foreigner' if user.user_category.lower()=='foreigner' else user.user_category|capitalize) }}{% else %}N/A{% endif %}</td>
@@ -77,8 +77,8 @@
               <tr>
                 <th>ID</th>
                 <th>Series</th>
-                <th>Name</th>
-                <th>Email</th>
+                <th class="name-column">Name</th>
+                <th class="email-column">Email</th>
                 <th>Assigned Course</th>
                 <th>Availability</th>
                 <th>Contact</th>
@@ -91,8 +91,8 @@
               <tr id="trainer-row-{{ t.trainer_id }}">
                 <td>{% if t.number_series and t.number_series|length==10 and t.number_series.startswith('TR') %}T-{{ t.number_series[2:] }}{% else %}T-{{ t.trainer_id }}{% endif %}</td>
                 <td>{{ t.number_series or '' }}</td>
-                <td>{{ t.name }}</td>
-                <td>{{ t.email }}</td>
+                <td class="name-column">{{ t.name }}</td>
+                <td class="email-column">{{ t.email }}</td>
                 <td>{% if t.course %}{{ t.course }}{% else %}—{% endif %}</td>
                 <td>{{ t.availability or '—' }}</td>
                 <td>{{ t.contact_number or '—' }}</td>
@@ -225,4 +225,4 @@ function toggleActive(id){ fetch(`/admin/trainer/${id}/toggle_active`,{method:'P
 function deleteTrainer(id,name){ if(!confirm(`Delete trainer ${name}?`)) return; fetch(`/admin/trainer/${id}/delete`,{method:'POST'}).then(r=>r.json()).then(resp=>{ if(resp.success){ const row=document.getElementById(`trainer-row-${id}`); if(row) row.remove(); showTempAlert('Trainer deleted','success'); } else showTempAlert(resp.message||'Action failed','danger'); }).catch(()=>showTempAlert('Delete failed','danger')); }
 {% if request.args.get('show_create_modal') %}document.addEventListener('DOMContentLoaded',()=>{ new bootstrap.Modal(document.getElementById('createAccountModal')).show(); });{% endif %}
 </script>
-{% endblock %
+{% endblock %}

@@ -419,6 +419,7 @@
   let quiz = [];
   let currentIndex = 0;
   let answers = [];
+  let correctIndices = [];
   let isReattempt = false;
 
   // Autosave state
@@ -435,6 +436,9 @@
       if (!moduleId) return;
       if (saveInFlight) return;
       if (!Array.isArray(answers) || answers.length === 0) return;
+      // Don't autosave if there are no meaningful answers (all null/undefined)
+      const hasSelection = answers.some(a => a !== null && a !== undefined);
+      if (!hasSelection) return;
       saveInFlight = true; setStatusSaving();
       const res = await fetch(`/api/save_quiz_answers/${moduleId}`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify({answers}) });
       const data = await res.json().catch(()=>({}));
@@ -540,6 +544,9 @@
       if (Array.isArray(data.answers)){
         try { answers = data.answers.map(v => (typeof v === 'number' ? v : parseInt(v, 10))); } catch(_) {}
       }
+      if (Array.isArray(data.correct_indices)){
+        correctIndices = data.correct_indices;
+      }
       clearInterval(timerHandle); clearInterval(periodicSave);
       statusLabel.textContent = `Score: ${data.score}% | Grade: ${data.grade_letter} | Attempts: ${data.reattempt_count}`;
       resultContainer.classList.remove('d-none');
@@ -557,35 +564,84 @@
     }
   }
 
-  function renderReview(){
-    if(!Array.isArray(quiz) || quiz.length===0) return;
+  function renderReview() {
+    if (!Array.isArray(quiz) || quiz.length === 0) return;
     // Hide progress bar during review
     if (progressWrap) progressWrap.classList.add('d-none');
     reviewContainer.innerHTML = '';
     let html = `<div class='card'><div class='card-header bg-light fw-semibold'>Review Answers</div><div class='card-body'>`;
-    quiz.forEach((q, idx)=>{
-      const userAns = answers[idx];
-      html += `<div class='mb-3'><div class='fw-semibold mb-1'>Q${idx+1}: ${q.text}</div><ul class='list-unstyled mb-0'>`;
-      (q.answers||[]).forEach((a,aIdx)=>{
-        const correct = !!a.isCorrect; const isUser = userAns === aIdx;
-        let cls = 'px-2 py-1 rounded mb-1';
-        if(correct && isUser) cls += ' bg-success text-white';
-        else if(correct) cls += ' bg-info text-dark';
-        else if(isUser && !correct) cls += ' bg-danger text-white';
-        else cls += ' bg-light';
-        html += `<li class='${cls}'><span>${a.text}</span>`;
-        if(correct) html += ` <span class='badge bg-success ms-1'>Correct</span>`;
-        if(isUser && !correct) html += ` <span class='badge bg-danger ms-1'>Your Answer</span>`;
-        if(isUser && correct) html += ` <span class='badge bg-warning text-dark ms-1'>You</span>`;
-        html += `</li>`;
-      });
-      html += `</ul></div>`;
+    quiz.forEach((q, idx) => {
+        // Normalize user's saved answer to a number when possible
+        const rawUserAns = (Array.isArray(answers) ? answers[idx] : undefined);
+        let userAns = null;
+        if (typeof rawUserAns === 'number' && Number.isFinite(rawUserAns)) userAns = rawUserAns;
+        else if (typeof rawUserAns === 'string' && rawUserAns !== '' && !Number.isNaN(Number(rawUserAns))) userAns = Number(rawUserAns);
+        else userAns = null;
+
+        // Get correct index from the correctIndices array if available
+        let correctIdx = -1;
+        if (Array.isArray(correctIndices) && correctIndices.length > idx) {
+            correctIdx = correctIndices[idx];
+        } else if (q && typeof q === 'object') {
+            if (typeof q.correctIndex === 'number') {
+                correctIdx = q.correctIndex;
+            } else if (typeof q.correct === 'number') {
+                correctIdx = q.correct;
+            } else if (typeof q.correct === 'string' && !isNaN(Number(q.correct))) {
+                correctIdx = Number(q.correct);
+            }
+            // Inspect answers for isCorrect
+            if (Array.isArray(q.answers)) {
+                for (let i = 0; i < q.answers.length; i++) {
+                    const a = q.answers[i];
+                    if (a && typeof a === 'object' && (a.isCorrect || a.is_correct || a.correct === true || a.isAnswer || a.answer_is_correct)) {
+                        correctIdx = i;
+                        break;
+                    }
+                }
+            }
+        }
+
+        html += `<div class='mb-3'><div class='fw-semibold mb-1'>Q${idx + 1}: ${q.text}</div><ul class='list-unstyled mb-0'>`;
+
+        (q.answers || []).forEach((a, aIdx) => {
+            const correct = (correctIdx === aIdx);
+            const isUser = (userAns === aIdx);
+            let cls = 'px-2 py-1 rounded mb-1';
+            if (correct && isUser) cls += ' bg-success text-white';
+            else if (correct) cls += ' bg-info text-dark';
+            else if (isUser && !correct) cls += ' bg-danger text-white';
+            else cls += ' bg-light';
+
+            html += `<li class='${cls}'><div class='d-flex justify-content-between align-items-center'><div><span>${a.text}</span>`;
+            if (correct) html += ` <span class='badge bg-success ms-1'>Correct</span>`;
+            html += `</div>`;
+            if (isUser) {
+                html += `<div class='badge bg-warning text-dark ms-2'>Your Answer</div>`;
+            }
+            html += `</div></li>`;
+        });
+
+        html += `</ul>`;
+
+        // Explicitly show user's selected answer text and the correct answer text
+        const correctText = (correctIdx !== -1 && q.answers && q.answers[correctIdx]) ? q.answers[correctIdx].text : '<em>Not set</em>';
+        if (userAns === null || userAns === undefined) {
+            html += `<div class='mt-2 small text-muted'>Your answer: <em>Not answered</em></div>`;
+            if (correctIdx !== -1) html += `<div class='small text-muted'>Correct answer: <strong>${correctText}</strong></div>`;
+        } else {
+            const userText = (q.answers && q.answers[userAns]) ? q.answers[userAns].text : '<em>Unknown</em>';
+            html += `<div class='mt-2 small text-muted'>Your answer: <strong>${userText}</strong></div>`;
+            html += `<div class='small text-muted'>Correct answer: <strong>${correctText}</strong></div>`;
+        }
+
+        html += `</div>`;
     });
     html += `</div></div>`;
     reviewContainer.innerHTML = html;
     reviewContainer.classList.remove('d-none');
     document.getElementById('quiz-container').classList.add('d-none');
-  }
+}
 
   function startReattempt(){
     isReattempt = true; currentIndex = 0; answers = new Array(quiz.length).fill(null);
@@ -627,8 +683,12 @@
   window.addEventListener('beforeunload', function(){
     try{
       if (navigator.sendBeacon){
-        const payload = JSON.stringify({answers: answers});
-        navigator.sendBeacon(`/api/save_quiz_answers/${moduleId}`, new Blob([payload], {type:'application/json'}));
+        // Only send when there is at least one non-null selection to avoid overwriting with all-null array
+        const hasSelection = Array.isArray(answers) && answers.some(a => a !== null && a !== undefined);
+        if (hasSelection){
+          const payload = JSON.stringify({answers: answers});
+          navigator.sendBeacon(`/api/save_quiz_answers/${moduleId}`, new Blob([payload], {type:'application/json'}));
+        }
       }
     }catch(ex){}
   });
@@ -672,15 +732,78 @@
       answers = new Array(quiz.length).fill(null);
 
       try{ // Load saved answers
-        const saved = await fetch(`/api/user_quiz_answers/${moduleId}`, { credentials:'same-origin' }).then(r=>r.json()).catch(()=>[]);
-        if (Array.isArray(saved) && saved.length){
-          for(let i=0;i<Math.min(saved.length, answers.length);i++){
-            const v = saved[i];
-            answers[i] = (typeof v==='number')? v : answers[i];
+        console.log('Fetching saved answers for module:', moduleId);
+        const resp = await fetch(`/api/user_quiz_answers/${moduleId}`, { credentials:'same-origin' });
+        const saved = await resp.json().catch(()=>[]);
+        const rawHeader = resp.headers.get('X-Quiz-Raw');
+        const candidateHeader = resp.headers.get('X-Quiz-Candidate');
+        const allNullHeader = resp.headers.get('X-Quiz-AllNull');
+        console.log('Saved answers payload:', saved, 'X-Quiz-Raw:', rawHeader, 'X-Quiz-Candidate:', candidateHeader, 'X-Quiz-AllNull:', allNullHeader);
+
+        let finalSaved = Array.isArray(saved) ? saved : [];
+
+        // Fallback: if API returned empty array but headers contain data, try to reconstruct
+        if ((!Array.isArray(finalSaved) || finalSaved.length === 0) && (rawHeader || candidateHeader || allNullHeader)){
+          // Try parsing rawHeader first
+          let parsedFromHeader = null;
+          try{
+            if(rawHeader){
+              parsedFromHeader = JSON.parse(rawHeader);
+            }
+          }catch(e){
+            // not JSON — try candidate header
+            try{ if(candidateHeader){ parsedFromHeader = JSON.parse(candidateHeader); } }catch(e){}
           }
-          setStatusSaved();
+          // If still not an array, try simple bracket/split parsing of rawHeader (e.g. [null,null] or ['0','1'])
+          if(!Array.isArray(parsedFromHeader) && typeof rawHeader === 'string'){
+            const s = rawHeader.trim();
+            if(s.startsWith('[') && s.endsWith(']')){
+              const inner = s.slice(1,-1).trim();
+              if(inner === '') parsedFromHeader = [];
+              else {
+                // split on commas but keep 'null' tokens
+                parsedFromHeader = inner.split(',').map(p=>{
+                  const t = p.trim();
+                  if(t === 'null' || t === 'None' || t === 'none') return null;
+                  // strip quotes
+                  if((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))){
+                    return t.slice(1,-1);
+                  }
+                  // numeric
+                  if(!Number.isNaN(Number(t))) return Number(t);
+                  return t;
+                });
+              }
+            }
+          }
+
+          // If header indicates all-null and we have quiz length, build array of nulls
+          if((!Array.isArray(parsedFromHeader) || parsedFromHeader.length === 0) && allNullHeader && quiz && quiz.length){
+            parsedFromHeader = new Array(quiz.length).fill(null);
+          }
+
+          if(Array.isArray(parsedFromHeader) && parsedFromHeader.length){
+            finalSaved = parsedFromHeader;
+            console.log('Reconstructed saved answers from headers:', finalSaved);
+          }
         }
-      }catch{}
+
+        if (Array.isArray(finalSaved) && finalSaved.length){
+          for(let i=0;i<Math.min(finalSaved.length, answers.length);i++){
+            const v = finalSaved[i];
+            // coerce numeric strings to numbers and accept numbers; keep null otherwise
+            let num = null;
+            if (typeof v === 'number') num = v;
+            else if (typeof v === 'string' && v !== '' && !Number.isNaN(Number(v))) num = Number(v);
+            if (Number.isInteger(num)) answers[i] = num;
+            else if (v === null) answers[i] = null; // explicit null preserved
+          }
+          console.log('Normalized saved answers into answers[]:', answers);
+          setStatusSaved();
+        } else {
+          console.log('No saved answers array returned or empty for module:', moduleId, 'rawHeader:', rawHeader);
+        }
+      }catch(e){ console.error('Error loading saved answers', e); }
 
       updateUI();
 
@@ -688,14 +811,41 @@
         // Show review mode
         const a = await fetch(`/api/user_quiz_answers/${moduleId}`, { credentials:'same-origin' }).then(r=>r.json()).catch(()=>[]);
         if(Array.isArray(a)){
-          answers = a;
+          // coerce entries to integers where possible
+          answers = new Array(quiz.length).fill(null);
+          for(let i=0;i<Math.min(a.length, answers.length); i++){
+            const v = a[i];
+            let num = null;
+            if (typeof v === 'number') num = v;
+            else if (typeof v === 'string' && v !== '' && !Number.isNaN(Number(v))) num = Number(v);
+            if (Number.isInteger(num)) answers[i] = num;
+          }
 
           // Show the result container with score when loading completed quiz
           resultContainer.classList.remove('d-none');
-          const scorePercent = quiz.length > 0 ? Math.round((a.filter((ans, idx) => {
+          const scorePercent = quiz.length > 0 ? Math.round((answers.filter((ans, idx) => {
             const q = quiz[idx];
             if (!q || !q.answers) return false;
-            const correctIdx = q.answers.findIndex(answer => answer.isCorrect);
+            // Compute correct index
+            let correctIdx = -1;
+            if (q && typeof q === 'object') {
+              if (typeof q.correctIndex === 'number') {
+                correctIdx = q.correctIndex;
+              } else if (typeof q.correct === 'number') {
+                correctIdx = q.correct;
+              } else if (typeof q.correct === 'string' && !isNaN(Number(q.correct))) {
+                correctIdx = Number(q.correct);
+              }
+              if (Array.isArray(q.answers)) {
+                for (let i = 0; i < q.answers.length; i++) {
+                  const a = q.answers[i];
+                  if (a && typeof a === 'object' && (a.isCorrect || a.is_correct || a.correct === true || a.isAnswer || a.answer_is_correct)) {
+                    correctIdx = i;
+                    break;
+                  }
+                }
+              }
+            }
             return ans === correctIdx;
           }).length / quiz.length) * 100) : 0;
 

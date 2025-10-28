@@ -193,7 +193,7 @@ class User(UserMixin, db.Model):
         from flask import url_for
         if self.Profile_picture:
             # Serve via unified uploads route so it works in dev/prod
-            return url_for('main.serve_upload', filename=self.Profile_picture)
+            return url_for('main.serve_uploaded_slide', filename=self.Profile_picture)
         return None
 
     @property
@@ -506,7 +506,7 @@ class Trainer(UserMixin, db.Model):
         # Mirror User.profile_pic_url behavior for consistency
         from flask import url_for
         if self.profile_image:
-            return url_for('main.serve_upload', filename=self.profile_image)
+            return url_for('main.serve_uploaded_slide', filename=self.profile_image)
         return None
 
 class UserModule(db.Model):

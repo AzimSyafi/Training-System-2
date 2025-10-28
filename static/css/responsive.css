@@ -4,6 +4,10 @@
   --rs-spacing-scale: 1;
   --mobile-nav-height: 60px;
   --desktop-hamburger-size: 50px;
+  --sidebar-width: 280px;        /* default desktop sidebar width (matches .sidebar width) */
+  --sidebar-gap: 30px;           /* gap between sidebar and toggle (reduced so toggle isn't too far) */
+  --mobile-sidebar-width: 85vw; /* used on small screens */
+  --sidebar-max-effective-width: 260px; /* cap used when calculating toggle position so it doesn't go too far on narrow viewports */
 }
 
 /* Make media scale within containers */
@@ -103,7 +107,8 @@ a, button, .btn, .nav-link, [role="button"] {
 .desktop-nav-toggle {
   position: fixed;
   top: 15px;
-  left: 295px; /* Position to the right of sidebar (280px + 15px gap) */
+  /* Position to the right of sidebar using variables so gap is consistent and adjustable */
+  left: calc(var(--sidebar-width) + var(--sidebar-gap));
   z-index: 10001; /* Higher than sidebar to stay on top */
   width: var(--desktop-hamburger-size);
   height: var(--desktop-hamburger-size);
@@ -122,13 +127,18 @@ a, button, .btn, .nav-link, [role="button"] {
 
 /* When sidebar is closed, move hamburger to left edge */
 body:not(.sidebar-open) .desktop-nav-toggle {
-  left: 15px;
+  left: calc(var(--sidebar-gap));
 }
 
 /* On mobile, keep hamburger at left edge even when open */
 @media (max-width: 768px) {
   .desktop-nav-toggle {
-    left: 15px !important;
+    width: 44px;
+    height: 44px;
+    top: 10px;
+    /* Keep closed state at a small left gap so it doesn't sit far from the edge */
+    left: calc(var(--sidebar-gap));
+    right: auto;
   }
 }
 
@@ -145,6 +155,43 @@ body:not(.sidebar-open) .desktop-nav-toggle {
 
 .desktop-nav-toggle.active i {
   transform: rotate(90deg);
+}
+
+/* --- NEW: Ensure toggle stays outside opened sidebar on mobile and desktop --- */
+/* Place toggle outside sidebar when menu is open. Support both patterns used in the project
+   (body.sidebar-open and .sidebar.menu-open) and use !important so this consistently
+   overrides previous positioning rules without duplicating full styles. */
+body.sidebar-open .desktop-nav-toggle,
+.sidebar.menu-open ~ .desktop-nav-toggle,
+.sidebar.menu-open + .desktop-nav-toggle,
+.sidebar.menu-open .desktop-nav-toggle {
+  /* Use a capped width on mobile so the toggle doesn't move too far on small screens */
+  left: calc(min(var(--sidebar-width), var(--sidebar-max-effective-width)) + var(--sidebar-gap)) !important;
+  right: auto !important;
+  transition: left 0.3s ease !important;
+}
+
+/* Mobile: use mobile sidebar width when calculating toggle position */
+@media (max-width: 768px) {
+  /* switch the sidebar width variable to the mobile width */
+  :root { --sidebar-width: var(--mobile-sidebar-width); }
+
+  /* When sidebar is open on mobile, ensure toggle moves to right of the opened menu */
+  body.sidebar-open .desktop-nav-toggle,
+  .sidebar.menu-open ~ .desktop-nav-toggle,
+  .sidebar.menu-open + .desktop-nav-toggle,
+  .sidebar.menu-open .desktop-nav-toggle {
+    /* Use a capped width on mobile so the toggle doesn't move too far on small screens */
+    left: calc(min(var(--sidebar-width), var(--sidebar-max-effective-width)) + var(--sidebar-gap)) !important;
+    right: auto !important;
+  }
+
+  /* When sidebar is closed on mobile, keep toggle at the page edge */
+  body:not(.sidebar-open) .desktop-nav-toggle,
+  .sidebar:not(.menu-open) .desktop-nav-toggle {
+    left: calc(var(--sidebar-gap)) !important;
+    right: auto !important;
+  }
 }
 
 /* Sidebar slide-out behavior - FROM LEFT */
@@ -273,8 +320,9 @@ body:not(.sidebar-open) .desktop-nav-toggle {
     width: 44px;
     height: 44px;
     top: 10px;
-    right: 10px; /* Changed from left to right */
-    left: auto; /* Ensure left positioning is overridden */
+    /* Keep closed state at a small left gap so it doesn't sit far from the edge */
+    left: calc(var(--sidebar-gap));
+    right: auto;
   }
 
   .main-content {
@@ -283,6 +331,26 @@ body:not(.sidebar-open) .desktop-nav-toggle {
 
   .sidebar {
     max-width: 85vw !important;
+  }
+
+  /* Place toggle outside sidebar when menu is open. Support both patterns used in the project
+     (body.sidebar-open and .sidebar.menu-open) and use !important so this consistently
+     overrides previous positioning rules without duplicating full styles. */
+  body.sidebar-open .desktop-nav-toggle,
+  .sidebar.menu-open ~ .desktop-nav-toggle,
+  .sidebar.menu-open + .desktop-nav-toggle,
+  .sidebar.menu-open .desktop-nav-toggle {
+    /* Use a capped width on mobile so the toggle doesn't move too far on small screens */
+    left: calc(min(var(--sidebar-width), var(--sidebar-max-effective-width)) + var(--sidebar-gap)) !important;
+    right: auto !important;
+    transition: left 0.3s ease !important;
+  }
+
+  /* When sidebar is closed on mobile, keep toggle at the page edge */
+  body:not(.sidebar-open) .desktop-nav-toggle,
+  .sidebar:not(.menu-open) .desktop-nav-toggle {
+    left: calc(var(--sidebar-gap)) !important;
+    right: auto !important;
   }
 }
 
@@ -564,9 +632,10 @@ body:not(.sidebar-open) .desktop-nav-toggle {
 
   /* Tables - better mobile handling */
   .table-responsive {
-    border: 1px solid var(--border-color, #e2e8f0);
-    border-radius: 8px;
-    margin-bottom: 1rem;
+    border: none;
+    border-radius: 0;
+    margin-bottom: 0;
+    padding: 0;
   }
 
   /* Pagination on mobile */
@@ -922,3 +991,90 @@ body:not(.sidebar-open) .desktop-nav-toggle {
     height: 36px !important;
   }
 }
+
+/* ========================================
+   MOBILE TABLE STYLES
+   ======================================== */
+.mobile-name {
+  font-weight: bold;
+  margin-bottom: 0.25rem;
+}
+
+.mobile-email {
+  font-size: 0.9em;
+  color: #666;
+}
+
+/* Hide email column globally */
+.email-column {
+  display: none;
+}
+
+/* On mobile, hide table headers to make it look like a list */
+@media (max-width: 768px) {
+  .table thead {
+    display: none;
+  }
+  .name-column {
+    width: 100% !important;
+  }
+}
+
+/* ========================================
+   NEW USER GRID STYLES (MODIFIED)
+   ======================================== */
+
+/* This is the container that will hold all your user cards */
+.user-grid-container {
+  display: grid;
+  /* This is the key property:
+    - 'repeat': Creates a repeating column pattern.
+    - 'auto-fill': Creates as many columns as will fit in the container.
+    - 'minmax(250px, 1fr)': Each column will be a minimum of 250px wide,
+      but can grow equally (1fr) to fill any remaining empty space.
+  */
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem; /* Sets the spacing between the cards */
+  padding: 0; /* <-- UPDATED: Removed padding to fill parent container */
+}
+
+/* This is the style for each individual user card */
+.user-grid-card {
+  background-color: #f8f9fa; /* Light gray background, similar to your image */
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  word-wrap: break-word; /* Prevents long emails from breaking the layout */
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.user-grid-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.user-grid-card h5 {
+  margin-bottom: 0.25rem;
+  font-weight: 600; /* Bolder text for the name */
+  font-size: 1.1rem;
+  color: #212529;
+}
+
+.user-grid-card p {
+  margin-bottom: 0;
+  font-size: 0.9rem;
+  color: #6c757d; /* Grayish color for the email */
+}
+
+/* On mobile, stack the cards in a single column */
+@media (max-width: 768px) {
+  .user-grid-container {
+    /* Revert to a single column layout on mobile */
+    grid-template-columns: 1fr;
+    padding: 0; /* <-- UPDATED: Removed padding for mobile view */
+    gap: 0.75rem;
+  }
+}
+
+/* developer note: make full use of card space — converted to a comment to avoid CSS parse errors */
+

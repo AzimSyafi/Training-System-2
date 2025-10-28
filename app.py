@@ -11,12 +11,21 @@ import logging
 app = Flask(__name__, static_url_path='/static')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
+# Default upload folder (absolute path inside project static/uploads)
+app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
+
 # Database configuration
 DATABASE_URL = os.environ.get('DATABASE_URL')
+# Prefer local instance SQLite DB when present for local development to match the repository's instance/security_training.db
 if DATABASE_URL:
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:password@localhost:5432/Training_system'
+    instance_db_path = os.path.join(app.root_path, 'instance', 'security_training.db')
+    if os.path.exists(instance_db_path):
+        app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{instance_db_path}"
+    else:
+        # Fallback to previous PostgreSQL default for production-like setups
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:password@localhost:5432/Training_system'
 
 logging.info(f"Using database: {app.config['SQLALCHEMY_DATABASE_URI']}")
 

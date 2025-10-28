@@ -91,8 +91,8 @@
                             <tr>
                                 <th>Type</th>
                                 <th>ID</th>
-                                <th>Name</th>
-                                <th>Email</th>
+                                <th class="name-column">Name</th>
+                                <th class="email-column">Email</th>
                                 <th>Agency</th>
                                 <th>Status</th>
                                 <th class="text-center" style="width:60px;">Actions</th>
@@ -125,8 +125,8 @@
                                         A-{{ acc.id }}
                                     {% endif %}
                                 </td>
-                                <td>{{ acc.name }}</td>
-                                <td>{{ acc.email }}</td>
+                                <td class="name-column">{{ acc.name }}</td>
+                                <td class="email-column">{{ acc.email }}</td>
                                 <td>{% if acc.type == 'user' or acc.type == 'authority' %}{{ acc.agency }}{% else %}&mdash;{% endif %}</td>
                                 <td>
                                     {% if acc.type == 'trainer' %}
