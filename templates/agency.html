@@ -5,9 +5,15 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="fas fa-building"></i> Agency Information</h2>
         <div>
-            <a href="{{ safe_url_for('main.user_dashboard') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> Back to Dashboard
-            </a>
+            {% if current_user.__class__.__name__ == 'AgencyAccount' %}
+                <a href="{{ url_for('main.agency_portal') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            {% else %}
+                <a href="{{ url_for('main.user_dashboard') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            {% endif %}
         </div>
     </div>
 

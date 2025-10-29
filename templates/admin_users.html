@@ -19,7 +19,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2 class="mb-0 d-flex align-items-center gap-3">
             <span><i class="fas fa-users"></i> User Management</span>
-            <small class="text-muted">{{ (merged_accounts|length) if merged_accounts else 0 }} result{{ '' if merged_accounts and (merged_accounts|length)==1 else 's' }}</small>
+            <small class="text-muted">{{ (merged_accounts|length if merged_accounts else 0) }} result{{ '' if (merged_accounts|length if merged_accounts else 0) == 1 else 's' }}</small>
         </h2>
         <button type="button" class="btn btn-primary btn-sm btn-add-account" data-bs-toggle="modal" data-bs-target="#createUserModal" title="Add New Account">
             <i class="fas fa-user-plus"></i><span class="btn-text"> Add New Account</span>
@@ -42,7 +42,7 @@
                 <form class="row g-2 align-items-end" method="get" action="{{ url_for('main.admin_users') }}">
                     <div class="col-12 col-md-4">
                         <label for="q" class="form-label mb-1">Search</label>
-                        <input id="q" name="q" type="text" class="form-control" placeholder="Name, email, series" value="{{ (filters.q if filters else request.args.get('q','')) }}" />
+                        <input id="q" name="q" type="text" class="form-control" placeholder="Name, email" value="{{ (filters.q if filters else request.args.get('q','')) }}" />
                     </div>
                     <div class="col-6 col-md-2">
                         <label for="role" class="form-label mb-1">Role</label>
@@ -152,6 +152,7 @@
                         </tbody>
                     </table>
                 </div>
+
             </div>
         </div>
         {% else %}

@@ -203,7 +203,7 @@ def user_dashboard():
             return redirect(url_for('main.trainer_portal'))
         from models import AgencyAccount as _AA
         if isinstance(current_user, _AA):
-            return redirect(url_for('main.agency_portal'))
+            return redirect(url_for('main.agency'))
         return redirect(url_for('main.login'))
     try:
         cat = normalized_user_category(current_user)
@@ -532,7 +532,11 @@ def agency():
             agencies = Agency.query.order_by(Agency.agency_name).all()
             return render_template('admin_agencies.html', agencies=agencies)
         else:
-            ag = getattr(current_user, 'agency', None)
+            ag = None
+            if hasattr(current_user, 'agency_id') and current_user.agency_id:
+                ag = db.session.query(Agency).filter_by(agency_id=current_user.agency_id).first()
+            elif hasattr(current_user, 'agency'):
+                ag = current_user.agency
             return render_template('agency.html', agency=ag)
     except Exception:
         if isinstance(current_user, Admin):
@@ -540,6 +544,10 @@ def agency():
             return render_template('admin_agencies.html', agencies=agencies)
         else:
             ag = None
+            if hasattr(current_user, 'agency_id') and current_user.agency_id:
+                ag = db.session.query(Agency).filter_by(agency_id=current_user.agency_id).first()
+            elif hasattr(current_user, 'agency'):
+                ag = current_user.agency
             return render_template('agency.html', agency=ag)
 
 # Logout
@@ -683,18 +691,288 @@ def trainer_portal():
                 last_activity = user_completed_q.with_entities(db.func.max(UserModule.completion_date)).scalar()
                 progress_rows.append({
                     'user_name': user.full_name,
+                    'user_number_series': user.number_series,
+                    'user_category': user.user_category,
                     'course_name': course.name,
                     'course_code': course.code,
                     'agency_name': user.agency.agency_name if user.agency else '',
+                    'progress_pct': round(user_progress_pct, 1),
                     'completed_modules': completed_for_user,
                     'total_modules': total_for_course,
-                    'progress_pct': round(user_progress_pct, 1),
                     'score': avg_user_score,
                     'last_activity': last_activity,
-                    'status': 'Active' if user_progress_pct < 100 else 'Completed'
+                    'status': 'Completed' if user_progress_pct >= 100 else 'Active'
                 })
-        progress_rows.sort(key=lambda r: (r['last_activity'] or datetime.min), reverse=True)
-        progress_rows = progress_rows[:25]
+        active_trainees = User.query.count()
+        certificates_issued = Certificate.query.count()
+        avg_rating_pct = 0.0
+        my_courses = len(course_stats)
+        progress_rows = []
+        for course_stat in course_stats:
+            code = course_stat['code']
+            course_obj = next((c for c in courses if c.code == code), None)
+            if not course_obj:
+                continue
+            course_module_ids = [m.module_id for m in course_obj.modules]
+            if not course_module_ids:
+                continue
+            trainees_q = User.query
+            if course_obj.allowed_category == 'citizen':
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'citizen')
+            elif course_obj.allowed_category == 'foreigner':
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'foreigner')
+            trainees = trainees_q.all()
+            for user in trainees:
+                user_completed_q = UserModule.query.filter(
+                    UserModule.user_id == user.User_id,
+                    UserModule.module_id.in_(course_module_ids),
+                    UserModule.is_completed.is_(True)
+                )
+                completed_for_user = user_completed_q.count()
+                total_for_course = len(course_module_ids)
+                user_progress_pct = (completed_for_user / total_for_course * 100.0) if total_for_course else 0.0
+                avg_user_score_val = user_completed_q.with_entities(db.func.avg(UserModule.score)).scalar()
+                avg_user_score = round(float(avg_user_score_val or 0.0), 1)
+                last_activity = user_completed_q.with_entities(db.func.max(UserModule.completion_date)).scalar()
+                progress_rows.append({
+                    'user_name': user.full_name,
+                    'user_number_series': user.number_series,
+                    'user_category': user.user_category,
+                    'course_name': course.name,
+                    'course_code': course.code,
+                    'agency_name': user.agency.agency_name if user.agency else '',
+                    'progress_pct': round(user_progress_pct, 1),
+                    'completed_modules': completed_for_user,
+                    'total_modules': total_for_course,
+                    'score': avg_user_score,
+                    'last_activity': last_activity,
+                    'status': 'Completed' if user_progress_pct >= 100 else 'Active'
+                })
+        active_trainees = User.query.count()
+        certificates_issued = Certificate.query.count()
+        avg_rating_pct = 0.0
+        my_courses = len(course_stats)
+        progress_rows = []
+        for course_stat in course_stats:
+            code = course_stat['code']
+            course_obj = next((c for c in courses if c.code == code), None)
+            if not course_obj:
+                continue
+            course_module_ids = [m.module_id for m in course_obj.modules]
+            if not course_module_ids:
+                continue
+            trainees_q = User.query
+            if course_obj.allowed_category == 'citizen':
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'citizen')
+            elif course_obj.allowed_category == 'foreigner':
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'foreigner')
+            trainees = trainees_q.all()
+            for user in trainees:
+                user_completed_q = UserModule.query.filter(
+                    UserModule.user_id == user.User_id,
+                    UserModule.module_id.in_(course_module_ids),
+                    UserModule.is_completed.is_(True)
+                )
+                completed_for_user = user_completed_q.count()
+                total_for_course = len(course_module_ids)
+                user_progress_pct = (completed_for_user / total_for_course * 100.0) if total_for_course else 0.0
+                avg_user_score_val = user_completed_q.with_entities(db.func.avg(UserModule.score)).scalar()
+                avg_user_score = round(float(avg_user_score_val or 0.0), 1)
+                last_activity = user_completed_q.with_entities(db.func.max(UserModule.completion_date)).scalar()
+                progress_rows.append({
+                    'user_name': user.full_name,
+                    'user_number_series': user.number_series,
+                    'user_category': user.user_category,
+                    'course_name': course.name,
+                    'course_code': course.code,
+                    'agency_name': user.agency.agency_name if user.agency else '',
+                    'progress_pct': round(user_progress_pct, 1),
+                    'completed_modules': completed_for_user,
+                    'total_modules': total_for_course,
+                    'score': avg_user_score,
+                    'last_activity': last_activity,
+                    'status': 'Completed' if user_progress_pct >= 100 else 'Active'
+                })
+        active_trainees = User.query.count()
+        certificates_issued = Certificate.query.count()
+        avg_rating_pct = 0.0
+        my_courses = len(course_stats)
+        progress_rows = []
+        for course_stat in course_stats:
+            code = course_stat['code']
+            course_obj = next((c for c in courses if c.code == code), None)
+            if not course_obj:
+                continue
+            course_module_ids = [m.module_id for m in course_obj.modules]
+            if not course_module_ids:
+                continue
+            trainees_q = User.query
+            if course_obj.allowed_category == 'citizen':
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'citizen')
+            elif course_obj.allowed_category == 'foreigner':
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'foreigner')
+            trainees = trainees_q.all()
+            for user in trainees:
+                user_completed_q = UserModule.query.filter(
+                    UserModule.user_id == user.User_id,
+                    UserModule.module_id.in_(course_module_ids),
+                    UserModule.is_completed.is_(True)
+                )
+                completed_for_user = user_completed_q.count()
+                total_for_course = len(course_module_ids)
+                user_progress_pct = (completed_for_user / total_for_course * 100.0) if total_for_course else 0.0
+                avg_user_score_val = user_completed_q.with_entities(db.func.avg(UserModule.score)).scalar()
+                avg_user_score = round(float(avg_user_score_val or 0.0), 1)
+                last_activity = user_completed_q.with_entities(db.func.max(UserModule.completion_date)).scalar()
+                progress_rows.append({
+                    'user_name': user.full_name,
+                    'user_number_series': user.number_series,
+                    'user_category': user.user_category,
+                    'course_name': course.name,
+                    'course_code': course.code,
+                    'agency_name': user.agency.agency_name if user.agency else '',
+                    'progress_pct': round(user_progress_pct, 1),
+                    'completed_modules': completed_for_user,
+                    'total_modules': total_for_course,
+                    'score': avg_user_score,
+                    'last_activity': last_activity,
+                    'status': 'Completed' if user_progress_pct >= 100 else 'Active'
+                })
+        active_trainees = User.query.count()
+        certificates_issued = Certificate.query.count()
+        avg_rating_pct = 0.0
+        my_courses = len(course_stats)
+        progress_rows = []
+        for course_stat in course_stats:
+            code = course_stat['code']
+            course_obj = next((c for c in courses if c.code == code), None)
+            if not course_obj:
+                continue
+            course_module_ids = [m.module_id for m in course_obj.modules]
+            if not course_module_ids:
+                continue
+            trainees_q = User.query
+            if course_obj.allowed_category == 'citizen':
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'citizen')
+            elif course_obj.allowed_category == 'foreigner':
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'foreigner')
+            trainees = trainees_q.all()
+            for user in trainees:
+                user_completed_q = UserModule.query.filter(
+                    UserModule.user_id == user.User_id,
+                    UserModule.module_id.in_(course_module_ids),
+                    UserModule.is_completed.is_(True)
+                )
+                completed_for_user = user_completed_q.count()
+                total_for_course = len(course_module_ids)
+                user_progress_pct = (completed_for_user / total_for_course * 100.0) if total_for_course else 0.0
+                avg_user_score_val = user_completed_q.with_entities(db.func.avg(UserModule.score)).scalar()
+                avg_user_score = round(float(avg_user_score_val or 0.0), 1)
+                last_activity = user_completed_q.with_entities(db.func.max(UserModule.completion_date)).scalar()
+                progress_rows.append({
+                    'user_name': user.full_name,
+                    'user_number_series': user.number_series,
+                    'user_category': user.user_category,
+                    'course_name': course.name,
+                    'course_code': course.code,
+                    'agency_name': user.agency.agency_name if user.agency else '',
+                    'progress_pct': round(user_progress_pct, 1),
+                    'completed_modules': completed_for_user,
+                    'total_modules': total_for_course,
+                    'score': avg_user_score,
+                    'last_activity': last_activity,
+                    'status': 'Completed' if user_progress_pct >= 100 else 'Active'
+                })
+        active_trainees = User.query.count()
+        certificates_issued = Certificate.query.count()
+        avg_rating_pct = 0.0
+        my_courses = len(course_stats)
+        progress_rows = []
+        for course_stat in course_stats:
+            code = course_stat['code']
+            course_obj = next((c for c in courses if c.code == code), None)
+            if not course_obj:
+                continue
+            course_module_ids = [m.module_id for m in course_obj.modules]
+            if not course_module_ids:
+                continue
+            trainees_q = User.query
+            if course_obj.allowed_category == 'citizen':
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'citizen')
+            elif course_obj.allowed_category == 'foreigner':
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'foreigner')
+            trainees = trainees_q.all()
+            for user in trainees:
+                user_completed_q = UserModule.query.filter(
+                    UserModule.user_id == user.User_id,
+                    UserModule.module_id.in_(course_module_ids),
+                    UserModule.is_completed.is_(True)
+                )
+                completed_for_user = user_completed_q.count()
+                total_for_course = len(course_module_ids)
+                user_progress_pct = (completed_for_user / total_for_course * 100.0) if total_for_course else 0.0
+                avg_user_score_val = user_completed_q.with_entities(db.func.avg(UserModule.score)).scalar()
+                avg_user_score = round(float(avg_user_score_val or 0.0), 1)
+                last_activity = user_completed_q.with_entities(db.func.max(UserModule.completion_date)).scalar()
+                progress_rows.append({
+                    'user_name': user.full_name,
+                    'user_number_series': user.number_series,
+                    'user_category': user.user_category,
+                    'course_name': course.name,
+                    'course_code': course.code,
+                    'agency_name': user.agency.agency_name if user.agency else '',
+                    'progress_pct': round(user_progress_pct, 1),
+                    'completed_modules': completed_for_user,
+                    'total_modules': total_for_course,
+                    'score': avg_user_score,
+                    'last_activity': last_activity,
+                    'status': 'Completed' if user_progress_pct >= 100 else 'Active'
+                })
+        active_trainees = User.query.count()
+        certificates_issued = Certificate.query.count()
+        avg_rating_pct = 0.0
+        my_courses = len(course_stats)
+        progress_rows = []
+        for course_stat in course_stats:
+            code = course_stat['code']
+            course_obj = next((c for c in courses if c.code == code), None)
+            if not course_obj:
+                continue
+            course_module_ids = [m.module_id for m in course_obj.modules]
+            if not course_module_ids:
+                continue
+            trainees_q = User.query
+            if course_obj.allowed_category == 'citizen':
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'citizen')
+            elif course_obj.allowed_category == 'foreigner':
+                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'foreigner')
+            trainees = trainees_q.all()
+            for user in trainees:
+                user_completed_q = UserModule.query.filter(
+                    UserModule.user_id == user.User_id,
+                    UserModule.module_id.in_(course_module_ids),
+                    UserModule.is_completed.is_(True)
+                )
+                completed_for_user = user_completed_q.count()
+                total_for_course = len(course_module_ids)
+                user_progress_pct = (completed_for_user / total_for_course * 100.0) if total_for_course else 0.0
+                avg_user_score_val = user_completed_q.with_entities(db.func.avg(UserModule.score)).scalar()
+                avg_user_score = round(float(avg_user_score_val or 0.0), 1)
+                last_activity = user_completed_q.with_entities(db.func.max(UserModule.completion_date)).scalar()
+                progress_rows.append({
+                    'user_name': user.full_name,
+                    'user_number_series': user.number_series,
+                    'user_category': user.user_category,
+                    'course_name': course.name,
+                    'course_code': course.code,
+                    'agency_name': user.agency.agency_name if user.agency else '',
+                    'progress_pct': round(user_progress_pct, 1),
+                    'completed_modules': completed_for_user,
+                    'total_modules': total_for_course,
+                    'score': avg_user_score,
+                    'last_activity': last_activity,
+                    'status': 'Completed' if user_progress_pct >= 100 else 'Active'
+                })
     except Exception as e:
         logging.exception('[TRAINER PORTAL] Error building dynamic stats')
         course_stats = []
@@ -742,11 +1020,20 @@ def admin_dashboard():
 
 from types import SimpleNamespace
 
+# Ensure templates always have a safe `pagination` variable to avoid Jinja UndefinedError
+@main_bp.app_context_processor
+def inject_pagination_defaults():
+    try:
+        default = SimpleNamespace(page=1, per_page=50, total_pages=1, total_count=0)
+    except Exception:
+        default = {'page': 1, 'per_page': 50, 'total_pages': 1, 'total_count': 0}
+    return {'pagination': default}
+
 # Admin users
 @main_bp.route('/admin_users')
 @login_required
 def admin_users():
-    if not (current_user.is_authenticated and isinstance(current_user, Admin)):
+    if not (current_user.is_authenticated and (isinstance(current_user, Admin) or isinstance(current_user, AgencyAccount))):
         return redirect(url_for('main.login'))
     try:
         q = request.args.get('q', '').strip().lower()
@@ -762,7 +1049,7 @@ def admin_users():
                 pass
         users = users_q.all()
         for u in users:
-            if q and (q not in (u.full_name or '').lower() and q not in (u.email or '').lower() and q not in (u.number_series or '').lower()):
+            if q and (q not in (u.full_name or '').lower() and q not in (u.email or '').lower()):
                 continue
             user_role = getattr(u, 'role', 'agency')
             if user_role == 'authority':
@@ -791,7 +1078,7 @@ def admin_users():
                 })
         trainers = Trainer.query.all()
         for t in trainers:
-            if q and (q not in (t.name or '').lower() and q not in (t.email or '').lower() and q not in (t.number_series or '').lower()):
+            if q and (q not in (t.name or '').lower() and q not in (t.email or '').lower()):
                 continue
             if role_filter not in ('all','trainer'):
                 continue
@@ -825,7 +1112,12 @@ def admin_users():
         merged_accounts = []
         agencies = []
         filters = SimpleNamespace(q='', role='all', agency_id=None, status='all')
-    return render_template('admin_users.html', merged_accounts=merged_accounts, agencies=agencies)
+    if isinstance(current_user, AgencyAccount):
+        agency_users = User.query.filter_by(agency_id=current_user.agency_id).all()
+        return render_template('agency_portal.html', agency=current_user.agency, agency_users=agency_users)
+    return render_template('admin_users.html', merged_accounts=merged_accounts, agencies=agencies, filters=filters)
+
+# ...existing code...
 
 # Admin course management
 @main_bp.route('/admin_course_management', methods=['GET', 'POST'])
@@ -868,6 +1160,237 @@ def admin_course_management():
         modules = []
         course_modules = {}
     return render_template('admin_course_management.html', courses=courses, modules=modules, course_modules=course_modules)
+
+@main_bp.route('/create_course', methods=['POST'])
+@login_required
+def create_course():
+    if not isinstance(current_user, Admin):
+        flash('You are not authorized to perform this action.', 'danger')
+        return redirect(url_for('main.admin_dashboard'))
+
+    try:
+        name = request.form.get('name')
+        code = request.form.get('code')
+        allowed_category = request.form.get('allowed_category')
+
+        if not name or not code:
+            flash('Course name and code are required.', 'danger')
+            return redirect(url_for('main.admin_course_management'))
+
+        if Course.query.filter_by(code=code).first():
+            flash('A course with this code already exists.', 'danger')
+            return redirect(url_for('main.admin_course_management'))
+
+        new_course = Course(
+            name=name,
+            code=code,
+            allowed_category=allowed_category
+        )
+        db.session.add(new_course)
+        db.session.commit()
+        flash('Course created successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        logging.exception('[CREATE COURSE] Failed to create course')
+        flash(f'Error creating course: {e}', 'danger')
+
+    return redirect(url_for('main.admin_course_management'))
+
+@main_bp.route('/delete_course/<int:course_id>', methods=['POST'])
+@login_required
+def delete_course(course_id):
+    if not isinstance(current_user, Admin):
+        flash('You are not authorized to perform this action.', 'danger')
+        return redirect(url_for('main.admin_dashboard'))
+
+    try:
+        course = db.session.get(Course, course_id)
+        if not course:
+            flash('Course not found.', 'danger')
+            return redirect(url_for('main.admin_course_management'))
+
+        # Manually delete related modules and user module progress
+        modules = Module.query.filter_by(course_id=course.course_id).all()
+        for module in modules:
+            UserModule.query.filter_by(module_id=module.module_id).delete()
+            db.session.delete(module)
+
+        db.session.delete(course)
+        db.session.commit()
+        flash('Course and all its modules have been deleted successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f'[DELETE COURSE] Failed to delete course {course_id}')
+        flash(f'Error deleting course: {e}', 'danger')
+
+    return redirect(url_for('main.admin_course_management'))
+
+@main_bp.route('/update_course/<int:course_id>', methods=['POST'])
+@login_required
+def update_course(course_id):
+    if not isinstance(current_user, Admin):
+        flash('You are not authorized to perform this action.', 'danger')
+        return redirect(url_for('main.admin_dashboard'))
+
+    try:
+        course = db.session.get(Course, course_id)
+        if not course:
+            flash('Course not found.', 'danger')
+            return redirect(url_for('main.admin_course_management'))
+
+        name = request.form.get('name')
+        allowed_category = request.form.get('allowed_category')
+
+        if not name:
+            flash('Course name cannot be empty.', 'danger')
+        else:
+            course.name = name
+            course.allowed_category = allowed_category
+            db.session.commit()
+            flash('Course updated successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f'[UPDATE COURSE] Failed to update course {course_id}')
+        flash(f'Error updating course: {e}', 'danger')
+
+    return redirect(url_for('main.admin_course_management'))
+
+@main_bp.route('/add_course_module/<int:course_id>', methods=['POST'])
+@login_required
+def add_course_module(course_id):
+    if not isinstance(current_user, Admin):
+        flash('You are not authorized to perform this action.', 'danger')
+        return redirect(url_for('main.admin_dashboard'))
+
+    try:
+        course = db.session.get(Course, course_id)
+        if not course:
+            flash('Course not found.', 'danger')
+            return redirect(url_for('main.admin_course_management'))
+
+        module_name = request.form.get('module_name')
+        series_number = request.form.get('series_number')
+
+        if not module_name:
+            flash('Module name is required.', 'danger')
+        else:
+            new_module = Module(
+                module_name=module_name,
+                series_number=series_number,
+                course_id=course_id
+            )
+            db.session.add(new_module)
+            db.session.commit()
+            flash('Module added successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f'[ADD MODULE] Failed to add module to course {course_id}')
+        flash(f'Error adding module: {e}', 'danger')
+
+    return redirect(url_for('main.admin_course_management'))
+
+@main_bp.route('/delete_course_module/<int:module_id>', methods=['POST'])
+@login_required
+def delete_course_module(module_id):
+    if not isinstance(current_user, Admin):
+        flash('You are not authorized to perform this action.', 'danger')
+        return redirect(url_for('main.admin_dashboard'))
+
+    try:
+        module = db.session.get(Module, module_id)
+        if not module:
+            flash('Module not found.', 'danger')
+            return redirect(url_for('main.admin_course_management'))
+
+        # Also delete user progress for this module
+        UserModule.query.filter_by(module_id=module.module_id).delete()
+
+        db.session.delete(module)
+        db.session.commit()
+        flash('Module deleted successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f'[DELETE MODULE] Failed to delete module {module_id}')
+        flash(f'Error deleting module: {e}', 'danger')
+
+    return redirect(url_for('main.admin_course_management'))
+
+@main_bp.route('/update_course_module/<int:module_id>', methods=['POST'])
+@login_required
+def update_course_module(module_id):
+    if not isinstance(current_user, Admin):
+        flash('You are not authorized to perform this action.', 'danger')
+        return redirect(url_for('main.admin_dashboard'))
+
+    try:
+        module = db.session.get(Module, module_id)
+        if not module:
+            flash('Module not found.', 'danger')
+            return redirect(url_for('main.admin_course_management'))
+
+        module_name = request.form.get('module_name')
+        series_number = request.form.get('series_number')
+
+        if not module_name:
+            flash('Module name cannot be empty.', 'danger')
+        else:
+            module.module_name = module_name
+            module.series_number = series_number
+            db.session.commit()
+            flash('Module updated successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f'[UPDATE MODULE] Failed to update module {module_id}')
+        flash(f'Error updating module: {e}', 'danger')
+
+    return redirect(url_for('main.admin_course_management'))
+
+@main_bp.route('/manage_module_content/<int:module_id>', methods=['POST'])
+@login_required
+def manage_module_content(module_id):
+    if not isinstance(current_user, Admin):
+        flash('You are not authorized to perform this action.', 'danger')
+        return redirect(url_for('main.admin_dashboard'))
+
+    try:
+        module = db.session.get(Module, module_id)
+        if not module:
+            flash('Module not found.', 'danger')
+            return redirect(url_for('main.admin_course_management'))
+
+        content_type = request.form.get('content_type')
+
+        if content_type == 'slide':
+            slide_text = request.form.get('slide_text')
+            module.content = slide_text
+            if 'slide_file' in request.files:
+                file = request.files['slide_file']
+                if file and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    # Prepend module ID to avoid filename conflicts
+                    filename = f"mod{module.module_id}_{filename}"
+                    file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'slides', filename)
+                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                    file.save(file_path)
+                    module.slide_url = f"slides/{filename}"
+            flash('Slide content updated successfully!', 'success')
+
+        elif content_type == 'video':
+            youtube_url = request.form.get('youtube_url')
+            module.youtube_url = youtube_url
+            flash('Video content updated successfully!', 'success')
+
+        else:
+            flash('Invalid content type specified.', 'danger')
+
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f'[MANAGE CONTENT] Failed for module {module_id}')
+        flash(f'Error managing content: {e}', 'danger')
+
+    return redirect(url_for('main.admin_course_management'))
 
 # Admin certificates
 @main_bp.route('/admin_certificates')
@@ -969,7 +1492,7 @@ def admin_certificates():
 @main_bp.route('/monitor_progress')
 @login_required
 def monitor_progress():
-    if not isinstance(current_user, Admin):
+    if not (isinstance(current_user, Admin) or isinstance(current_user, AgencyAccount)):
         return redirect(url_for('main.login'))
     try:
         # Filters
@@ -977,6 +1500,10 @@ def monitor_progress():
         agency_id = request.args.get('agency_id')
         course_id = request.args.get('course_id')
         status_filter = request.args.get('status', '').lower()
+
+        # For AgencyAccount, default to their agency if no agency_id specified
+        if isinstance(current_user, AgencyAccount) and not agency_id:
+            agency_id = current_user.agency_id
 
         # Get agencies and courses for filters
         agencies = Agency.query.order_by(Agency.agency_name).all()
@@ -993,7 +1520,7 @@ def monitor_progress():
 
         progress_rows = []
         for user in users:
-            if q and (q not in (user.full_name or '').lower() and q not in (user.email or '').lower() and q not in (user.number_series or '').lower() and q not in (user.agency.agency_name if user.agency else '').lower()):
+            if q and (q not in (user.full_name or '').lower() and q not in (user.email or '').lower() and q not in (user.agency.agency_name if user.agency else '').lower()):
                 continue
             for course in courses:
                 if course_id and str(course.course_id) != course_id:
@@ -1009,11 +1536,6 @@ def monitor_progress():
                 completed_for_user = user_completed_q.count()
                 total_for_course = len(course_module_ids)
                 user_progress_pct = (completed_for_user / total_for_course * 100.0) if total_for_course else 0.0
-                if status_filter:
-                    if status_filter == 'completed' and user_progress_pct < 100:
-                        continue
-                    if status_filter == 'active' and user_progress_pct >= 100:
-                        continue
                 avg_user_score_val = user_completed_q.with_entities(db.func.avg(UserModule.score)).scalar()
                 avg_user_score = round(float(avg_user_score_val or 0.0), 1)
                 last_activity = user_completed_q.with_entities(db.func.max(UserModule.completion_date)).scalar()
@@ -1265,7 +1787,7 @@ def forgot_password():
             reset_link = url_for('main.reset_password', token=token, _external=True)
 
             subject = 'Password reset for Security Training System'
-            body = f"Hello,\n\nWe received a request to reset the password for the account associated with this email.\n\nIf this was you, click the link below to reset your password (link expires in 1 hour):\n\n{reset_link}\n\nIf you did not request this, please ignore this message.\n\n-- Security Training System"
+            body = f"""Hello,\n\nWe received a request to reset the password for the account associated with this email.\n\nIf this was you, click the link below to reset your password (link expires in 1 hour):\n\n{reset_link}\n\nIf you did not request this, please ignore this message.\n\n-- Security Training System"""
 
             # Try to use Flask-Mail if available
             mail_ext = current_app.extensions.get('mail') if hasattr(current_app, 'extensions') else None

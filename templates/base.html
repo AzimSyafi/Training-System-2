@@ -208,6 +208,7 @@
         body.dark-mode .table thead, html.darkmode body .table thead { background-color: var(--card-bg); }
         body.dark-mode .table-hover tbody tr:hover > * , html.darkmode body .table-hover tbody tr:hover > * { --bs-table-accent-bg: #24324a; color: var(--text-color); }
         body.dark-mode .table-striped > tbody > tr:nth-of-type(odd) > * , html.darkmode body .table-striped > tbody > tr:nth-of-type(odd) > * { --bs-table-accent-bg: #1b2535; color: var(--text-color); }
+        body.dark-mode .table-striped > tbody > tr:nth-of-type(even) > * , html.darkmode body .table-striped > tbody > tr:nth-of-type(even) > * { --bs-table-accent-bg: var(--card-bg)!important; }
         body.dark-mode .dropdown-menu.bg-white, html.darkmode body .dropdown-menu.bg-white { background-color: var(--dropdown-bg)!important; }
         body.dark-mode .border, html.darkmode body .border { border-color: var(--border-color)!important; }
         body.dark-mode .shadow, html.darkmode body .shadow { box-shadow: 0 2px 6px rgba(0,0,0,0.6)!important; }
@@ -275,7 +276,7 @@
     <script src="{{ url_for('static', filename='modal_utils.js') }}"></script>
     {% block styles %}{% endblock %}
 </head>
-<body class="{% if request.endpoint in ['index','main.login','main.signup','main.onboarding','main.module_quiz'] %}no-sidebar{% endif %}{% if request.endpoint == 'main.agency_portal' %} agency-page{% endif %}{% if request.endpoint == 'main.trainer_portal' %} trainer-page{% endif %}">
+<body class="{% if request.endpoint in ['index','main.login','main.signup','main.onboarding','main.module_quiz'] %}no-sidebar{% endif %}{% if request.endpoint == 'main.agency' %} agency-page{% endif %}{% if request.endpoint == 'main.trainer_portal' %} trainer-page{% endif %}">
     {% if request.endpoint not in ['index','main.login','main.signup','main.onboarding'] %}
     <div class="sidebar" id="sidebar" aria-label="Main Sidebar">
         <button id="sidebar-toggle" aria-expanded="true" aria-controls="sidebar" type="button">
@@ -292,7 +293,7 @@
                 <a class="nav-link {% if request.endpoint=='main.agency' %}active{% endif %}" href="{{ url_for('main.agency') }}"><i class="fas fa-building"></i><span class="link-text">Agency</span></a>
             {% elif current_user.is_authenticated and current_user.__class__.__name__ != 'Admin' %}
                 <a class="nav-link {% if request.endpoint=='main.user_dashboard' %}active{% endif %}" href="{{ safe_url_for('main.user_dashboard') }}"><i class="fas fa-gauge"></i><span class="link-text">Dashboard</span></a>
-                {% if request.endpoint != 'main.agency_portal' %}
+                {% if request.endpoint != 'main.agency' %}
                 <a data-hide-on-agency class="nav-link {% if request.endpoint=='main.profile' %}active{% endif %}" href="{{ url_for('main.profile') }}"><i class="fas fa-user"></i><span class="link-text">My Profile</span></a>
                 {% if (current_user.role | default('')) != 'authority' %}
                 <a data-hide-on-agency class="nav-link {% if request.endpoint=='main.courses' %}active{% endif %}" href="{{ url_for('main.courses') }}"><i class="fas fa-layer-group"></i><span class="link-text">Courses</span></a>
@@ -303,9 +304,7 @@
                 <a data-hide-on-agency class="nav-link {% if request.endpoint=='main.my_certificates' %}active{% endif %}" href="{{ url_for('main.my_certificates') }}"><i class="fas fa-certificate"></i><span class="link-text">Certificates</span></a>
                 {% endif %}
                 {% endif %}
-                {% if (current_user.role | default('')) != 'authority' %}
                 <a class="nav-link {% if request.endpoint=='main.agency' %}active{% endif %}" href="{{ url_for('main.agency') }}"><i class="fas fa-building"></i><span class="link-text">Agency</span></a>
-                {% endif %}
             {% elif current_user.is_authenticated and current_user.__class__.__name__ == 'Admin' %}
                 <a class="nav-link {% if request.endpoint=='main.admin_dashboard' %}active{% endif %}" href="{{ url_for('main.admin_dashboard') }}"><i class="fas fa-gauge"></i><span class="link-text">Dashboard</span></a>
                 <a class="nav-link {% if request.endpoint=='main.admin_users' %}active{% endif %}" href="{{ url_for('main.admin_users') }}"><i class="fas fa-user-gear"></i><span class="link-text">Account</span></a>

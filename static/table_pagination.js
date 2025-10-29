@@ -24,7 +24,8 @@ class TablePagination {
         this.rows = Array.from(this.tbody.querySelectorAll('tr'));
         this.totalPages = Math.ceil(this.rows.length / this.itemsPerPage);
 
-        if (this.totalPages > 1) {
+        // ALWAYS inject controls when there are any rows so the page number (eg. "1") is visible
+        if (this.rows.length > 0) {
             this.injectStyles();
             this.createPaginationControls();
             this.showPage(1);
@@ -150,7 +151,7 @@ class TablePagination {
         paginationDiv.className = 'table-pagination-controls';
         paginationDiv.innerHTML = `
             <div class="pagination-info">
-                Showing <span class="fw-bold" id="start-${this.tableId}">1</span>–<span class="fw-bold" id="end-${this.tableId}">50</span> of <span class="fw-bold" id="total-${this.tableId}">${this.rows.length}</span>
+                Showing <span class="fw-bold" id="start-${this.tableId}">1</span>–<span class="fw-bold" id="end-${this.tableId}">0</span> of <span class="fw-bold" id="total-${this.tableId}">${this.rows.length}</span>
             </div>
             <nav aria-label="Table pagination">
                 <ul class="pagination-nav" id="pagination-list-${this.tableId}">
@@ -216,7 +217,7 @@ class TablePagination {
         // Next button
         const nextLi = document.createElement('li');
         const nextLink = document.createElement('a');
-        nextLink.className = `pagination-link ${this.currentPage === this.totalPages ? 'disabled' : ''}`;
+        nextLink.className = `pagination-link ${this.currentPage === this.totalPages || this.totalPages === 0 ? 'disabled' : ''}`;
         nextLink.href = '#';
         nextLink.innerHTML = '<i class="fas fa-chevron-right"></i>';
         nextLink.setAttribute('aria-label', 'Next');
@@ -237,6 +238,8 @@ class TablePagination {
             for (let i = 1; i <= this.totalPages; i++) {
                 pages.push(i);
             }
+            // If there are zero pages (no rows), still show a single page '1' for consistency
+            if (this.totalPages === 0) pages.push(1);
         } else {
             // Always show first page
             pages.push(1);
@@ -265,9 +268,14 @@ class TablePagination {
     }
 
     showPage(pageNum) {
-        this.currentPage = pageNum;
+        // Guard pageNum bounds
+        if (this.totalPages === 0) {
+            this.currentPage = 1;
+        } else {
+            this.currentPage = Math.min(Math.max(1, pageNum), Math.max(1, this.totalPages));
+        }
 
-        const startIndex = (pageNum - 1) * this.itemsPerPage;
+        const startIndex = (this.currentPage - 1) * this.itemsPerPage;
         const endIndex = startIndex + this.itemsPerPage;
 
         // Hide all rows
@@ -275,31 +283,45 @@ class TablePagination {
             row.style.display = 'none';
         });
 
-        // Show rows for current page
-        for (let i = startIndex; i < endIndex && i < this.rows.length; i++) {
-            this.rows[i].style.display = '';
+        // Show rows for current page (or all if only one page)
+        if (this.totalPages <= 1) {
+            // If only one page, show all rows
+            this.rows.forEach(row => row.style.display = '');
+        } else {
+            for (let i = startIndex; i < endIndex && i < this.rows.length; i++) {
+                this.rows[i].style.display = '';
+            }
         }
 
         // Update pagination info
-        const start = startIndex + 1;
-        const end = Math.min(endIndex, this.rows.length);
+        const start = this.rows.length === 0 ? 0 : (this.totalPages <= 1 ? 1 : (startIndex + 1));
+        const end = this.rows.length === 0 ? 0 : (this.totalPages <= 1 ? this.rows.length : Math.min(endIndex, this.rows.length));
 
         const startEl = document.getElementById(`start-${this.tableId}`);
         const endEl = document.getElementById(`end-${this.tableId}`);
+        const totalEl = document.getElementById(`total-${this.tableId}`);
 
         if (startEl) startEl.textContent = start;
         if (endEl) endEl.textContent = end;
+        if (totalEl) totalEl.textContent = this.rows.length;
 
         // Update pagination buttons
         this.updatePaginationButtons();
 
-        // Scroll to table top
-        this.table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Ensure pagination controls are visible
+        const paginationDiv = document.getElementById(`pagination-${this.tableId}`);
+        if (paginationDiv) paginationDiv.style.display = '';
+
+        // Scroll to table top for multi-page navigation
+        if (this.totalPages > 1) {
+            this.table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
 
     // Method to refresh pagination (useful after filtering/searching)
     refresh() {
-        this.rows = Array.from(this.tbody.querySelectorAll('tr')).filter(row => row.style.display !== 'none');
+        // Recompute rows and totalPages based on current DOM
+        this.rows = Array.from(this.tbody.querySelectorAll('tr'));
         this.totalPages = Math.ceil(this.rows.length / this.itemsPerPage);
         this.currentPage = 1;
 
@@ -307,13 +329,22 @@ class TablePagination {
         const totalEl = document.getElementById(`total-${this.tableId}`);
         if (totalEl) totalEl.textContent = this.rows.length;
 
-        if (this.totalPages > 1) {
+        // Always show pagination controls (even for single page), and update display
+        if (this.rows.length > 0) {
+            // Rebuild buttons and show first page
+            this.updatePaginationButtons();
             this.showPage(1);
         } else {
-            // Show all rows if only one page
-            this.rows.forEach(row => row.style.display = '');
+            // No rows: update info and keep controls visible with zeros
+            const startEl = document.getElementById(`start-${this.tableId}`);
+            const endEl = document.getElementById(`end-${this.tableId}`);
+            const totalEl2 = document.getElementById(`total-${this.tableId}`);
+            if (startEl) startEl.textContent = 0;
+            if (endEl) endEl.textContent = 0;
+            if (totalEl2) totalEl2.textContent = 0;
             const paginationDiv = document.getElementById(`pagination-${this.tableId}`);
-            if (paginationDiv) paginationDiv.style.display = 'none';
+            if (paginationDiv) paginationDiv.style.display = '';
+            if (this.paginationList) this.paginationList.innerHTML = '<li><a class="pagination-link active">1</a></li>';
         }
     }
 }

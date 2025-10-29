@@ -45,10 +45,9 @@ def authority_portal():
             conditions.append(Certificate.status == status)
         if q:
             like = f"%{q}%"
-            # Search by user name, SG number, course name/code, module name, module type, certificate id text
+            # Search by user name, course name/code, module name, module type, certificate id text
             conditions.append(or_(
                 User.full_name.ilike(like),
-                func.coalesce(User.number_series, '').ilike(like),
                 func.coalesce(Course.name, '').ilike(like),
                 func.coalesce(Course.code, '').ilike(like),
                 Module.module_name.ilike(like),

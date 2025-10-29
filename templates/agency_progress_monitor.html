@@ -19,7 +19,6 @@
             <thead>
               <tr>
                 <th>User</th>
-                <th>Number Series</th>
                 <th>Citizenship</th>
                 <th>Course</th>
                 <th>Progress</th>
@@ -32,13 +31,6 @@
               {% for row in progress_rows %}
               <tr>
                 <td>{{ row.user_name }}</td>
-                <td>
-                  {% if row.user_number_series %}
-                    {{ row.user_number_series }}
-                  {% else %}
-                    <span class="text-muted">-</span>
-                  {% endif %}
-                </td>
                 <td>{{ (row.user_category or 'citizen')|capitalize }}</td>
                 <td>
                   <div>{{ row.course_name }}</div>
@@ -94,8 +86,18 @@
           <i class="fas fa-chart-line fa-3x mb-3 opacity-50"></i>
           <h5>No Progress Data Available</h5>
           <p>Users will appear here once they start enrolling in courses and completing modules.</p>
+          {% if users_count is defined and courses_with_modules_count is defined %}
+            <p class="small mt-2">Quick diagnostics: <strong>{{ users_count }}</strong> user(s) in your agency, <strong>{{ courses_with_modules_count }}</strong> course(s) with modules.</p>
+            {% if users_count == 0 %}
+              <p class="small text-warning">It looks like your agency has no users. You can add users from the Agency Portal.</p>
+            {% elif courses_with_modules_count == 0 %}
+              <p class="small text-warning">There are no courses with modules visible. Ensure courses and modules have been created and are visible to trainees.</p>
+            {% else %}
+              <p class="small text-muted">Users exist and courses with modules are present — they may not have started modules yet.</p>
+            {% endif %}
+          {% endif %}
           {% if agency %}
-            <a href="{{ url_for('main.agency_portal') }}" class="btn btn-primary mt-3">
+            <a href="{{ url_for('main.agency') }}" class="btn btn-primary mt-3">
               <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
             </a>
           {% endif %}
