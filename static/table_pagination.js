@@ -24,7 +24,7 @@ class TablePagination {
         this.rows = Array.from(this.tbody.querySelectorAll('tr'));
         this.totalPages = Math.ceil(this.rows.length / this.itemsPerPage);
 
-        // ALWAYS inject controls when there are any rows so the page number (eg. "1") is visible
+       // ALWAYS inject controls when there are any rows so the page number (eg. "1") is visible
         if (this.rows.length > 0) {
             this.injectStyles();
             this.createPaginationControls();
