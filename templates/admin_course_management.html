@@ -231,9 +231,11 @@
                                   <button type="button" class="btn btn-outline-primary btn-sm add-question" data-module-id="{{ m.module_id }}"><i class="fas fa-plus me-1"></i>Question</button>
                                   <small class="text-muted">Max 40 questions.</small>
                                 </div>
-                                {# Removed warning about replacement; we now support editing #}
-                                {% if m.quiz_json %}<script type="application/json" class="existing-quiz-data">{{ m.quiz_json|safe }}</script>{% endif %}
-                                <button class="btn btn-success btn-lg floating-save d-none" type="submit" data-floating-for="quiz-form-{{ m.module_id }}"><i class="fas fa-save me-2"></i>Save Quiz</button>
+                                <div class="mt-3 text-end">
+                                  <button class="btn btn-success btn-lg" type="submit" data-floating-for="quiz-form-{{ m.module_id }}"><i class="fas fa-save me-2"></i>Save Quiz</button>
+                                </div>
+                                {# Always include the script tag, even if empty, for debugging #}
+                                <script type="application/json" class="existing-quiz-data" data-module-id="{{ m.module_id }}">{% if m.quiz_json %}{{ m.quiz_json|safe }}{% else %}[]{% endif %}</script>
                               </form>
                             </div>
                           </div>
@@ -625,17 +627,37 @@
     function preloadExisting(form, container) {
         let existingQuiz = null;
         const script = form.querySelector('.existing-quiz-data');
+        const moduleId = container.dataset.moduleId || 'unknown';
+
+        console.log(`[Quiz Builder] preloadExisting for module ${moduleId}`);
+
         if (script) {
+            const rawText = script.textContent.trim();
+            console.log(`[Quiz Builder] Found script tag, content length: ${rawText.length}`);
+            console.log(`[Quiz Builder] First 200 chars:`, rawText.substring(0, 200));
+
             try {
-                existingQuiz = JSON.parse(script.textContent);
+                existingQuiz = JSON.parse(rawText);
+                console.log(`[Quiz Builder] Successfully parsed quiz data, type: ${typeof existingQuiz}, is array: ${Array.isArray(existingQuiz)}`);
+                if (Array.isArray(existingQuiz)) {
+                    console.log(`[Quiz Builder] Number of questions: ${existingQuiz.length}`);
+                } else if (existingQuiz && typeof existingQuiz === 'object') {
+                    console.log(`[Quiz Builder] Quiz is object with keys:`, Object.keys(existingQuiz));
+                }
             } catch (e) {
-                console.error('Failed to parse existing quiz data:', e);
+                console.error('[Quiz Builder] Failed to parse existing quiz data:', e);
+                console.error('[Quiz Builder] Raw text:', rawText.substring(0, 500));
                 existingQuiz = null;
             }
+        } else {
+            console.warn(`[Quiz Builder] No .existing-quiz-data script tag found for module ${moduleId}`);
         }
+
         if (existingQuiz && Array.isArray(existingQuiz) && existingQuiz.length > 0) {
+            console.log(`[Quiz Builder] Loading ${existingQuiz.length} questions (array format)`);
             container.innerHTML = '';
             existingQuiz.slice(0, MAX_Q).forEach((q, i) => {
+                console.log(`[Quiz Builder] Creating question ${i + 1}:`, q);
                 container.appendChild(createQuestion(container.dataset.moduleId || 'x', i + 1, q));
             });
             const first = container.querySelector('.quiz-question');
@@ -644,16 +666,35 @@
                 const header = first.querySelector('.quiz-question-header');
                 if (header) header.setAttribute('aria-expanded', 'true');
             }
+            console.log(`[Quiz Builder] Successfully loaded ${existingQuiz.length} questions`);
         } else if (existingQuiz && existingQuiz.questions && Array.isArray(existingQuiz.questions) && existingQuiz.questions.length) {
+            console.log(`[Quiz Builder] Loading ${existingQuiz.questions.length} questions (object format)`);
             container.innerHTML = '';
             existingQuiz.questions.slice(0, MAX_Q).forEach((q, i) => {
-                const newFormat = {
-                    text: q.question,
-                    answers: (q.answers || []).map((ansText, ansIdx) => ({
-                        text: ansText,
-                        isCorrect: (ansIdx + 1) === parseInt(q.correct, 10)
-                    }))
-                };
+                let newFormat;
+
+                // Check if this is already in the new format (has text and answers with objects)
+                if (q.text && Array.isArray(q.answers) && q.answers.length > 0 && typeof q.answers[0] === 'object' && 'isCorrect' in q.answers[0]) {
+                    // New format: already has text and answers with {text, isCorrect}
+                    newFormat = {
+                        text: q.text,
+                        answers: q.answers.map(ans => ({
+                            text: ans.text || '',
+                            isCorrect: !!ans.isCorrect
+                        }))
+                    };
+                } else {
+                    // Old format: has question and answers as string array with correct index
+                    newFormat = {
+                        text: q.question || q.text || '',
+                        answers: (q.answers || []).map((ansText, ansIdx) => ({
+                            text: typeof ansText === 'string' ? ansText : (ansText.text || ''),
+                            isCorrect: (ansIdx + 1) === parseInt(q.correct, 10)
+                        }))
+                    };
+                }
+
+                console.log(`[Quiz Builder] Creating question ${i + 1}:`, newFormat);
                 container.appendChild(createQuestion(container.dataset.moduleId || 'x', i + 1, newFormat));
             });
             const first = container.querySelector('.quiz-question');
@@ -662,6 +703,9 @@
                 const header = first.querySelector('.quiz-question-header');
                 if (header) header.setAttribute('aria-expanded', 'true');
             }
+            console.log(`[Quiz Builder] Successfully loaded ${existingQuiz.questions.length} questions`);
+        } else {
+            console.log(`[Quiz Builder] No valid quiz data found for module ${moduleId}, will create empty question on initialization`);
         }
     }
 

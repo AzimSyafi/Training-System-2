@@ -18,7 +18,18 @@ function createQuizBuilder(root) {
       const res = await fetch(`/api/load_quiz/${moduleId}`);
       if (res.ok) {
         const payload = await res.json();
-        const data = Array.isArray(payload) ? payload : (Array.isArray(payload.quiz) ? payload.quiz : []);
+        // Handle multiple formats: array, {quiz: [...]}, {questions: [...]}
+        let data = [];
+        if (Array.isArray(payload)) {
+          data = payload;
+        } else if (payload && typeof payload === 'object') {
+          if (Array.isArray(payload.quiz)) {
+            data = payload.quiz;
+          } else if (Array.isArray(payload.questions)) {
+            data = payload.questions;
+          }
+        }
+
         if (Array.isArray(data) && data.length > 0) {
           quizData = data;
         } else {

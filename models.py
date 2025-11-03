@@ -327,7 +327,8 @@ class Course(db.Model):
     allowed_category = db.Column(db.String(20), default='both')  # citizen / foreigner / both
 
     # Relationship
-    modules = db.relationship('Module', backref='course', lazy=True)
+    # Ensure modules are returned ordered by their series_number ascending
+    modules = db.relationship('Module', backref='course', lazy=True, order_by='Module.series_number')
 
     def to_dict(self):
         return {
@@ -336,7 +337,7 @@ class Course(db.Model):
             'code': self.code,
             'description': self.description,
             'allowed_category': self.allowed_category,
-            'module_count': len(self.modules)
+            'module_count': len(list(self.modules))
         }
 
     def is_visible_to(self, user):

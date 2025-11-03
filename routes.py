@@ -16,13 +16,14 @@ from itsdangerous import URLSafeTimedSerializer
 from flask_mail import Message
 import smtplib
 from email.mime.text import MIMEText
+import re
 
 main_bp = Blueprint('main', __name__)
 
 def resolve_uid():
     """Return numeric User.User_id for the currently-authenticated user when possible.
     - If `current_user` is a User instance, return `current_user.User_id`.
-    - Else try to use `session['user_type']` and `session['user_id']` to locate the User record.
+    - Else try to use `session['user_id']` and `session['user_type']` to locate the User record.
     - Returns None when no user id can be resolved.
     """
     try:
@@ -57,6 +58,27 @@ def resolve_uid():
         logging.exception('[resolve_uid] Failed resolving user id from session')
         return None
     return None
+
+# New helper: canonical sort for modules by their series_number.
+# Series numbers are often strings like 'TNG001' or 'CSG1' — this helper will try to sort
+# by the last numeric group in the series (numeric natural sort), falling back to
+# lexicographic order when no digits are present.
+def _module_series_sort_key(m):
+    try:
+        s = (getattr(m, 'series_number', None) or '').strip()
+        if not s:
+            # ensure modules without series go last
+            return (float('inf'), '')
+        # find the last contiguous group of digits in the string
+        matches = re.findall(r"(\d+)", s)
+        if matches:
+            # use integer value of the last digit group first, then full string as tiebreaker
+            num = int(matches[-1])
+            return (num, s)
+        # no digits, sort lexicographically but put after numeric ones by returning large first element
+        return (float('inf'), s)
+    except Exception:
+        return (float('inf'), getattr(m, 'series_number', '') or '')
 
 # Home route
 @main_bp.route('/')
@@ -218,7 +240,8 @@ def user_dashboard():
     course_completed_count = 0
     for c in courses:
         try:
-            mods = c.modules
+            # Ensure modules are presented in ascending series order
+            mods = sorted(list(c.modules), key=_module_series_sort_key)
             total_modules = len(mods)
             if total_modules == 0:
                 completed_modules = 0
@@ -272,7 +295,8 @@ def courses():
     for c in visible_courses:
         try:
             allowed = c.allowed_category or 'both'
-            modules = list(c.modules)
+            # Present modules sorted by series number
+            modules = sorted(list(c.modules), key=_module_series_sort_key)
             module_ids = [m.module_id for m in modules]
             total_modules = len(modules)
             if total_modules == 0:
@@ -317,7 +341,8 @@ def user_modules_page(course_id):
             cat = normalized_user_category(user)
             if course.allowed_category not in (cat, 'both'):
                 abort(403)
-        modules = list(course.modules)
+        # Load modules in defined order (by series number)
+        modules = sorted(list(course.modules), key=_module_series_sort_key)
         # Compute progress for each module
         module_progress = []
         for m in modules:
@@ -356,8 +381,8 @@ def course_modules(course_code):
             cat = normalized_user_category(current_user)
             if course.allowed_category not in (cat, 'both'):
                 abort(403)
-        # Load modules in defined order
-        modules = list(course.modules)
+        # Load modules in defined order (by series number)
+        modules = sorted(list(course.modules), key=_module_series_sort_key)
         # Build user progress map for these modules
         module_ids = [m.module_id for m in modules]
         user_modules = {}
@@ -625,7 +650,8 @@ def trainer_portal():
         course_stats = []
         modules_by_course = {}
         for course in courses:
-            modules = course.modules
+            # Sort modules by series for consistent display and stats
+            modules = sorted(list(course.modules), key=_module_series_sort_key)
             module_ids = [m.module_id for m in modules]
             modules_by_course[course.code] = [{'id': m.module_id, 'name': m.module_name} for m in modules]
             trainees_q = User.query
@@ -658,51 +684,6 @@ def trainer_portal():
                 'completed_pairs': completed_count,
                 'last_activity': last_activity
             })
-        active_trainees = User.query.count()
-        certificates_issued = Certificate.query.count()
-        avg_rating_pct = 0.0
-        my_courses = len(course_stats)
-        progress_rows = []
-        for course_stat in course_stats:
-            code = course_stat['code']
-            course_obj = next((c for c in courses if c.code == code), None)
-            if not course_obj:
-                continue
-            course_module_ids = [m.module_id for m in course_obj.modules]
-            if not course_module_ids:
-                continue
-            trainees_q = User.query
-            if course_obj.allowed_category == 'citizen':
-                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'citizen')
-            elif course_obj.allowed_category == 'foreigner':
-                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'foreigner')
-            trainees = trainees_q.all()
-            for user in trainees:
-                user_completed_q = UserModule.query.filter(
-                    UserModule.user_id == user.User_id,
-                    UserModule.module_id.in_(course_module_ids),
-                    UserModule.is_completed.is_(True)
-                )
-                completed_for_user = user_completed_q.count()
-                total_for_course = len(course_module_ids)
-                user_progress_pct = (completed_for_user / total_for_course * 100.0) if total_for_course else 0.0
-                avg_user_score_val = user_completed_q.with_entities(db.func.avg(UserModule.score)).scalar()
-                avg_user_score = round(float(avg_user_score_val or 0.0), 1)
-                last_activity = user_completed_q.with_entities(db.func.max(UserModule.completion_date)).scalar()
-                progress_rows.append({
-                    'user_name': user.full_name,
-                    'user_number_series': user.number_series,
-                    'user_category': user.user_category,
-                    'course_name': course.name,
-                    'course_code': course.code,
-                    'agency_name': user.agency.agency_name if user.agency else '',
-                    'progress_pct': round(user_progress_pct, 1),
-                    'completed_modules': completed_for_user,
-                    'total_modules': total_for_course,
-                    'score': avg_user_score,
-                    'last_activity': last_activity,
-                    'status': 'Completed' if user_progress_pct >= 100 else 'Active'
-                })
         active_trainees = User.query.count()
         certificates_issued = Certificate.query.count()
         avg_rating_pct = 0.0
@@ -1010,6 +991,14 @@ def admin_course_management():
     try:
         courses = Course.query.order_by(Course.name).all()
         modules = Module.query.order_by(Module.series_number.asc()).all()
+
+        # Debug: Log quiz data status
+        logging.info(f'[ADMIN COURSE MANAGEMENT] Loaded {len(modules)} modules')
+        for module in modules:
+            has_quiz = bool(module.quiz_json)
+            quiz_len = len(module.quiz_json) if module.quiz_json else 0
+            logging.info(f'[ADMIN COURSE MANAGEMENT] Module {module.module_id} ({module.module_name}): has_quiz={has_quiz}, quiz_json_length={quiz_len}')
+
         # Group modules by course_id
         course_modules = {}
         for module in modules:
@@ -1017,12 +1006,56 @@ def admin_course_management():
             if course_id not in course_modules:
                 course_modules[course_id] = []
             course_modules[course_id].append(module)
+        # Ensure each course's module list is sorted by series (numeric-aware)
+        for k in list(course_modules.keys()):
+            course_modules[k] = sorted(course_modules[k], key=_module_series_sort_key)
     except Exception:
         logging.exception('[ADMIN COURSE MANAGEMENT] Failed loading data')
         courses = []
         modules = []
         course_modules = {}
     return render_template('admin_course_management.html', courses=courses, modules=modules, course_modules=course_modules)
+
+@main_bp.route('/debug/quiz_data/<int:module_id>')
+@login_required
+def debug_quiz_data(module_id):
+    """Debug endpoint to inspect quiz data for a module"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'error': 'Not authorized'}), 403
+
+    module = db.session.get(Module, module_id)
+    if not module:
+        return jsonify({'error': 'Module not found'}), 404
+
+    import json
+    debug_info = {
+        'module_id': module.module_id,
+        'module_name': module.module_name,
+        'series_number': module.series_number,
+        'course_id': module.course_id,
+        'has_quiz_json': bool(module.quiz_json),
+        'quiz_json_length': len(module.quiz_json) if module.quiz_json else 0,
+        'quiz_json_raw': module.quiz_json[:500] if module.quiz_json else None,
+    }
+
+    if module.quiz_json:
+        try:
+            parsed = json.loads(module.quiz_json)
+            debug_info['quiz_json_valid'] = True
+            debug_info['quiz_json_type'] = type(parsed).__name__
+            if isinstance(parsed, list):
+                debug_info['question_count'] = len(parsed)
+                if len(parsed) > 0:
+                    debug_info['first_question'] = parsed[0]
+            elif isinstance(parsed, dict):
+                debug_info['quiz_keys'] = list(parsed.keys())
+                if 'questions' in parsed:
+                    debug_info['question_count'] = len(parsed.get('questions', []))
+        except json.JSONDecodeError as e:
+            debug_info['quiz_json_valid'] = False
+            debug_info['parse_error'] = str(e)
+
+    return jsonify(debug_info)
 
 @main_bp.route('/create_course', methods=['POST'])
 @login_required
@@ -1993,11 +2026,11 @@ def api_get_user_quiz_answers(module_id):
             uid = resolve_uid()
         except Exception:
             uid = getattr(current_user, 'User_id', None)
-            if not uid:
-                try:
-                    uid = int(session.get('user_id'))
-                except Exception:
-                    uid = None
+        if not uid:
+            try:
+                uid = int(session.get('user_id'))
+            except Exception:
+                uid = None
         if not uid:
             logging.info('[API user_quiz_answers] No user id available')
             return jsonify([]), 400
@@ -2132,7 +2165,12 @@ def api_save_quiz_answers(module_id):
             # Nothing usable provided
             return jsonify({'success': False, 'message': 'No answers provided'}), 400
 
-        uid = getattr(current_user, 'User_id', None)
+        # Resolve numeric user id robustly
+        uid = None
+        try:
+            uid = resolve_uid()
+        except Exception:
+            uid = getattr(current_user, 'User_id', None)
         if not uid:
             try:
                 uid = int(session.get('user_id'))
@@ -2163,7 +2201,12 @@ def api_debug_quiz_raw(module_id):
     Simpler debug output: raw stored value and a best-effort parsed JSON.
     """
     try:
-        uid = getattr(current_user, 'User_id', None)
+        # Resolve numeric user id robustly
+        uid = None
+        try:
+            uid = resolve_uid()
+        except Exception:
+            uid = getattr(current_user, 'User_id', None)
         if not uid:
             try:
                 uid = int(session.get('user_id'))
@@ -2270,7 +2313,12 @@ def api_submit_quiz(module_id):
             score = round((correct_count / total) * 100, 0)
 
         # Persist to UserModule
-        uid = getattr(current_user, 'User_id', None)
+        # Resolve numeric user id robustly
+        uid = None
+        try:
+            uid = resolve_uid()
+        except Exception:
+            uid = getattr(current_user, 'User_id', None)
         if not uid:
             try:
                 uid = int(session.get('user_id'))
@@ -2302,3 +2350,73 @@ def api_submit_quiz(module_id):
         db.session.rollback()
         return jsonify({'success': False, 'message': 'Server error'}), 500
 
+@main_bp.route('/admin_debug_quiz/<int:module_id>')
+@login_required
+def admin_debug_quiz(module_id):
+    """Admin helper: return raw and normalized quiz JSON for a module.
+    Useful to inspect shapes that the admin quiz builder will try to load.
+    """
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'message': 'Not authorized'}), 403
+    try:
+        mod = db.session.get(Module, module_id)
+        if not mod:
+            return jsonify({'success': False, 'message': 'Module not found'}), 404
+        raw = mod.quiz_json
+        if not raw:
+            return jsonify({'success': True, 'raw': None, 'normalized': []})
+        import json
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            parsed = None
+        # Try to normalize similar to the admin preloadExisting logic
+        def normalize(obj):
+            if obj is None:
+                return []
+            # If it's already a list of new-format
+            if isinstance(obj, list) and obj:
+                first = obj[0]
+                if isinstance(first, dict) and (first.get('text') or isinstance(first.get('answers'), list) and isinstance(first.get('answers')[0] if first.get('answers') else None, dict)):
+                    return obj
+                # legacy list with question/answers
+                if isinstance(first, dict) and (first.get('question') or isinstance(first.get('answers'), list)):
+                    out = []
+                    for q in obj:
+                        raw_answers = q.get('answers') or q.get('choices') or []
+                        mapped = []
+                        if isinstance(raw_answers, list):
+                            for i,a in enumerate(raw_answers):
+                                if isinstance(a, dict):
+                                    mapped.append({'text': a.get('text', str(a)), 'isCorrect': bool(a.get('isCorrect', False))})
+                                else:
+                                    is_corr = False
+                                    try:
+                                        is_corr = (q.get('correct') is not None and int(q.get('correct')) == (i+1))
+                                    except Exception:
+                                        is_corr = False
+                                    mapped.append({'text': str(a), 'isCorrect': is_corr})
+                        out.append({'text': q.get('question') or q.get('text') or '', 'answers': mapped})
+                    return out
+            # object with questions key
+            if isinstance(obj, dict):
+                if isinstance(obj.get('questions'), list):
+                    return normalize(obj.get('questions'))
+                if isinstance(obj.get('quiz'), list):
+                    return normalize(obj.get('quiz'))
+                if obj.get('text') and obj.get('answers'):
+                    raw_answers = obj.get('answers') or []
+                    mapped = []
+                    if isinstance(raw_answers, list):
+                        for a in raw_answers:
+                            if isinstance(a, dict):
+                                mapped.append({'text': a.get('text', str(a)), 'isCorrect': bool(a.get('isCorrect', False))})
+                            else:
+                                mapped.append({'text': str(a), 'isCorrect': False})
+                    return [{'text': obj.get('text'), 'answers': mapped}]
+            return []
+        normalized = normalize(parsed)
+        return jsonify({'success': True, 'raw': raw, 'parsed_sample': parsed if isinstance(parsed, (list, dict)) else None, 'normalized': normalized})
+    except Exception:
+        logging.exception('[ADMIN DEBUG QUIZ]')
+        return jsonify({'success': False, 'message': 'Server error'}), 500
