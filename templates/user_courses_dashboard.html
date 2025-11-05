@@ -148,6 +148,123 @@
         max-width: 100% !important;
       }
     }
+
+    /* Dark mode overrides for Tailwind classes */
+    body.dark-mode .bg-white,
+    html.darkmode body .bg-white {
+      background-color: var(--card-bg) !important;
+    }
+
+    body.dark-mode .text-blue-900,
+    html.darkmode body .text-blue-900 {
+      color: #93c5fd !important;
+    }
+
+    body.dark-mode .text-gray-500,
+    html.darkmode body .text-gray-500 {
+      color: #94a3b8 !important;
+    }
+
+    body.dark-mode .text-gray-700,
+    html.darkmode body .text-gray-700 {
+      color: #cbd5e1 !important;
+    }
+
+    body.dark-mode .text-gray-800,
+    html.darkmode body .text-gray-800 {
+      color: #e2e8f0 !important;
+    }
+
+    /* Ensure all text size classes inherit proper color in dark mode */
+    body.dark-mode .text-lg,
+    html.darkmode body .text-lg {
+      color: inherit;
+    }
+
+    body.dark-mode .text-sm,
+    html.darkmode body .text-sm {
+      color: inherit;
+    }
+
+    body.dark-mode .text-xs,
+    html.darkmode body .text-xs {
+      color: inherit;
+    }
+
+    /* Font weight classes should not override color */
+    body.dark-mode .font-semibold,
+    html.darkmode body .font-semibold,
+    body.dark-mode .font-bold,
+    html.darkmode body .font-bold {
+      color: inherit;
+    }
+
+    /* Specific text colors - labels/values need to be visible */
+    body.dark-mode .text-gray-500.text-sm,
+    html.darkmode body .text-gray-500.text-sm {
+      color: #94a3b8 !important;
+    }
+
+    body.dark-mode .font-semibold.text-lg,
+    html.darkmode body .font-semibold.text-lg {
+      color: #ffffff !important;
+    }
+
+    body.dark-mode .text-sm.font-semibold.text-gray-700,
+    html.darkmode body .text-sm.font-semibold.text-gray-700 {
+      color: #cbd5e1 !important;
+    }
+
+    body.dark-mode .text-muted,
+    html.darkmode body .text-muted {
+      color: #94a3b8 !important;
+    }
+
+    body.dark-mode .bg-blue-100,
+    html.darkmode body .bg-blue-100 {
+      background-color: rgba(59,130,246,0.15) !important;
+    }
+
+    body.dark-mode .text-blue-800,
+    html.darkmode body .text-blue-800 {
+      color: #93c5fd !important;
+    }
+
+    body.dark-mode .bg-gray-200,
+    html.darkmode body .bg-gray-200 {
+      background-color: rgba(148,163,184,0.2) !important;
+    }
+
+    body.dark-mode .bg-blue-700,
+    html.darkmode body .bg-blue-700 {
+      background-color: #2563eb !important;
+    }
+
+    body.dark-mode .bg-blue-700:hover,
+    html.darkmode body .bg-blue-700:hover {
+      background-color: #1d4ed8 !important;
+    }
+
+    body.dark-mode .bg-blue-800,
+    html.darkmode body .bg-blue-800 {
+      background-color: #1e40af !important;
+    }
+
+    body.dark-mode .shadow,
+    html.darkmode body .shadow {
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.26) !important;
+    }
+
+    body.dark-mode .border-blue-200,
+    html.darkmode body .border-blue-200 {
+      border-color: rgba(59,130,246,0.3) !important;
+    }
+
+    /* Progress label color */
+    body.dark-mode .progress-label,
+    html.darkmode body .progress-label {
+      color: #cbd5e1 !important;
+    }
   </style>
 
 </div>

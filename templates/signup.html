@@ -1,4 +1,3 @@
-<!-- html -->
 {% extends 'base.html' %}
 
 {% block title %}Sign Up - Training System{% endblock %}
@@ -11,56 +10,68 @@
     --primary: #0d6efd;
     --bg-dark: #071428;
     --panel-radius: 12px;
+    
+    /* Hardcoding light-mode colors */
+    --panel-bg: #ffffff;
+    --panel-text: #0f1724;
+    --input-bg: #fff;
+    --input-border: #e6edf6;
+    --muted-text: #6b7280;
+    --label-text: #111827; /* Added this for labels */
+  }
+
+  /* Dark mode variables - will only affect page background */
+  body.dark-mode,
+  html.darkmode body {
+    --bg-dark: #0f172a;
+    
+    /* Overridden by !important below */
+    /*
+    --panel-bg: #1e3a5f; 
+    --panel-text: #f1f5f9;
+    --input-bg: #0f172a;
+    --input-border: #475569;
+    --muted-text: #94a3b8;
+    */
   }
 
   html, body {
     height: 100%;
     margin: 0;
     font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-    background: var(--bg-dark);
+    background-image: linear-gradient(180deg, rgba(6,20,40,0.85) 0%, rgba(8,28,48,0.85) 100%), url('https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=2070&auto=format&fit=crop');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
     color: #eaf6ff;
   }
 
   .split-root {
     min-height: 100vh;
     display: flex;
-    flex-direction: row;
-  }
-
-  /* left panel: background fixed to viewport */
-  .left-panel {
-    flex: 1.05;
-    min-width: 420px;
-    min-height: 100vh;
-    background-image: linear-gradient(180deg, rgba(6,20,40,0.85) 0%, rgba(8,28,48,0.85) 100%), url('https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=2070&auto=format&fit=crop');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;   /* make the image static */
-    background-repeat: no-repeat;
-    color: #cfe8ff;
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    padding: 32px 40px;
-  }
-
-  /* brand: fixed so it stays locked to the static image/viewport area */
-  .brand {
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 520px;               /* confines brand area to left side (matches .right-panel width) */
-    display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    padding: 20px;
+  }
+
+  /* Brand logo at top */
+  .left-panel {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
     gap: 8px;
-    pointer-events: none;
-    z-index: 2;
-    padding: 32px 40px;
   }
 
   .brand .title {
@@ -73,24 +84,25 @@
 
   .brand .brand-tagline {
     font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-    font-size: 2.25rem;
+    font-size: 1.5rem;
     font-weight: 400;
     color: rgba(230,244,255,0.92);
     line-height: 1.05;
     margin: 0;
   }
 
-  /* Right panel remains white */
+  /* White form panel floating on background */
   .right-panel {
-    width: 520px;
-    min-width: 360px;
-    background: #ffffff;
-    color: #0f1724;
+    width: 100%;
+    max-width: 520px;
+    background: #ffffff !important;
+    color: #0f1724 !important;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 48px 36px;
-    box-shadow: -12px 0 40px rgba(6,20,40,0.06);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    border-radius: 20px;
   }
 
   .auth-card {
@@ -104,29 +116,117 @@
   .auth-card .card-title {
     font-size: 1.35rem;
     font-weight: 600;
-    color: #0f1724;
+    color: #111827 !important; /* CHANGED */
     margin-bottom: 6px;
   }
+
   .auth-card .card-sub {
     font-size: 0.95rem;
-    color: #6b7280;
+    color: #6b7280 !important; /* CHANGED */
     margin-bottom: 18px;
   }
 
-  .form-control {
+  .form-label {
+    color: #000000 !important; /* Made labels completely black */
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .right-panel .form-label {
+    color: #000000 !important;
+    font-weight: 500;
+  }
+
+  .auth-card .form-label {
+    color: #000000 !important;
+    font-weight: 500;
+  }
+
+  label.form-label {
+    color: #000000 !important;
+    font-weight: 500;
+  }
+
+  /* CHANGED: Targeting by ID for maximum specificity */
+  .right-panel #full_name,
+  .right-panel #email,
+  .right-panel #password,
+  .right-panel #ic_number,
+  .right-panel #passport_number,
+  .right-panel #country,
+  .right-panel #agency_id {
     border-radius: 8px;
     padding: 10px 12px;
-    border: 1px solid #e6edf6;
-    background: #fff;
-    box-shadow: none;
-    color: #0f1724;
+    border: 1.5px solid #e6edf6 !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    font-weight: 400;
   }
+
+  /* CHANGED: Targeting placeholders by ID */
+  .right-panel #full_name::placeholder,
+  .right-panel #email::placeholder,
+  .right-panel #password::placeholder,
+  .right-panel #ic_number::placeholder,
+  .right-panel #passport_number::placeholder {
+      color: #6b7280 !important;
+      opacity: 1 !important;
+  }
+
+  /* CHANGED: Targeting focus by ID */
+  .right-panel #full_name:focus,
+  .right-panel #email:focus,
+  .right-panel .form-check-label {
+    color: #000000 !important;
+    font-weight: 400;
+  }
+
+  .auth-card .form-check-label {
+    color: #000000 !important;
+    font-weight: 400;
+  }
+
+  label.form-check-label {
+    color: #000000 !important;
+    font-weight: 400;
+  }
+
+  .right-panel #password:focus,
+  .right-panel #ic_number:focus,
+  .right-panel #passport_number:focus,
+  .right-panel #country:focus,
+  .right-panel #agency_id:focus {
+    border-color: var(--primary) !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+  }
+
+  .form-check-label {
+    color: #000000 !important; /* Made radio button labels completely black */
+    font-weight: 400;
+  }
+
+  /* ADDED: Rules to force radio buttons to light mode */
+  .right-panel .form-check-input {
+    background-color: #ffffff !important;
+    border: 1.5px solid #adb5bd !important;
+  }
+
+  .right-panel .form-check-input:focus {
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1) !important;
+  }
+
+  .right-panel .form-check-input:checked {
+    background-color: var(--primary) !important;
+    border-color: var(--primary) !important;
+  }
+  /* End of new radio button rules */
 
   .input-group .btn {
     border-radius: 0 8px 8px 0;
-    border: 1px solid #e6edf6;
-    background: #fff;
-    color: #0f1724;
+    border: 1.5px solid #e6edf6 !important; /* CHANGED */
+    background: #ffffff !important; /* CHANGED */
+    color: #111827 !important; /* CHANGED */
   }
 
   .btn-primary-custom {
@@ -146,53 +246,59 @@
     align-items: center;
     margin-top: 12px;
     font-size: 0.9rem;
-    color: #6b7280;
+    color: #6b7280 !important; /* CHANGED */
+  }
+
+  .muted-links a {
+    color: var(--primary);
   }
 
   .right-footer {
     margin-top: 18px;
     text-align: center;
     font-size: 0.85rem;
-    color: #9aa3b2;
+    color: #6b7280 !important; /* CHANGED */
   }
 
-  @media (max-width: 1000px) {
-    /* revert brand and background behavior on small devices */
-    .brand {
-      position: relative;
-      inset: auto;
-      height: auto;
-      padding: 28px 0;
-      pointer-events: auto;
-      transform: none;
-      z-index: 1;
-    }
-    .left-panel {
-      background-attachment: scroll; /* disable fixed background on small screens */
-      min-width: auto; /* remove min-width constraint */
-      padding: 20px 16px; /* reduce padding */
-    }
-    .brand .title { font-size: 1.8rem; }
-    .brand .brand-tagline { font-size: 1.2rem; }
+  /* FINAL OVERRIDE: Ensure all labels are black - highest specificity */
+  .split-root .right-panel .auth-card label,
+  .split-root .right-panel .auth-card .form-label,
+  .split-root .right-panel .auth-card .form-check-label,
+  .split-root main.right-panel form label {
+    color: #000000 !important;
+  }
 
-    /* Keep rounded card on mobile */
-    .right-panel {
-      width: calc(100% - 32px); /* full width minus margin */
-      min-width: auto; /* remove min-width constraint */
-      margin: 16px auto; /* center horizontally with auto margins */
-      border-radius: 20px; /* rounded corners on all sides */
-      padding: 24px 20px; /* reduce padding for mobile */
-      align-self: center; /* center within flex container */
+  @media (max-width: 768px) {
+    html, body {
+      background-attachment: scroll;
     }
 
     .split-root {
-      flex-direction: column;
-      align-items: center; /* center children horizontally */
+      padding: 15px;
+    }
+
+    .left-panel {
+      margin-bottom: 15px;
+      padding: 15px;
+    }
+
+    .brand .title {
+      font-size: 1.8rem;
+    }
+
+    .brand .brand-tagline {
+      font-size: 1.2rem;
+    }
+
+    .right-panel {
+      max-width: 100%;
+      padding: 30px 24px;
+      border-radius: 16px;
     }
 
     .auth-card {
-      padding: 0; /* remove extra padding on mobile */
-      max-width: 100%; /* use full width */
+      padding: 0;
+      max-width: 100%;
     }
 
     .auth-card .card-title {
@@ -209,7 +315,7 @@
     }
 
     .form-control, .form-select {
-      font-size: 16px; /* prevent zoom on iOS */
+      font-size: 16px;
     }
 
     .muted-links {
@@ -219,11 +325,9 @@
     }
   }
 
-  /* Extra small screens */
   @media (max-width: 480px) {
     .right-panel {
-      padding: 20px 16px;
-      width: calc(100% - 32px); /* maintain centering */
+      padding: 24px 20px;
     }
 
     .auth-card .card-title {
@@ -239,8 +343,7 @@
     }
 
     .left-panel {
-      padding: 16px;
-      min-height: 180px; /* reduce height on small screens */
+      padding: 10px;
     }
   }
 </style>
@@ -272,17 +375,17 @@
       <form method="POST" novalidate>
         <div class="mb-3">
           <label for="full_name" class="form-label">Full Name</label>
-          <input type="text" class="form-control" id="full_name" name="full_name" required>
+          <input type="text" class="form-control" id="full_name" name="full_name" required placeholder="Enter your full name">
         </div>
 
         <div class="mb-3">
           <label for="email" class="form-label">Email Address</label>
-          <input type="email" class="form-control" id="email" name="email" required>
+          <input type="email" class="form-control" id="email" name="email" required placeholder="you@example.com">
         </div>
 
         <div class="mb-3">
           <label for="password" class="form-label">Password</label>
-          <input type="password" class="form-control" id="password" name="password" required>
+          <input type="password" class="form-control" id="password" name="password" required placeholder="Enter a password">
         </div>
 
         <div class="mb-3">
@@ -299,12 +402,12 @@
 
         <div class="mb-3" id="ic_field" style="display: none;">
           <label for="ic_number" class="form-label">IC Number</label>
-          <input type="text" class="form-control" id="ic_number" name="ic_number" placeholder="">
+          <input type="text" class="form-control" id="ic_number" name="ic_number" placeholder="e.g., 900101-10-1234">
         </div>
 
         <div class="mb-3" id="passport_field" style="display: none;">
           <label for="passport_number" class="form-label">Passport Number</label>
-          <input type="text" class="form-control" id="passport_number" name="passport_number" placeholder="">
+          <input type="text" class="form-control" id="passport_number" name="passport_number" placeholder="Enter passport number">
         </div>
 
         <div class="mb-3" id="country_field" style="display: none;">
@@ -402,6 +505,8 @@
     const countryField = document.getElementById('country_field');
     const icInput = document.getElementById('ic_number');
     const passportInput = document.getElementById('passport_number');
+    const countryInput = document.getElementById('country');
+    const agencyInput = document.getElementById('agency_id');
 
     if (userCategory) {
       if (userCategory.value === 'citizen') {
@@ -409,13 +514,24 @@
         passportField.style.display = 'none';
         countryField.style.display = 'none';
         if (icInput) icInput.required = true;
-        if (passportInput) passportInput.required = false;
+        if (passportInput) {
+            passportInput.required = false;
+            passportInput.value = ''; // Clear value
+        }
+        if (countryInput) {
+            countryInput.required = false;
+            countryInput.value = ''; // Clear value
+        }
       } else if (userCategory.value === 'foreigner') {
         icField.style.display = 'none';
         passportField.style.display = 'block';
         countryField.style.display = 'block';
-        if (icInput) icInput.required = false;
+        if (icInput) {
+            icInput.required = false;
+            icInput.value = ''; // Clear value
+        }
         if (passportInput) passportInput.required = true;
+        if (countryInput) countryInput.required = true;
       }
     } else {
       icField.style.display = 'none';
@@ -423,8 +539,14 @@
       countryField.style.display = 'none';
       if (icInput) icInput.required = false;
       if (passportInput) passportInput.required = false;
+      if (countryInput) countryInput.required = false;
     }
   }
+
+  // Also clear fields when toggling
+  document.querySelectorAll('input[name="user_category"]').forEach((elem) => {
+      elem.addEventListener("change", toggleIdField);
+  });
 
   window.addEventListener('DOMContentLoaded', toggleIdField);
 </script>

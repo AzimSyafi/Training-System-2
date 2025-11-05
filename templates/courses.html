@@ -1,5 +1,60 @@
 {% extends "base.html" %}
 
+{% block styles %}
+<style>
+    /* Dark mode styles for course cards */
+    body.dark-mode .bg-white,
+    html.darkmode body .bg-white {
+        background-color: #1e3a5f !important;
+    }
+
+    body.dark-mode .text-blue-700,
+    html.darkmode body .text-blue-700 {
+        color: #93c5fd !important;
+    }
+
+    body.dark-mode .text-blue-900,
+    html.darkmode body .text-blue-900 {
+        color: #ffffff !important;
+    }
+
+    body.dark-mode .text-gray-600,
+    html.darkmode body .text-gray-600 {
+        color: #e5e7eb !important;
+    }
+
+    body.dark-mode .text-gray-700,
+    html.darkmode body .text-gray-700 {
+        color: #d1d5db !important;
+    }
+
+    body.dark-mode .border-gray-200,
+    html.darkmode body .border-gray-200 {
+        border-color: #334155 !important;
+    }
+
+    body.dark-mode .bg-gray-100,
+    html.darkmode body .bg-gray-100 {
+        background-color: #334155 !important;
+    }
+
+    body.dark-mode .bg-gray-200,
+    html.darkmode body .bg-gray-200 {
+        background-color: #475569 !important;
+    }
+
+    body.dark-mode .text-gray-500,
+    html.darkmode body .text-gray-500 {
+        color: #9ca3af !important;
+    }
+
+    body.dark-mode .border-gray-300,
+    html.darkmode body .border-gray-300 {
+        border-color: #475569 !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mx-auto p-4">
   <h2 class="text-2xl font-bold mb-6 text-blue-900">Courses</h2>
