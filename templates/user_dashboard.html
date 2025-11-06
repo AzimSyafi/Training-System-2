@@ -686,7 +686,6 @@
   {% endif %}
   {% endif %}
 
-  <!-- Quick Actions -->
   {% set has_enrollment = (enrolled_courses > 0) %}
   <section class="quick-actions">
     <div class="d-flex align-items-center gap-2">
@@ -723,17 +722,16 @@
         <span class="label">Certificate Approval</span>
       </a>
       {% endif %}
-    </div>
 
-    <div class="mt-3 pt-3" style="border-top: 1px solid var(--border-color, #e5e7eb);">
       <form action="{{ url_for('main.logout') }}" method="post" class="m-0">
-        <button type="submit" class="qa-btn qa-rose w-100 justify-content-center" aria-label="Logout">
+        <button type="submit" class="qa-btn qa-rose w-100" aria-label="Logout">
           <span class="qa-icon"><i class="fas fa-sign-out-alt"></i></span>
           <span class="label">Logout</span>
         </button>
       </form>
     </div>
-  </section>
+
+    </section>
 
 </div>
 {% endblock %}
