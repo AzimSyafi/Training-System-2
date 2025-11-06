@@ -898,30 +898,30 @@ def admin_users():
             if q and (q not in (u.full_name or '').lower() and q not in (u.email or '').lower()):
                 continue
             user_role = getattr(u, 'role', 'agency')
+
+            # Map User.role to display type
             if user_role == 'authority':
-                if role_filter not in ('all', 'authority'):
-                    continue
-                merged_accounts.append({
-                    'type': 'authority',
-                    'id': u.User_id,
-                    'number_series': u.number_series,
-                    'name': u.full_name,
-                    'email': u.email,
-                    'agency': getattr(getattr(u, 'agency', None), 'agency_name', ''),
-                    'active_status': True,
-                })
-            else:
-                if role_filter not in ('all','user'):
-                    continue
-                merged_accounts.append({
-                    'type': 'user',
-                    'id': u.User_id,
-                    'number_series': u.number_series,
-                    'name': u.full_name,
-                    'email': u.email,
-                    'agency': getattr(getattr(u, 'agency', None), 'agency_name', ''),
-                    'active_status': True,
-                })
+                display_type = 'authority'
+            elif user_role == 'admin':
+                display_type = 'admin'
+            elif user_role == 'trainer':
+                display_type = 'trainer'
+            else:  # 'agency' or default
+                display_type = 'user'
+
+            # Filter by role if specified
+            if role_filter not in ('all', display_type):
+                continue
+
+            merged_accounts.append({
+                'type': display_type,
+                'id': u.User_id,
+                'number_series': u.number_series,
+                'name': u.full_name,
+                'email': u.email,
+                'agency': getattr(getattr(u, 'agency', None), 'agency_name', ''),
+                'active_status': True,
+            })
         trainers = Trainer.query.all()
         for t in trainers:
             if q and (q not in (t.name or '').lower() and q not in (t.email or '').lower()):
@@ -1210,6 +1210,109 @@ def delete_course_module(module_id):
         flash(f'Error deleting module: {e}', 'danger')
 
     return redirect(url_for('main.admin_course_management'))
+
+@main_bp.route('/delete_user', methods=['POST'])
+@login_required
+def delete_user():
+    if not (isinstance(current_user, Admin) or isinstance(current_user, AgencyAccount)):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+    try:
+        user_id = request.form.get('user_id')
+        if not user_id:
+            return jsonify({'success': False, 'message': 'User ID is required'}), 400
+
+        user = db.session.get(User, int(user_id))
+        if not user:
+            return jsonify({'success': False, 'message': 'User not found'}), 404
+
+        # Delete related records
+        UserModule.query.filter_by(user_id=user.User_id).delete()
+        UserCourseProgress.query.filter_by(user_id=user.User_id).delete()
+        Certificate.query.filter_by(user_id=user.User_id).delete()
+        WorkHistory.query.filter_by(user_id=user.User_id).delete()
+
+        db.session.delete(user)
+        db.session.commit()
+
+        logging.info(f'[DELETE USER] User {user_id} deleted by {current_user}')
+        return jsonify({'success': True, 'message': 'User deleted successfully'})
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f'[DELETE USER] Failed to delete user {request.form.get("user_id", "unknown")}')
+        return jsonify({'success': False, 'message': f'Error deleting user: {str(e)}'}), 500
+
+@main_bp.route('/delete_trainer', methods=['POST'])
+@login_required
+def delete_trainer():
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+    try:
+        trainer_id = request.form.get('trainer_id')
+        if not trainer_id:
+            return jsonify({'success': False, 'message': 'Trainer ID is required'}), 400
+
+        trainer = db.session.get(Trainer, int(trainer_id))
+        if not trainer:
+            return jsonify({'success': False, 'message': 'Trainer not found'}), 404
+
+        db.session.delete(trainer)
+        db.session.commit()
+
+        logging.info(f'[DELETE TRAINER] Trainer {trainer_id} deleted by {current_user}')
+        return jsonify({'success': True, 'message': 'Trainer deleted successfully'})
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f'[DELETE TRAINER] Failed to delete trainer {request.form.get("trainer_id", "unknown")}')
+        return jsonify({'success': False, 'message': f'Error deleting trainer: {str(e)}'}), 500
+
+@main_bp.route('/change_role', methods=['POST'])
+@login_required
+def change_role():
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+    try:
+        user_id = request.form.get('user_id')
+        new_role = request.form.get('new_role')
+        orig_type = request.form.get('orig_type')
+
+        if not user_id or not new_role:
+            return jsonify({'success': False, 'message': 'User ID and new role are required'}), 400
+
+        # Map frontend role names to User model role values
+        # User table supports: agency (regular user), authority, admin, trainer
+        role_mapping = {
+            'user': 'agency',      # Regular user (agency role)
+            'authority': 'authority',  # Authority user (certificate approver)
+            'admin': 'admin',      # Admin role
+            'trainer': 'trainer'   # Trainer role
+        }
+
+        # Check if it's a valid role
+        if new_role not in role_mapping:
+            return jsonify({'success': False, 'message': f'Invalid role. Must be one of: user, authority, admin, trainer'}), 400
+
+        # Only allow role changes for user accounts (not trainers/admins from separate tables)
+        if orig_type not in ['user', 'authority']:
+            return jsonify({'success': False, 'message': 'Can only change roles for user accounts. To create Trainers or Admins from separate tables, use the appropriate creation forms.'}), 400
+
+        user = db.session.get(User, int(user_id))
+        if not user:
+            return jsonify({'success': False, 'message': 'User not found'}), 404
+
+        old_role = user.role
+        mapped_role = role_mapping[new_role]
+        user.role = mapped_role
+        db.session.commit()
+
+        logging.info(f'[CHANGE ROLE] User {user_id} role changed from {old_role} to {mapped_role} (requested: {new_role}) by {current_user}')
+        return jsonify({'success': True, 'message': f'Role successfully changed to {new_role}'})
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f'[CHANGE ROLE] Failed to change role for user {request.form.get("user_id", "unknown")}')
+        return jsonify({'success': False, 'message': f'Error changing role: {str(e)}'}), 500
 
 @main_bp.route('/update_course_module/<int:module_id>', methods=['POST'])
 @login_required
