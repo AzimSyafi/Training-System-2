@@ -97,6 +97,7 @@ The app is configured for autoscale deployment:
   - Step 2: Contact details (phone, address, location)
   - Step 3: Work details + employment history
   - Step 4: Emergency contact (only this step finalizes the user)
+  - Fixed profile picture upload crash by setting `Profile_picture` database field instead of read-only `profile_pic_url` property
 - **Role Dropdown Fixed**: Added missing "User" and "Authority" roles to admin account creation dropdowns
 
 **Previous Bug Fixes**:

@@ -210,7 +210,8 @@ def onboarding(id, step):
                         file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'profile_pics', filename)
                         os.makedirs(os.path.dirname(file_path), exist_ok=True)
                         file.save(file_path)
-                        user.profile_pic_url = f"/static/uploads/profile_pics/{filename}"
+                        # Set Profile_picture field (not profile_pic_url property which has no setter)
+                        user.Profile_picture = f"profile_pics/{filename}"
                         
             elif step == 2:
                 # Contact Details (Step 2) - Note: emergency_contact_phone here is actually "Phone Number"
