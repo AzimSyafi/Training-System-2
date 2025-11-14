@@ -1589,6 +1589,100 @@ def admin_agencies():
 
     return render_template('admin_agencies.html', agencies=agencies)
 
+@main_bp.route('/add_agency', methods=['POST'])
+@login_required
+def add_agency():
+    if not isinstance(current_user, Admin):
+        flash('Unauthorized access', 'danger')
+        return redirect(url_for('main.login'))
+    
+    try:
+        agency_name = request.form.get('agency_name', '').strip()
+        contact_number = request.form.get('contact_number', '').strip()
+        address = request.form.get('address', '').strip()
+        reg_of_company = request.form.get('Reg_of_Company', '').strip()
+        pic = request.form.get('PIC', '').strip()
+        email = request.form.get('email', '').strip()
+        
+        if not all([agency_name, contact_number, address, reg_of_company, pic, email]):
+            flash('All fields are required', 'danger')
+            return redirect(url_for('main.admin_agencies'))
+        
+        existing_agency = Agency.query.filter_by(agency_name=agency_name).first()
+        if existing_agency:
+            flash(f'Agency "{agency_name}" already exists', 'warning')
+            return redirect(url_for('main.admin_agencies'))
+        
+        new_agency = Agency(
+            agency_name=agency_name,
+            contact_number=contact_number,
+            address=address,
+            Reg_of_Company=reg_of_company,
+            PIC=pic,
+            email=email
+        )
+        
+        db.session.add(new_agency)
+        db.session.commit()
+        
+        flash(f'Agency "{agency_name}" added successfully', 'success')
+        logging.info(f'[ADD AGENCY] Admin {current_user.username} added agency: {agency_name}')
+        
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f'[ADD AGENCY] Failed to add agency')
+        flash(f'Error adding agency: {str(e)}', 'danger')
+    
+    return redirect(url_for('main.admin_agencies'))
+
+@main_bp.route('/edit_agency/<int:agency_id>', methods=['POST'])
+@login_required
+def edit_agency(agency_id):
+    if not isinstance(current_user, Admin):
+        flash('Unauthorized access', 'danger')
+        return redirect(url_for('main.login'))
+    
+    try:
+        agency = Agency.query.get_or_404(agency_id)
+        
+        agency_name = request.form.get('agency_name', '').strip()
+        contact_number = request.form.get('contact_number', '').strip()
+        address = request.form.get('address', '').strip()
+        reg_of_company = request.form.get('Reg_of_Company', '').strip()
+        pic = request.form.get('PIC', '').strip()
+        email = request.form.get('email', '').strip()
+        
+        if not all([agency_name, contact_number, address, reg_of_company, pic, email]):
+            flash('All fields are required', 'danger')
+            return redirect(url_for('main.admin_agencies'))
+        
+        existing_agency = Agency.query.filter(
+            Agency.agency_name == agency_name,
+            Agency.agency_id != agency_id
+        ).first()
+        if existing_agency:
+            flash(f'Agency name "{agency_name}" is already used by another agency', 'warning')
+            return redirect(url_for('main.admin_agencies'))
+        
+        agency.agency_name = agency_name
+        agency.contact_number = contact_number
+        agency.address = address
+        agency.Reg_of_Company = reg_of_company
+        agency.PIC = pic
+        agency.email = email
+        
+        db.session.commit()
+        
+        flash(f'Agency "{agency_name}" updated successfully', 'success')
+        logging.info(f'[EDIT AGENCY] Admin {current_user.username} updated agency ID {agency_id}: {agency_name}')
+        
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f'[EDIT AGENCY] Failed to update agency {agency_id}')
+        flash(f'Error updating agency: {str(e)}', 'danger')
+    
+    return redirect(url_for('main.admin_agencies'))
+
 # --- Added: Agency account endpoints (portal + agency-specific progress monitor) ---
 @main_bp.route('/agency_portal')
 @login_required
