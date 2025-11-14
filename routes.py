@@ -3089,6 +3089,70 @@ def api_submit_quiz(module_id):
         db.session.rollback()
         return jsonify({'success': False, 'message': 'Server error'}), 500
 
+@main_bp.route('/api/complete_course', methods=['POST'])
+@login_required
+def api_complete_course():
+    """Complete a course and create pending certificate for authority approval."""
+    try:
+        payload = request.get_json() or {}
+        course_code = payload.get('course_code')
+        
+        if not course_code:
+            return jsonify({'success': False, 'message': 'Course code required'}), 400
+        
+        # Get current user
+        uid = resolve_uid()
+        if not uid:
+            return jsonify({'success': False, 'message': 'User not identified'}), 400
+        
+        user = User.query.get(uid)
+        if not user:
+            return jsonify({'success': False, 'message': 'User not found'}), 404
+        
+        # Check if user is eligible for certificate
+        if not user.EligibleForCertificate(course_code):
+            return jsonify({'success': False, 'message': 'Not eligible. Complete all modules with 50% average score.'}), 400
+        
+        # Check if certificate already exists for this course
+        existing_cert = Certificate.query.filter_by(user_id=uid, module_type=course_code).first()
+        if existing_cert:
+            if existing_cert.status == 'pending':
+                return jsonify({'success': True, 'already_submitted': True, 'message': 'Already submitted for approval'}), 200
+            elif existing_cert.status == 'approved':
+                return jsonify({'success': True, 'already_approved': True, 'message': 'Certificate already approved'}), 200
+        
+        # Get all modules for this course to associate certificate with one
+        modules = Module.query.filter_by(module_type=course_code).all()
+        if not modules:
+            return jsonify({'success': False, 'message': 'No modules found for this course'}), 404
+        
+        # Sort modules to pick a representative one (first by series or id)
+        try:
+            modules_sorted = sorted(modules, key=lambda m: (m.series_number or '', m.module_id))
+            representative_module = modules_sorted[0]
+        except Exception:
+            representative_module = modules[0]
+        
+        # Create pending certificate
+        from datetime import date
+        new_cert = Certificate(
+            user_id=uid,
+            module_type=course_code,
+            module_id=representative_module.module_id,
+            issue_date=date.today(),
+            status='pending'
+        )
+        db.session.add(new_cert)
+        db.session.commit()
+        
+        logging.info(f'[COURSE_COMPLETE] User {uid} completed course {course_code}, pending certificate created')
+        return jsonify({'success': True, 'submitted': True, 'message': 'Course completed! Sent for approval.'}), 200
+        
+    except Exception as e:
+        logging.exception('[API] complete_course error')
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Server error: {str(e)}'}), 500
+
 @main_bp.route('/admin_debug_quiz/<int:module_id>')
 @login_required
 def admin_debug_quiz(module_id):

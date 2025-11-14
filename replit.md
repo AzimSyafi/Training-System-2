@@ -100,6 +100,7 @@ The app is configured for autoscale deployment:
   - Fixed profile picture upload crash by setting `Profile_picture` database field instead of read-only `profile_pic_url` property
 - **Role Dropdown Fixed**: Added missing "User" and "Authority" roles to admin account creation dropdowns
 - **Country Dropdown Fixed**: Added comprehensive list of all countries (excluding Israel) to onboarding contact details step
+- **Course Completion Fixed**: Implemented missing `/api/complete_course` route to allow users to complete courses and send certificates for authority approval
 
 **Previous Bug Fixes**:
 - Fixed onboarding page crash by adding total_steps=4 variable to template rendering
