@@ -158,7 +158,7 @@ def signup():
             session['user_type'] = 'user'
             session['user_id'] = new_user.get_id()
             flash('Account created successfully! Complete your profile to finalize registration.', 'success')
-            return redirect(url_for('main.profile'))
+            return redirect(url_for('main.onboarding', id=new_user.User_id, step=1))
         except ValueError as ve:
             flash(str(ve), 'danger')
         except Exception as e:
@@ -1287,6 +1287,7 @@ def add_course_module(course_id):
 
         module_name = request.form.get('module_name')
         series_number = request.form.get('series_number')
+        module_type = request.form.get('module_type', course.code)  # Default to course code
 
         if not module_name:
             flash('Module name is required.', 'danger')
@@ -1294,7 +1295,8 @@ def add_course_module(course_id):
             new_module = Module(
                 module_name=module_name,
                 series_number=series_number,
-                course_id=course_id
+                course_id=course_id,
+                module_type=module_type
             )
             db.session.add(new_module)
             db.session.commit()

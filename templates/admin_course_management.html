@@ -111,6 +111,10 @@
                       <label class="form-label small">Series #</label>
                       <input class="form-control" name="series_number" placeholder="{{ course.code }}001">
                     </div>
+                    <div class="col-md-3">
+                      <label class="form-label small">Module Type</label>
+                      <input class="form-control" name="module_type" value="{{ course.code }}" required>
+                    </div>
                     <div class="col-12 text-end">
                       <button class="btn btn-success btn-sm" type="submit">Create Module</button>
                     </div>
