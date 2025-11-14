@@ -185,6 +185,9 @@ def onboarding(id, step):
     if not is_authorized:
         abort(403)
     
+    # Define total number of onboarding steps
+    total_steps = 4  # Four-step onboarding flow
+    
     if request.method == 'POST':
         try:
             if 'ic_number' in request.form:
@@ -216,7 +219,7 @@ def onboarding(id, step):
             logging.exception(f'[ONBOARDING] Failed for user {id}')
             flash(f'Error during onboarding: {str(e)}', 'danger')
     
-    return render_template('onboarding.html', user=user, id=id, step=step)
+    return render_template('onboarding.html', user=user, id=id, step=step, total_steps=total_steps)
 
 # Login route
 @main_bp.route('/login', methods=['GET', 'POST'])
@@ -1577,7 +1580,12 @@ def manage_module_content(module_id):
         logging.exception(f'[MANAGE CONTENT] Failed for module {module_id}')
         flash(f'Error managing content: {e}', 'danger')
 
-    return redirect(url_for('main.admin_course_management'))
+    # Redirect back with hash to preserve scroll position and module focus
+    # Include course_id in hash so JavaScript can expand the correct panel
+    course_id = module.course_id if module else None
+    if course_id:
+        return redirect(url_for('main.admin_course_management') + f'#course-{course_id}-module-{module_id}')
+    return redirect(url_for('main.admin_course_management') + f'#module-{module_id}')
 
 # Admin certificates
 @main_bp.route('/admin_certificates')
