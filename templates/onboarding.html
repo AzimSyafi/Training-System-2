@@ -395,10 +395,38 @@
                   <label for="country_onboard" class="form-label">Country</label>
                   <select id="country_onboard" class="form-control" name="country">
                     <option value="">Select Country</option>
-                    {% for country in countries %}
+                    
+                    {% set countries_list = [
+                      'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina', 'Armenia', 'Australia', 'Austria', 'Azerbaijan',
+                      'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium', 'Belize', 'Benin', 'Bhutan', 'Bolivia', 'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei', 'Bulgaria', 'Burkina Faso', 'Burundi',
+                      'Cabo Verde', 'Cambodia', 'Cameroon', 'Canada', 'Central African Republic', 'Chad', 'Chile', 'China', 'Colombia', 'Comoros', 'Congo (Congo-Brazzaville)', 'Congo (Democratic Republic of the)', 'Costa Rica', "Cote d'Ivoire", 'Croatia', 'Cuba', 'Cyprus', 'Czechia (Czech Republic)',
+                      'Denmark', 'Djibouti', 'Dominica', 'Dominican Republic',
+                      'Ecuador', 'Egypt', 'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Eswatini (fmr. "Swaziland")', 'Ethiopia',
+                      'Fiji', 'Finland', 'France',
+                      'Gabon', 'Gambia', 'Georgia', 'Germany', 'Ghana', 'Greece', 'Grenada', 'Guatemala', 'Guinea', 'Guinea-Bissau', 'Guyana',
+                      'Haiti', 'Holy See', 'Honduras', 'Hungary',
+                      'Iceland', 'India', 'Indonesia', 'Iran', 'Iraq', 'Ireland', 'Italy',
+                      'Jamaica', 'Japan', 'Jordan',
+                      'Kazakhstan', 'Kenya', 'Kiribati', 'Kuwait', 'Kyrgyzstan',
+                      "Laos", 'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya', 'Liechtenstein', 'Lithuania', 'Luxembourg',
+                      'Madagascar', 'Malawi', 'Malaysia', 'Maldives', 'Mali', 'Malta', 'Marshall Islands', 'Mauritania', 'Mauritius', 'Mexico', 'Micronesia', 'Moldova', 'Monaco', 'Mongolia', 'Montenegro', 'Morocco', 'Mozambique', 'Myanmar (formerly Burma)',
+                      'Namibia', 'Nauru', 'Nepal', 'Netherlands', 'New Zealand', 'Nicaragua', 'Niger', 'Nigeria', 'North Korea', 'North Macedonia (fmr. "Macedonia")', 'Norway',
+                      'Oman',
+                      'Pakistan', 'Palau', 'Palestine State', 'Panama', 'Papua New Guinea', 'Paraguay', 'Peru', 'Philippines', 'Poland', 'Portugal',
+                      'Qatar',
+                      'Romania', 'Russia', 'Rwanda',
+                      'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Samoa', 'San Marino', 'Sao Tome and Principe', 'Saudi Arabia', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leone', 'Singapore', 'Slovakia', 'Slovenia', 'Solomon Islands', 'Somalia', 'South Africa', 'South Korea', 'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Sweden', 'Switzerland', 'Syria',
+                      'Taiwan', 'Tajikistan', 'Tanzania', 'Thailand', 'Timor-Leste', 'Togo', 'Tonga', 'Trinidad and Tobago', 'Tunisia', 'Turkey', 'Turkmenistan', 'Tuvalu',
+                      'Uganda', 'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States of America', 'Uruguay', 'Uzbekistan',
+                      'Vanuatu', 'Venezuela', 'Vietnam',
+                      'Yemen',
+                      'Zambia', 'Zimbabwe'
+                    ] %}
+                    
+                    {% for country in countries_list %}
                       <option value="{{ country }}" {% if user.country == country %}selected{% endif %}>{{ country }}</option>
                     {% endfor %}
-                  </select>
+                    </select>
                 </div>
               </div>
             {% elif s == 3 %}
@@ -539,11 +567,13 @@
 
 <script>
   document.body.classList.add('signup-bg');
+  
   function toggleIdField() {
     const citizen = document.getElementById('citizen');
     const icField = document.getElementById('ic_field');
     const passField = document.getElementById('passport_field');
     if (!citizen || !icField || !passField) return;
+    
     const isCitizen = citizen.checked;
     if (isCitizen) {
       icField.style.display = 'block';
@@ -553,16 +583,19 @@
       passField.style.display = 'block';
     }
   }
+  
   function initExperienceForm(){
     const list = document.getElementById('experience-list');
     const addBtn = document.getElementById('add-experience');
     if(!list || !addBtn) return;
+    
     function bindRemove(btn){
       btn.addEventListener('click', function(){
         const item = this.closest('.experience-item');
         if(item){ item.remove(); }
       });
     }
+    
     // bind existing
     list.querySelectorAll('.remove-exp').forEach(bindRemove);
 
@@ -607,15 +640,18 @@
       bindRemove(removeBtn);
       return wrapper;
     }
+    
     addBtn.addEventListener('click', function(){
       list.appendChild(createItem());
     });
   }
+  
   function initUploadPreview(){
     const input = document.getElementById('onboard-profile-input');
     const preview = document.getElementById('onboard-upload-preview');
     const placeholder = document.getElementById('onboard-upload-placeholder');
     if(!input || !preview) return;
+    
     input.addEventListener('change', function(){
       const f = this.files && this.files[0];
       if(!f){
@@ -624,10 +660,11 @@
         return;
       }
       preview.src = URL.createObjectURL(f);
-       preview.style.display = 'block';
-       if (placeholder) placeholder.style.display = 'none';
+      preview.style.display = 'block';
+      if (placeholder) placeholder.style.display = 'none';
     });
   }
+  
   window.addEventListener('DOMContentLoaded', function(){
     toggleIdField();
     initExperienceForm();
