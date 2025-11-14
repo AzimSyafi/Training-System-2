@@ -4,6 +4,7 @@
 <div class="container mt-4">
     <h2>Manage Agencies</h2>
     <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addAgencyModal">Add Agency</button>
+    
     <table class="table table-bordered">
         <thead>
             <tr>
@@ -41,14 +42,61 @@
                     </form>
                 </td>
             </tr>
-            <!-- Edit Modal for each agency -->
-            <div class="modal fade" id="editAgencyModal{{ agency.agency_id }}" tabindex="-1" aria-labelledby="editAgencyModalLabel{{ agency.agency_id }}" aria-hidden="true">
-              <div class="modal-dialog">
-                <div class="modal-content">
-                  <form method="POST" action="{{ safe_url_for('main.edit_agency', agency_id=agency.agency_id) }}">
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="modal fade" id="addAgencyModal" tabindex="-1" aria-labelledby="addAgencyModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" action="{{ safe_url_for('main.add_agency') }}">
                     <div class="modal-header">
-                      <h5 class="modal-title" id="editAgencyModalLabel{{ agency.agency_id }}">Edit Agency</h5>
-                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="modal-title" id="addAgencyModalLabel">Add Agency</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label>Agency Name</label>
+                            <input type="text" class="form-control" name="agency_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label>Contact Person</label>
+                            <input type="text" class="form-control" name="PIC" required>
+                        </div>
+                        <div class="mb-3">
+                            <label>Phone</label>
+                            <input type="text" class="form-control" name="contact_number" required>
+                        </div>
+                        <div class="mb-3">
+                            <label>Email</label>
+                            <input type="email" class="form-control" name="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label>Address</label>
+                            <textarea class="form-control" name="address" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label>Registration No.</label>
+                            <input type="text" class="form-control" name="Reg_of_Company" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Add Agency</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% for agency in agencies %}
+    
+    <div class="modal fade" id="editAgencyModal{{ agency.agency_id }}" tabindex="-1" aria-labelledby="editAgencyModalLabel{{ agency.agency_id }}" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" action="{{ safe_url_for('main.edit_agency', agency_id=agency.agency_id) }}">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editAgencyModalLabel{{ agency.agency_id }}">Edit Agency</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <div class="mb-3">
@@ -77,82 +125,36 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                      <button type="submit" class="btn btn-primary">Save changes</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Save changes</button>
                     </div>
-                  </form>
-                </div>
-              </div>
+                </form>
             </div>
-            <!-- Users Modal for each agency -->
-            <div class="modal fade" id="usersModal{{ agency.agency_id }}" tabindex="-1" aria-labelledby="usersModalLabel{{ agency.agency_id }}" aria-hidden="true">
-              <div class="modal-dialog">
-                <div class="modal-content">
-                  <div class="modal-header">
+        </div>
+    </div>
+    
+    <div class="modal fade" id="usersModal{{ agency.agency_id }}" tabindex="-1" aria-labelledby="usersModalLabel{{ agency.agency_id }}" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
                     <h5 class="modal-title" id="usersModalLabel{{ agency.agency_id }}">Involved Users for {{ agency.agency_name }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                  </div>
-                  <div class="modal-body">
+                </div>
+                <div class="modal-body">
                     <ul class="list-group">
-                      {% for user in agency.users %}
-                      <li class="list-group-item">{{ user.full_name }} ({{ user.email }})</li>
-                      {% else %}
-                      <li class="list-group-item text-muted">No users</li>
-                      {% endfor %}
+                        {% for user in agency.users %}
+                        <li class="list-group-item">{{ user.full_name }} ({{ user.email }})</li>
+                        {% else %}
+                        <li class="list-group-item text-muted">No users</li>
+                        {% endfor %}
                     </ul>
-                  </div>
-                  <div class="modal-footer">
+                </div>
+                <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <!-- Add Agency Modal -->
-    <div class="modal fade" id="addAgencyModal" tabindex="-1" aria-labelledby="addAgencyModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <form method="POST" action="{{ safe_url_for('main.add_agency') }}">
-            <div class="modal-header">
-              <h5 class="modal-title" id="addAgencyModalLabel">Add Agency</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label>Agency Name</label>
-                    <input type="text" class="form-control" name="agency_name" required>
-                </div>
-                <div class="mb-3">
-                    <label>Contact Person</label>
-                    <input type="text" class="form-control" name="PIC" required>
-                </div>
-                <div class="mb-3">
-                    <label>Phone</label>
-                    <input type="text" class="form-control" name="contact_number" required>
-                </div>
-                <div class="mb-3">
-                    <label>Email</label>
-                    <input type="email" class="form-control" name="email" required>
-                </div>
-                <div class="mb-3">
-                    <label>Address</label>
-                    <textarea class="form-control" name="address" required></textarea>
-                </div>
-                <div class="mb-3">
-                    <label>Registration No.</label>
-                    <input type="text" class="form-control" name="Reg_of_Company" required>
                 </div>
             </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-              <button type="submit" class="btn btn-primary">Add Agency</button>
-            </div>
-          </form>
         </div>
-      </div>
     </div>
-</div>
+    {% endfor %}
+    </div>
 {% endblock %}
