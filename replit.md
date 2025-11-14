@@ -99,6 +99,7 @@ The app is configured for autoscale deployment:
   - Step 4: Emergency contact (only this step finalizes the user)
   - Fixed profile picture upload crash by setting `Profile_picture` database field instead of read-only `profile_pic_url` property
 - **Role Dropdown Fixed**: Added missing "User" and "Authority" roles to admin account creation dropdowns
+- **Country Dropdown Fixed**: Added comprehensive list of all countries (excluding Israel) to onboarding contact details step
 
 **Previous Bug Fixes**:
 - Fixed onboarding page crash by adding total_steps=4 variable to template rendering
