@@ -90,7 +90,16 @@ The app is configured for autoscale deployment:
 ## Recent Changes
 
 ### 2025-11-14 (Latest)
-**Bug Fixes**:
+**Critical Bug Fixes**:
+- **Slide Upload Fixed**: Created `allowed_slide_file()` validation function to accept PDF and PPTX files for module slides (previously only images were allowed)
+- **Multi-Step Onboarding Fixed**: Refactored onboarding flow to properly progress through all 4 steps instead of finalizing users on step 1
+  - Step 1: Personal details + profile picture
+  - Step 2: Contact details (phone, address, location)
+  - Step 3: Work details + employment history
+  - Step 4: Emergency contact (only this step finalizes the user)
+- **Role Dropdown Fixed**: Added missing "User" and "Authority" roles to admin account creation dropdowns
+
+**Previous Bug Fixes**:
 - Fixed onboarding page crash by adding total_steps=4 variable to template rendering
 - Fixed PDF slide upload by creating static/uploads/slides directory with makedirs safety check
 - Implemented scroll position preservation for module uploads using course-aware hash navigation (#course-X-module-Y)
