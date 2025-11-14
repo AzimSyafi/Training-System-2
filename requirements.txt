@@ -28,3 +28,4 @@ reportlab
 SQLAlchemy
 tabulate
 werkzeug
+psycopg2-binary

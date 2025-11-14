@@ -6,6 +6,11 @@ __pycache__/
 .Python
 env/
 venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.pythonlibs/
 
 # Database
 instance/
@@ -15,4 +20,21 @@ instance/
 # IDE / Editor
 .idea/
 .vscode/
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Environment
+.env.local
+.env.*.local
+
+# Uploads
+static/uploads/
+
+# OS
+.DS_Store
+Thumbs.db
 
