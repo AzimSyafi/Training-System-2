@@ -87,6 +87,11 @@ def allowed_file(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 
+def allowed_slide_file(filename: str) -> bool:
+    """Return True if filename extension allowed for slide uploads (PDF, PPTX)."""
+    return is_slide_file(filename)
+
+
 def register_jinja_filters(app) -> None:
     """Register common Jinja filters and globals on the provided Flask app.
 

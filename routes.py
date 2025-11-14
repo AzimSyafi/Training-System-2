@@ -11,7 +11,7 @@ import logging
 from models import db, Admin, User, Agency, Module, Certificate, Trainer, UserModule, Management, Registration, Course, WorkHistory, UserCourseProgress, AgencyAccount, CertificateTemplate
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text, or_
-from utils import safe_url_for, normalized_user_category, safe_parse_date, extract_youtube_id, is_slide_file, allowed_file
+from utils import safe_url_for, normalized_user_category, safe_parse_date, extract_youtube_id, is_slide_file, allowed_file, allowed_slide_file
 from itsdangerous import URLSafeTimedSerializer
 from flask_mail import Message
 import smtplib
@@ -190,33 +190,102 @@ def onboarding(id, step):
     
     if request.method == 'POST':
         try:
-            if 'ic_number' in request.form:
-                user.ic_number = request.form.get('ic_number', '').strip()
-            if 'passport_number' in request.form:
-                user.passport_number = request.form.get('passport_number', '').strip()
-            if 'address' in request.form:
-                user.address = request.form.get('address', '').strip()
-            if 'current_workplace' in request.form:
-                user.current_workplace = request.form.get('current_workplace', '').strip()
-            if 'recruitment_date' in request.form:
-                date_str = request.form.get('recruitment_date')
-                user.recruitment_date = safe_parse_date(date_str)
-            if 'emergency_contact_name' in request.form:
-                user.emergency_contact_name = request.form.get('emergency_contact_name', '').strip()
-            if 'emergency_contact_phone' in request.form:
-                user.emergency_contact_phone = request.form.get('emergency_contact_phone', '').strip()
-            if 'emergency_contact_relationship' in request.form:
-                user.emergency_contact_relationship = request.form.get('emergency_contact_relationship', '').strip()
+            # Process fields based on current step
+            if step == 1:
+                # Personal Details (Step 1)
+                if 'full_name' in request.form:
+                    user.full_name = request.form.get('full_name', '').strip()
+                if 'user_category' in request.form:
+                    user.user_category = request.form.get('user_category', 'citizen').strip().lower()
+                if 'ic_number' in request.form:
+                    user.ic_number = request.form.get('ic_number', '').strip() or None
+                if 'passport_number' in request.form:
+                    user.passport_number = request.form.get('passport_number', '').strip() or None
+                # Handle profile picture upload
+                if 'profile_pic' in request.files:
+                    file = request.files['profile_pic']
+                    if file and file.filename and allowed_file(file.filename):
+                        filename = secure_filename(file.filename)
+                        filename = f"user{user.User_id}_{filename}"
+                        file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'profile_pics', filename)
+                        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                        file.save(file_path)
+                        user.profile_pic_url = f"/static/uploads/profile_pics/{filename}"
+                        
+            elif step == 2:
+                # Contact Details (Step 2) - Note: emergency_contact_phone here is actually "Phone Number"
+                if 'postcode' in request.form:
+                    user.postcode = request.form.get('postcode', '').strip()
+                if 'address' in request.form:
+                    user.address = request.form.get('address', '').strip()
+                if 'state' in request.form:
+                    user.state = request.form.get('state', '').strip()
+                if 'country' in request.form:
+                    user.country = request.form.get('country', '').strip()
+                # Store phone number (field name is confusingly emergency_contact_phone but it's just the user's phone)
+                if 'emergency_contact_phone' in request.form:
+                    user.emergency_contact_phone = request.form.get('emergency_contact_phone', '').strip()
+                    
+            elif step == 3:
+                # Work Details (Step 3)
+                if 'current_workplace' in request.form:
+                    user.current_workplace = request.form.get('current_workplace', '').strip()
+                if 'recruitment_date' in request.form:
+                    date_str = request.form.get('recruitment_date')
+                    user.recruitment_date = safe_parse_date(date_str)
+                # Handle work experience entries
+                companies = request.form.getlist('exp_company')
+                positions = request.form.getlist('exp_position')
+                recruitments = request.form.getlist('exp_recruitment')
+                starts = request.form.getlist('exp_start')
+                ends = request.form.getlist('exp_end')
+                visas = request.form.getlist('exp_visa_number')
+                visa_expiries = request.form.getlist('exp_visa_expiry')
+                # Delete existing work histories for this user
+                WorkHistory.query.filter_by(user_id=user.User_id).delete()
+                # Add new work histories
+                for i in range(len(companies)):
+                    if companies[i].strip():
+                        wh = WorkHistory(
+                            user_id=user.User_id,
+                            company_name=companies[i].strip(),
+                            position_title=positions[i].strip() if i < len(positions) else '',
+                            recruitment_date=safe_parse_date(recruitments[i]) if i < len(recruitments) else None,
+                            start_date=safe_parse_date(starts[i]) if i < len(starts) else None,
+                            end_date=safe_parse_date(ends[i]) if i < len(ends) else None,
+                            visa_number=visas[i].strip() if i < len(visas) else '',
+                            visa_expiry_date=safe_parse_date(visa_expiries[i]) if i < len(visa_expiries) else None
+                        )
+                        db.session.add(wh)
+                        
+            elif step == 4:
+                # Emergency Contact (Step 4)
+                if 'emergency_contact_name' in request.form:
+                    user.emergency_contact_name = request.form.get('emergency_contact_name', '').strip()
+                if 'emergency_contact_relationship' in request.form:
+                    user.emergency_contact_relationship = request.form.get('emergency_contact_relationship', '').strip()
+                # Yes, this field appears in both step 2 and step 4, overwriting is fine
+                if 'emergency_contact_phone' in request.form:
+                    user.emergency_contact_phone = request.form.get('emergency_contact_phone', '').strip()
             
-            user.is_finalized = True
+            # Commit changes for current step
             db.session.commit()
             
-            flash('Onboarding completed successfully!', 'success')
-            return redirect(url_for('main.user_dashboard'))
+            # Determine next action
+            if step < total_steps:
+                # Move to next step
+                flash(f'Step {step} saved! Continue to step {step + 1}.', 'success')
+                return redirect(url_for('main.onboarding', id=id, step=step + 1))
+            else:
+                # Final step complete - finalize user
+                user.is_finalized = True
+                db.session.commit()
+                flash('Onboarding completed successfully!', 'success')
+                return redirect(url_for('main.user_dashboard'))
             
         except Exception as e:
             db.session.rollback()
-            logging.exception(f'[ONBOARDING] Failed for user {id}')
+            logging.exception(f'[ONBOARDING] Failed for user {id} at step {step}')
             flash(f'Error during onboarding: {str(e)}', 'danger')
     
     return render_template('onboarding.html', user=user, id=id, step=step, total_steps=total_steps)
@@ -1555,7 +1624,7 @@ def manage_module_content(module_id):
             module.content = slide_text
             if 'slide_file' in request.files:
                 file = request.files['slide_file']
-                if file and allowed_file(file.filename):
+                if file and allowed_slide_file(file.filename):
                     filename = secure_filename(file.filename)
                     # Prepend module ID to avoid filename conflicts
                     filename = f"mod{module.module_id}_{filename}"
@@ -1563,7 +1632,11 @@ def manage_module_content(module_id):
                     os.makedirs(os.path.dirname(file_path), exist_ok=True)
                     file.save(file_path)
                     module.slide_url = f"slides/{filename}"
-            flash('Slide content updated successfully!', 'success')
+                    flash('Slide content updated successfully!', 'success')
+                else:
+                    flash('Invalid file type. Only PDF and PPTX files are allowed.', 'warning')
+            else:
+                flash('Slide text updated successfully!', 'success')
 
         elif content_type == 'video':
             youtube_url = request.form.get('youtube_url')
