@@ -87,7 +87,16 @@ The app is configured for autoscale deployment:
 4. **Agency**: Monitor employee progress
 5. **Authority**: Approve certificates and manage compliance
 
-## Recent Changes (2025-11-14)
+## Recent Changes
+
+### 2025-11-14 (Latest)
+**Bug Fixes**:
+- Fixed onboarding page crash by adding total_steps=4 variable to template rendering
+- Fixed PDF slide upload by creating static/uploads/slides directory with makedirs safety check
+- Implemented scroll position preservation for module uploads using course-aware hash navigation (#course-X-module-Y)
+- Added automatic course panel expansion and smooth scroll-to-module with highlight effect
+
+**Previous Setup**:
 - Imported from GitHub to Replit environment
 - Configured PostgreSQL database connection
 - Set up Tailwind CSS build process
