@@ -90,6 +90,18 @@ The app is configured for autoscale deployment:
 ## Recent Changes
 
 ### 2025-11-17 (Latest)
+**UI/UX Improvements - November 17 PM**:
+- **Hidden Table Scrollbars on Mobile**: Tables maintain horizontal scroll functionality but scrollbar is now hidden on mobile for cleaner UI (using scrollbar-width: none and ::-webkit-scrollbar)
+- **Square Trash Icon Buttons**: All trash/delete icon buttons now render as perfect squares using aspect-ratio: 1/1 with proper centering
+- **Progress Monitoring Modal System**: 
+  - User names in progress monitoring pages are now clickable links
+  - Clicking a user name opens a Bootstrap modal showing detailed course progress for that specific user
+  - Modal displays progress bars, completion status, average scores, and completion counts per course
+  - Implemented secure event handling using data attributes instead of inline onclick to prevent JavaScript injection
+  - Added HTML escaping to prevent XSS attacks
+  - Works correctly with special characters in names (apostrophes, quotes, etc.)
+  - Available on both admin progress monitor and agency progress monitor pages
+
 **Mobile-Responsive Design System**:
 - **Comprehensive Mobile Support**: Implemented full mobile-responsive design system supporting screens from 320px to desktop
 - **Touch-Friendly Interface**: All interactive elements (buttons, links, form inputs) now have 44px minimum touch targets for mobile usability
