@@ -68,6 +68,8 @@ Not specified.
 - **Interactive Feedback**: Added smooth transitions and scale animation on press
 - **Consistent Icons**: Font Awesome icons properly sized at 18px on mobile
 - **Cross-Device Support**: Buttons remain properly sized and spaced on all screen sizes
+- **Fixed Dropdown Positioning**: Export and Settings dropdown menus now open from left on mobile to prevent cutoff
+- **High Z-Index**: Dropdowns appear above all content with z-index: 9999 for proper visibility
 
 **Password Toggle Button Styling**:
 - **Enhanced Button Design**: Password visibility toggle button now has polished, modern styling
