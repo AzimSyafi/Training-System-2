@@ -1,19 +1,154 @@
-.module-card-rounded { border-radius:14px; overflow:hidden; }
-.module-card-rounded > .card-header { border-top-left-radius:14px; border-top-right-radius:14px; }
-.module-card-rounded > .card-header.collapsed { border-bottom-left-radius:14px; border-bottom-right-radius:14px; }
+/* Module Cards - Mobile-Responsive Design */
+.module-card-rounded { 
+    border-radius:14px; 
+    overflow:hidden;
+    margin-bottom: 1rem;
+}
+
+.module-card-rounded > .card-header { 
+    border-top-left-radius:14px; 
+    border-top-right-radius:14px;
+    padding: 1rem;
+}
+
+.module-card-rounded > .card-header.collapsed { 
+    border-bottom-left-radius:14px; 
+    border-bottom-right-radius:14px; 
+}
+
 /* Use sidebar color for card accent/header */
 .module-card-rounded { background: var(--sidebar-bg); color: var(--sidebar-icon-color); }
 .module-card-rounded > .card-header { background: var(--sidebar-bg) !important; color: var(--sidebar-icon-color) !important; }
+
 /* Light mode: keep inner body white for readability */
-.module-card-rounded .card-body { background-color: #ffffff; color: var(--text-color); }
+.module-card-rounded .card-body { 
+    background-color: #ffffff; 
+    color: var(--text-color);
+    padding: 1.25rem;
+}
+
 /* Dark mode: use lighter card background for better visibility */
 body.dark-mode .module-card-rounded .card-body, html.darkmode body .module-card-rounded .card-body {
     background-color: var(--card-bg);
     color: #ffffff;
 }
+
 /* Soft tinted panels inside each tab for contrast */
-.module-inner-panel-blue { background-color: rgba(30,64,175,0.04); }
+.module-inner-panel-blue { 
+    background-color: rgba(30,64,175,0.04);
+    padding: 1rem;
+    border-radius: 8px;
+}
+
 body.dark-mode .module-inner-panel-blue, html.darkmode body .module-inner-panel-blue {
     background-color: rgba(30,64,175,0.15);
+}
+
+/* Mobile Responsive Enhancements (≤768px) */
+@media (max-width: 768px) {
+    .module-card-rounded {
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+    }
+
+    .module-card-rounded > .card-header {
+        padding: 0.875rem;
+        font-size: 0.95rem;
+    }
+
+    .module-card-rounded .card-body {
+        padding: 1rem;
+    }
+
+    .module-inner-panel-blue {
+        padding: 0.875rem;
+        border-radius: 6px;
+    }
+
+    /* Stack module card header content */
+    .module-card-rounded .card-header .d-flex {
+        flex-direction: column !important;
+        gap: 0.75rem;
+        align-items: flex-start !important;
+    }
+
+    /* Full-width buttons in module cards */
+    .module-card-rounded .btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+        padding: 0.75rem;
+        min-height: 44px;
+    }
+
+    .module-card-rounded .btn:last-child {
+        margin-bottom: 0;
+    }
+
+    /* Responsive video/iframe container */
+    .module-inner-panel-blue iframe,
+    .module-inner-panel-blue video {
+        width: 100% !important;
+        height: auto !important;
+        min-height: 200px;
+        max-height: 300px;
+        aspect-ratio: 16/9;
+    }
+
+    /* Make tabs scrollable on mobile */
+    .module-card-rounded .nav-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+
+    .module-card-rounded .nav-tabs .nav-link {
+        white-space: nowrap;
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    /* Reduce heading sizes in modules */
+    .module-card-rounded h3 {
+        font-size: 1.15rem !important;
+    }
+
+    .module-card-rounded h4 {
+        font-size: 1.05rem !important;
+    }
+
+    .module-card-rounded h5 {
+        font-size: 0.95rem !important;
+    }
+
+    /* Better spacing for quiz elements */
+    .module-card-rounded .quiz-question {
+        margin-bottom: 1.5rem;
+    }
+
+    .module-card-rounded .quiz-option {
+        padding: 0.875rem;
+        margin-bottom: 0.75rem;
+        border-radius: 8px;
+    }
+}
+
+/* Tablet Responsive (769px - 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .module-card-rounded {
+        border-radius: 13px;
+    }
+
+    .module-card-rounded .card-body {
+        padding: 1.125rem;
+    }
+
+    .module-inner-panel-blue {
+        padding: 0.95rem;
+    }
+
+    .module-card-rounded .btn {
+        padding: 0.625rem 1rem;
+    }
 }
 
