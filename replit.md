@@ -61,6 +61,14 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-17 (Latest)
+**Profile Action Buttons Mobile Fix**:
+- **Enhanced Mobile Display**: Profile page Export and Settings buttons now properly sized for mobile (44x44px touch targets)
+- **Better Spacing**: Added 12px gap between buttons on mobile for easier tapping
+- **Touch-Friendly**: Minimum sizes ensure buttons meet accessibility standards
+- **Interactive Feedback**: Added smooth transitions and scale animation on press
+- **Consistent Icons**: Font Awesome icons properly sized at 18px on mobile
+- **Cross-Device Support**: Buttons remain properly sized and spaced on all screen sizes
+
 **Password Toggle Button Styling**:
 - **Enhanced Button Design**: Password visibility toggle button now has polished, modern styling
 - **Interactive States**: Added smooth hover (light gray background) and active (pressed effect) states
