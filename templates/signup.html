@@ -127,23 +127,23 @@
   }
 
   .form-label {
-    color: #000000 !important; /* Made labels completely black */
+    color: var(--text-color) !important;
     font-weight: 500;
     margin-bottom: 8px;
   }
 
   .right-panel .form-label {
-    color: #000000 !important;
+    color: var(--text-color) !important;
     font-weight: 500;
   }
 
   .auth-card .form-label {
-    color: #000000 !important;
+    color: var(--text-color) !important;
     font-weight: 500;
   }
 
   label.form-label {
-    color: #000000 !important;
+    color: var(--text-color) !important;
     font-weight: 500;
   }
 
@@ -177,17 +177,17 @@
   .right-panel #full_name:focus,
   .right-panel #email:focus,
   .right-panel .form-check-label {
-    color: #000000 !important;
+    color: var(--text-color) !important;
     font-weight: 400;
   }
 
   .auth-card .form-check-label {
-    color: #000000 !important;
+    color: var(--text-color) !important;
     font-weight: 400;
   }
 
   label.form-check-label {
-    color: #000000 !important;
+    color: var(--text-color) !important;
     font-weight: 400;
   }
 
@@ -202,7 +202,7 @@
   }
 
   .form-check-label {
-    color: #000000 !important; /* Made radio button labels completely black */
+    color: var(--text-color) !important;
     font-weight: 400;
   }
 
@@ -260,12 +260,12 @@
     color: #6b7280 !important; /* CHANGED */
   }
 
-  /* FINAL OVERRIDE: Ensure all labels are black - highest specificity */
+  /* FINAL OVERRIDE: Ensure all labels use theme color - highest specificity */
   .split-root .right-panel .auth-card label,
   .split-root .right-panel .auth-card .form-label,
   .split-root .right-panel .auth-card .form-check-label,
   .split-root main.right-panel form label {
-    color: #000000 !important;
+    color: var(--text-color) !important;
   }
 
   @media (max-width: 768px) {

@@ -90,6 +90,12 @@ The app is configured for autoscale deployment:
 ## Recent Changes
 
 ### 2025-11-17 (Latest)
+**Dark Mode Text Visibility Fix**:
+- **Fixed Hardcoded Black Text**: Changed all `color: #000000 !important` instances to use `var(--text-color)` for proper dark mode support
+- **Signup Page Labels**: All form labels, radio button labels, and check labels now respect dark/light theme
+- **Onboarding Page Header**: Removed hardcoded black color from "Complete your profile" heading
+- **Theme-Aware Colors**: All text now uses CSS variables that automatically adjust based on the active theme
+
 **Certificates Page UI Enhancement**:
 - **Delete Button Moved to Header**: Bulk delete button now appears in the card header at the top
 - **Trash Icon Only**: Changed from "Delete Selected" text button to compact trash icon button (32px square)
