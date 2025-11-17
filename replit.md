@@ -105,12 +105,14 @@ The app is configured for autoscale deployment:
   - Each entry can be individually removed
   - Green "Add Experience" button to create new entries
   - Red remove icon (X) to delete specific entries
-- **Certificate Template Editor Simplified**: Created easier-to-use interface with:
-  - Clear visual organization with color-coded field sections
-  - Quick preset layouts (Centered, Left-Aligned, Custom)
-  - Simple form inputs with helpful labels and descriptions
-  - Built-in positioning tips and guidelines
-  - Removed complex drag-and-drop in favor of simple number inputs
+- **Certificate Template Editor**: Redesigned with drag-and-drop functionality:
+  - Live PDF preview with accurate positioning
+  - Drag field markers directly on the certificate preview
+  - Real-time position updates as you drag
+  - Click markers to activate and highlight corresponding field settings
+  - Toggle field visibility with checkboxes
+  - Clean UI without emojis
+  - API endpoint to fetch active certificate template PDF
 
 ### 2025-11-14
 **Critical Bug Fixes**:

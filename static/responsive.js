@@ -180,7 +180,7 @@
         }
 
         // Always stack name and email in name cell
-        if (!nameCell.classList.contains('mobile-processed') && emailCell) {
+        if (nameCell && emailCell && !nameCell.classList.contains('mobile-processed')) {
           const nameText = nameCell.textContent.trim();
           const emailText = emailCell.textContent.trim();
           nameCell.innerHTML = `<div class="mobile-name">${nameText}</div><div class="mobile-email">${emailText}</div>`;

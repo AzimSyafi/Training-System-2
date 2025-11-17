@@ -2405,7 +2405,7 @@ def certificate_template_editor():
     except Exception:
         logging.exception('[CERTIFICATE TEMPLATE EDITOR] Failed loading template')
         template = None
-    return render_template('certificate_template_editor_simple.html', template=template)
+    return render_template('certificate_template_editor.html', template=template)
 
 # Update certificate template
 @main_bp.route('/update_certificate_template', methods=['POST'])
@@ -2465,6 +2465,28 @@ def update_certificate_template():
         db.session.rollback()
         logging.exception('[UPDATE CERTIFICATE TEMPLATE] Failed')
         return jsonify({'success': False, 'message': 'Failed to update template'}), 500
+
+# Get active certificate template PDF path
+@main_bp.route('/api/get_active_certificate_template', methods=['GET'])
+@login_required
+def get_active_certificate_template():
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'message': 'Not authorized'}), 403
+    
+    try:
+        template = CertificateTemplate.query.filter_by(is_active=True).first()
+        if not template or not template.template_file:
+            return jsonify({'success': False, 'message': 'No active template found'})
+        
+        template_path = url_for('static', filename='uploads/certificate_templates/' + template.template_file)
+        return jsonify({
+            'success': True,
+            'template_path': template_path,
+            'template_name': template.name
+        })
+    except Exception as e:
+        logging.exception('[GET CERTIFICATE TEMPLATE] Failed')
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 # Upload content
 @main_bp.route('/upload_content', methods=['GET', 'POST'])
