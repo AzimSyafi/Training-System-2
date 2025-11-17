@@ -1806,11 +1806,9 @@ def upload_cert_template():
             filepath = os.path.join(template_folder, filename)
             file.save(filepath)
             
+            # Create template record with correct field names
             template = CertificateTemplate(
-                template_name=filename,
-                file_path=f"certificate_templates/{filename}",
-                uploaded_by_id=current_user.admin_id,
-                uploaded_at=datetime.utcnow()
+                name=filename  # Use 'name' not 'template_name'
             )
             db.session.add(template)
             db.session.commit()
@@ -1855,6 +1853,64 @@ def delete_certificates_bulk():
         flash(f'Error deleting certificates: {str(e)}', 'danger')
     
     return redirect(url_for('main.admin_certificates'))
+
+@main_bp.route('/generate_and_download_certificate/<int:certificate_id>')
+@login_required
+def generate_and_download_certificate(certificate_id):
+    """Generate and download a certificate PDF for approved certificates."""
+    try:
+        # Get the certificate
+        cert = Certificate.query.get_or_404(certificate_id)
+        
+        # Authorization: only the certificate owner or admin can download
+        if isinstance(current_user, User):
+            if current_user.User_id != cert.user_id:
+                abort(403)
+        elif not isinstance(current_user, Admin):
+            abort(403)
+        
+        # Check if certificate is approved
+        if cert.status != 'approved':
+            flash('Certificate must be approved before downloading', 'warning')
+            return redirect(url_for('main.my_certificates'))
+        
+        # Import the generate_certificate function
+        from generate_certificate import generate_certificate
+        
+        # Get user's average score for this course
+        user = User.query.get(cert.user_id)
+        modules_in_course = Module.query.filter_by(module_type=cert.module_type).all()
+        module_ids = [m.module_id for m in modules_in_course]
+        user_modules = UserModule.query.filter(
+            UserModule.user_id == cert.user_id,
+            UserModule.module_id.in_(module_ids),
+            UserModule.is_completed == True
+        ).all()
+        
+        # Calculate average score
+        scores = [um.score for um in user_modules if um.score is not None]
+        overall_percentage = sum(scores) / len(scores) if scores else 0
+        
+        # Generate certificate PDF
+        pdf_path = generate_certificate(
+            user_id=cert.user_id,
+            course_type=cert.module_type,
+            overall_percentage=overall_percentage,
+            cert_id=f"CERT-{cert.certificate_id}"
+        )
+        
+        # Update certificate URL in database
+        cert.certificate_url = pdf_path.replace('static/', '/static/')
+        db.session.commit()
+        
+        # Send the file
+        from flask import send_file
+        return send_file(pdf_path, as_attachment=True, download_name=f"certificate_{cert.user_id}_{cert.module_type}.pdf")
+        
+    except Exception as e:
+        logging.exception('[GENERATE CERTIFICATE] Error')
+        flash(f'Error generating certificate: {str(e)}', 'danger')
+        return redirect(url_for('main.my_certificates'))
 
 # Monitor progress
 @main_bp.route('/monitor_progress')

@@ -14,6 +14,9 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 # Default upload folder (absolute path inside project static/uploads)
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
 
+# Maximum file upload size (50 MB for PDFs and large files)
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
+
 # Database configuration
 DATABASE_URL = os.environ.get('DATABASE_URL')
 # Prefer local instance SQLite DB when present for local development to match the repository's instance/security_training.db

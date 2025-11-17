@@ -89,7 +89,13 @@ The app is configured for autoscale deployment:
 
 ## Recent Changes
 
-### 2025-11-14 (Latest)
+### 2025-11-17 (Latest)
+**Certificate System Fixes**:
+- **Certificate Template Upload Fixed**: Corrected field name from `template_name` to `name` to match CertificateTemplate model
+- **Certificate Download Fixed**: Implemented missing `/generate_and_download_certificate` route allowing users to download approved certificates
+- **PDF Upload Size Fixed**: Increased file upload limit to 50 MB to support large PDF certificate templates
+
+### 2025-11-14
 **Critical Bug Fixes**:
 - **Slide Upload Fixed**: Created `allowed_slide_file()` validation function to accept PDF and PPTX files for module slides (previously only images were allowed)
 - **Multi-Step Onboarding Fixed**: Refactored onboarding flow to properly progress through all 4 steps instead of finalizing users on step 1
