@@ -643,28 +643,22 @@ def profile():
             # First, delete existing experiences
             WorkHistory.query.filter_by(user_id=current_user.User_id).delete()
 
-            # Get experience data from form
+            # Get experience data from form (updated field names to match template)
             exp_companies = request.form.getlist('exp_company')
             exp_positions = request.form.getlist('exp_position')
-            exp_recruitments = request.form.getlist('exp_recruitment')
-            exp_starts = request.form.getlist('exp_start')
-            exp_ends = request.form.getlist('exp_end')
-            exp_visas = request.form.getlist('exp_visa_number')
-            exp_visa_expiries = request.form.getlist('exp_visa_expiry')
+            exp_start_dates = request.form.getlist('exp_start_date')
+            exp_end_dates = request.form.getlist('exp_end_date')
 
             for i in range(len(exp_companies)):
                 if exp_companies[i].strip():  # Only save if company is provided
-                    exp = WorkHistory(
+                    work_exp = WorkHistory(
                         user_id=current_user.User_id,
                         company_name=exp_companies[i],
                         position_title=exp_positions[i] if i < len(exp_positions) else None,
-                        recruitment_date=safe_parse_date(exp_recruitments[i]) if i < len(exp_recruitments) else None,
-                        start_date=safe_parse_date(exp_starts[i]) if i < len(exp_starts) else None,
-                        end_date=safe_parse_date(exp_ends[i]) if i < len(exp.ends) else None,
-                        visa_number=exp_visas[i] if i < len(exp_visas) else None,
-                        visa_expiry_date=safe_parse_date(exp_visa_expiries[i]) if i < len(exp_visa_expiries) else None
+                        start_date=safe_parse_date(exp_start_dates[i]) if i < len(exp_start_dates) else None,
+                        end_date=safe_parse_date(exp_end_dates[i]) if i < len(exp_end_dates) else None
                     )
-                    db.session.add(exp)
+                    db.session.add(work_exp)
 
             db.session.commit()
             flash('Profile updated successfully!', 'success')
