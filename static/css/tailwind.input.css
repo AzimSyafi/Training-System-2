@@ -4,8 +4,9 @@
 
 /* Add any custom layers below (they'll be processed by Tailwind CLI) */
 
-/* Form Input Styling - Add borders and shadows for better visibility */
+/* Mobile-First Responsive Design System */
 @layer components {
+  /* Form Input Styling - Mobile-friendly with touch targets */
   input[type="text"],
   input[type="email"],
   input[type="password"],
@@ -22,6 +23,8 @@
     @apply border-2 border-gray-300 rounded-md shadow-sm px-3 py-2 
            focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none
            transition-all duration-200 bg-white;
+    min-height: 44px;
+    font-size: 16px; /* Prevents zoom on iOS */
   }
   
   /* Hover state for better interactivity */
@@ -55,5 +58,128 @@
   textarea:disabled,
   select:disabled {
     @apply bg-gray-100 border-gray-200 cursor-not-allowed opacity-60;
+  }
+
+  /* Mobile-Responsive Buttons */
+  .btn-mobile {
+    @apply w-full sm:w-auto px-4 py-3 text-base;
+    min-height: 44px;
+  }
+
+  /* Responsive Cards */
+  .card-responsive {
+    @apply w-full mx-auto;
+    max-width: 100%;
+  }
+
+  @media (min-width: 768px) {
+    .card-responsive {
+      max-width: 600px;
+    }
+  }
+
+  /* Responsive Container */
+  .container-responsive {
+    @apply w-full mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Stack on Mobile, Row on Desktop */
+  .stack-mobile {
+    @apply flex flex-col gap-3;
+  }
+
+  @media (min-width: 768px) {
+    .stack-mobile {
+      @apply flex-row gap-4;
+    }
+  }
+
+  /* Mobile Modal Fullscreen */
+  .modal-mobile {
+    @apply fixed inset-0 z-50;
+  }
+
+  @media (min-width: 768px) {
+    .modal-mobile {
+      @apply relative inset-auto;
+    }
+  }
+
+  /* Touch-Friendly Links */
+  .link-touch {
+    @apply inline-flex items-center justify-center;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.5rem;
+  }
+
+  /* Responsive Grid */
+  .grid-responsive {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4;
+  }
+
+  /* Mobile-First Typography */
+  .heading-responsive {
+    @apply text-xl sm:text-2xl md:text-3xl lg:text-4xl;
+  }
+
+  .subheading-responsive {
+    @apply text-lg sm:text-xl md:text-2xl;
+  }
+
+  .body-responsive {
+    @apply text-sm sm:text-base;
+  }
+}
+
+/* Mobile-Specific Utilities */
+@layer utilities {
+  /* Hide on Mobile */
+  .hide-mobile {
+    display: none;
+  }
+
+  @media (min-width: 768px) {
+    .hide-mobile {
+      display: block;
+    }
+  }
+
+  /* Hide on Desktop */
+  .hide-desktop {
+    display: block;
+  }
+
+  @media (min-width: 768px) {
+    .hide-desktop {
+      display: none;
+    }
+  }
+
+  /* Mobile-Only Padding */
+  .mobile-p-safe {
+    padding: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .mobile-p-safe {
+      padding: 0;
+    }
+  }
+
+  /* Prevent Text Zoom on iOS */
+  .no-zoom {
+    font-size: 16px !important;
+  }
+
+  /* Touch-Friendly Spacing */
+  .touch-spacing {
+    margin: 0.5rem 0;
+  }
+
+  @media (min-width: 768px) {
+    .touch-spacing {
+      margin: 0.25rem 0;
+    }
   }
 }
