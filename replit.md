@@ -119,7 +119,7 @@ The app is configured for autoscale deployment:
 **Responsive Table System - Full-Width and Mobile Cards**:
 - **Full-Width Tables**: All tables now fill the entire width of their container boxes on desktop (removed padding restrictions)
 - **Mobile Card Layout (≤768px)**: Tables automatically transform into card-based layouts on mobile devices
-  - Each table row becomes a tappable card showing primary information (Name + Email/Course)
+  - Each table row becomes a tappable card showing primary information (Name + Email/Course/Agency Name)
   - Clicking/tapping any card opens a detail modal displaying ALL row data (Type, ID, Agency, Status, Actions, etc.)
   - Clean card design without arrows - simple, tap-friendly interface
   - Pagination works seamlessly with card view - showing "X-Y of Z" with navigation arrows
@@ -128,7 +128,8 @@ The app is configured for autoscale deployment:
   - Created `static/responsiveTable.js` for mobile transformation logic (integrates with existing TablePagination)
   - Uses `data-responsive-table="true"` attribute on tables to enable responsive behavior
   - Uses `data-label`, `data-primary`, `data-secondary` attributes on headers for card rendering
-- **Coverage**: Applied to admin_users.html, monitor_progress.html, agency_progress_monitor.html, admin_certificates.html tables
+- **Coverage**: Applied to admin_users.html, monitor_progress.html, agency_progress_monitor.html, admin_certificates.html, admin_agencies.html tables
+- **User Management Fix**: Changed mobile card to show Name (primary) + Type (secondary) instead of Name + Email to avoid duplicate email display
 
 **UI/UX Improvements - November 17 PM**:
 - **User Management Table Full Width**: Removed padding from table-responsive div to allow table to fill the full card width for better data visibility

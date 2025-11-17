@@ -5,16 +5,16 @@
     <h2>Manage Agencies</h2>
     <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addAgencyModal">Add Agency</button>
     
-    <table class="table table-bordered">
+    <table class="table table-bordered" id="agenciesTable" data-paginate="true" data-items-per-page="50" data-responsive-table="true">
         <thead>
             <tr>
-                <th>Agency Name</th>
-                <th>Contact Person</th>
-                <th>Phone</th>
-                <th>Email</th>
-                <th>Address</th>
-                <th>Registration No.</th>
-                <th>Actions</th>
+                <th data-label="Agency Name" data-primary="true">Agency Name</th>
+                <th data-label="Contact Person" data-secondary="true">Contact Person</th>
+                <th data-label="Phone">Phone</th>
+                <th data-label="Email">Email</th>
+                <th data-label="Address">Address</th>
+                <th data-label="Registration No.">Registration No.</th>
+                <th data-label="Actions">Actions</th>
             </tr>
         </thead>
         <tbody>
