@@ -91,8 +91,9 @@ The app is configured for autoscale deployment:
 
 ### 2025-11-17 (Latest)
 **UI/UX Improvements - November 17 PM**:
+- **User Management Table Full Width**: Removed padding from table-responsive div to allow table to fill the full card width for better data visibility
 - **Hidden Table Scrollbars on Mobile**: Tables maintain horizontal scroll functionality but scrollbar is now hidden on mobile for cleaner UI (using scrollbar-width: none and ::-webkit-scrollbar)
-- **Square Trash Icon Buttons**: All trash/delete icon buttons now render as perfect squares using aspect-ratio: 1/1 with proper centering
+- **Small Square Trash Icon Buttons**: All trash/delete icon buttons now render as small squares (32px standard, 28px for btn-sm) using aspect-ratio: 1/1 with proper centering
 - **Progress Monitoring Modal System**: 
   - User names in progress monitoring pages are now clickable links
   - Clicking a user name opens a Bootstrap modal showing detailed course progress for that specific user
