@@ -105,6 +105,12 @@ The app is configured for autoscale deployment:
   - Each entry can be individually removed
   - Green "Add Experience" button to create new entries
   - Red remove icon (X) to delete specific entries
+- **Certificate Template Editor Simplified**: Created easier-to-use interface with:
+  - Clear visual organization with color-coded field sections
+  - Quick preset layouts (Centered, Left-Aligned, Custom)
+  - Simple form inputs with helpful labels and descriptions
+  - Built-in positioning tips and guidelines
+  - Removed complex drag-and-drop in favor of simple number inputs
 
 ### 2025-11-14
 **Critical Bug Fixes**:

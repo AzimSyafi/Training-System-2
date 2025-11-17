@@ -2405,7 +2405,7 @@ def certificate_template_editor():
     except Exception:
         logging.exception('[CERTIFICATE TEMPLATE EDITOR] Failed loading template')
         template = None
-    return render_template('certificate_template_editor.html', template=template)
+    return render_template('certificate_template_editor_simple.html', template=template)
 
 # Update certificate template
 @main_bp.route('/update_certificate_template', methods=['POST'])

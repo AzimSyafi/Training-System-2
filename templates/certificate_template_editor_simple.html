@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{% block content %}
+<link href="{{ url_for('static', filename='css/tailwind.css') }}" rel="stylesheet">
+
+<div class="max-w-7xl mx-auto p-6">
+    <!-- Header with Instructions -->
+    <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg p-8 mb-6">
+        <h1 class="text-3xl font-bold mb-4">📜 Certificate Template Editor</h1>
+        <p class="text-lg mb-4">Customize where information appears on your certificates</p>
+        <div class="bg-white/10 rounded-lg p-4 text-sm">
+            <p class="font-semibold mb-2">🎯 How it works:</p>
+            <ol class="list-decimal list-inside space-y-1 opacity-90">
+                <li>First, upload a PDF certificate template in the Certificates page</li>
+                <li>Adjust the position and size of each field below</li>
+                <li>Use "Show/Hide" toggles to control field visibility</li>
+                <li>Click "Save Template" when done</li>
+            </ol>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 class="text-xl font-bold mb-4">⚡ Quick Setup</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button onclick="applyPreset('centered')" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold transition">
+                📍 Centered Layout
+            </button>
+            <button onclick="applyPreset('left')" class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-semibold transition">
+                ⬅️ Left-Aligned Layout
+            </button>
+            <button onclick="applyPreset('custom')" class="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold transition">
+                🎨 Custom Positions
+            </button>
+        </div>
+    </div>
+
+    <!-- Template Fields Editor -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-xl font-bold mb-6">Certificate Fields</h2>
+        
+        <form id="templateForm" class="space-y-6">
+            <!-- Name Field -->
+            <div class="border-l-4 border-blue-500 pl-6 pr-4 py-4 bg-gray-50 rounded-r-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">👤 Recipient Name</h3>
+                        <p class="text-sm text-gray-600">Full name of the certificate recipient</p>
+                    </div>
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" id="name_visible" {% if template and template.name_visible %}checked{% endif %} class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500">
+                        <span class="ml-2 text-sm font-medium">Show</span>
+                    </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">X Position (px)</label>
+                        <input type="number" id="name_x" value="{{ template.name_x if template else 425 }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Y Position (px)</label>
+                        <input type="number" id="name_y" value="{{ template.name_y if template else 290 }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Font Size (pt)</label>
+                        <input type="number" id="name_font_size" value="{{ template.name_font_size if template else 28 }}" min="8" max="72" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- IC/Passport Field -->
+            <div class="border-l-4 border-green-500 pl-6 pr-4 py-4 bg-gray-50 rounded-r-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">🆔 IC/Passport Number</h3>
+                        <p class="text-sm text-gray-600">Identification number</p>
+                    </div>
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" id="ic_visible" {% if template and template.ic_visible %}checked{% endif %} class="w-5 h-5 text-green-600 rounded focus:ring-green-500">
+                        <span class="ml-2 text-sm font-medium">Show</span>
+                    </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">X Position (px)</label>
+                        <input type="number" id="ic_x" value="{{ template.ic_x if template else 425 }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Y Position (px)</label>
+                        <input type="number" id="ic_y" value="{{ template.ic_y if template else 260 }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Font Size (pt)</label>
+                        <input type="number" id="ic_font_size" value="{{ template.ic_font_size if template else 14 }}" min="8" max="72" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Course Type Field -->
+            <div class="border-l-4 border-yellow-500 pl-6 pr-4 py-4 bg-gray-50 rounded-r-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">📚 Course Type</h3>
+                        <p class="text-sm text-gray-600">Name of the course/module</p>
+                    </div>
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" id="course_type_visible" {% if template and template.course_type_visible %}checked{% endif %} class="w-5 h-5 text-yellow-600 rounded focus:ring-yellow-500">
+                        <span class="ml-2 text-sm font-medium">Show</span>
+                    </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">X Position (px)</label>
+                        <input type="number" id="course_type_x" value="{{ template.course_type_x if template else 425 }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Y Position (px)</label>
+                        <input type="number" id="course_type_y" value="{{ template.course_type_y if template else 230 }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Font Size (pt)</label>
+                        <input type="number" id="course_type_font_size" value="{{ template.course_type_font_size if template else 14 }}" min="8" max="72" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Percentage Field -->
+            <div class="border-l-4 border-purple-500 pl-6 pr-4 py-4 bg-gray-50 rounded-r-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">📊 Overall Percentage</h3>
+                        <p class="text-sm text-gray-600">Average score percentage</p>
+                    </div>
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" id="percentage_visible" {% if template and template.percentage_visible %}checked{% endif %} class="w-5 h-5 text-purple-600 rounded focus:ring-purple-500">
+                        <span class="ml-2 text-sm font-medium">Show</span>
+                    </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">X Position (px)</label>
+                        <input type="number" id="percentage_x" value="{{ template.percentage_x if template else 425 }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Y Position (px)</label>
+                        <input type="number" id="percentage_y" value="{{ template.percentage_y if template else 200 }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Font Size (pt)</label>
+                        <input type="number" id="percentage_font_size" value="{{ template.percentage_font_size if template else 14 }}" min="8" max="72" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grade Field -->
+            <div class="border-l-4 border-red-500 pl-6 pr-4 py-4 bg-gray-50 rounded-r-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">🎯 Course Grade</h3>
+                        <p class="text-sm text-gray-600">Letter grade (A, B, C, etc.)</p>
+                    </div>
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" id="grade_visible" {% if template and template.grade_visible %}checked{% endif %} class="w-5 h-5 text-red-600 rounded focus:ring-red-500">
+                        <span class="ml-2 text-sm font-medium">Show</span>
+                    </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">X Position (px)</label>
+                        <input type="number" id="grade_x" value="{{ template.grade_x if template else 425 }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Y Position (px)</label>
+                        <input type="number" id="grade_y" value="{{ template.grade_y if template else 185 }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Font Size (pt)</label>
+                        <input type="number" id="grade_font_size" value="{{ template.grade_font_size if template else 14 }}" min="8" max="72" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Date Field -->
+            <div class="border-l-4 border-indigo-500 pl-6 pr-4 py-4 bg-gray-50 rounded-r-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">📅 Issue Date</h3>
+                        <p class="text-sm text-gray-600">Certificate issue date</p>
+                    </div>
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" id="date_visible" {% if template and template.date_visible %}checked{% endif %} class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500">
+                        <span class="ml-2 text-sm font-medium">Show</span>
+                    </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">X Position (px)</label>
+                        <input type="number" id="date_x" value="{{ template.date_x if template else 425 }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Y Position (px)</label>
+                        <input type="number" id="date_y" value="{{ template.date_y if template else 150 }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Font Size (pt)</label>
+                        <input type="number" id="date_font_size" value="{{ template.date_font_size if template else 12 }}" min="8" max="72" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-4 pt-6 border-t">
+                <button type="submit" class="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-lg font-bold text-lg hover:shadow-lg transform hover:scale-105 transition">
+                    💾 Save Template
+                </button>
+                <a href="{{ url_for('main.admin_certificates') }}" class="flex-1 bg-gray-200 text-gray-700 px-8 py-4 rounded-lg font-bold text-lg hover:bg-gray-300 text-center transition">
+                    ← Back to Certificates
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Helpful Tips -->
+    <div class="mt-6 bg-blue-50 border-l-4 border-blue-500 p-6 rounded-r-lg">
+        <h3 class="font-bold text-blue-900 mb-3">💡 Tips for positioning:</h3>
+        <ul class="space-y-2 text-sm text-blue-800">
+            <li>• Standard letter-size PDF is approximately 612 x 792 pixels</li>
+            <li>• X=300 positions text roughly in the center horizontally</li>
+            <li>• Larger Y values move text DOWN the page</li>
+            <li>• Test your template by generating a sample certificate</li>
+            <li>• Use font sizes 24-32 for names, 12-16 for details</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+// Preset layouts
+function applyPreset(layout) {
+    if (layout === 'centered') {
+        // Centered layout
+        document.getElementById('name_x').value = 306;
+        document.getElementById('name_y').value = 350;
+        document.getElementById('ic_x').value = 306;
+        document.getElementById('ic_y').value = 310;
+        document.getElementById('course_type_x').value = 306;
+        document.getElementById('course_type_y').value = 280;
+        document.getElementById('percentage_x').value = 306;
+        document.getElementById('percentage_y').value = 250;
+        document.getElementById('grade_x').value = 306;
+        document.getElementById('grade_y').value = 220;
+        document.getElementById('date_x').value = 306;
+        document.getElementById('date_y').value = 190;
+    } else if (layout === 'left') {
+        // Left-aligned layout
+        document.getElementById('name_x').value = 150;
+        document.getElementById('name_y').value = 350;
+        document.getElementById('ic_x').value = 150;
+        document.getElementById('ic_y').value = 310;
+        document.getElementById('course_type_x').value = 150;
+        document.getElementById('course_type_y').value = 280;
+        document.getElementById('percentage_x').value = 150;
+        document.getElementById('percentage_y').value = 250;
+        document.getElementById('grade_x').value = 150;
+        document.getElementById('grade_y').value = 220;
+        document.getElementById('date_x').value = 150;
+        document.getElementById('date_y').value = 190;
+    }
+    
+    alert('✅ ' + layout.charAt(0).toUpperCase() + layout.slice(1) + ' layout applied! Review positions and click Save Template.');
+}
+
+// Form submission
+document.getElementById('templateForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const data = {
+        name_x: parseInt(document.getElementById('name_x').value),
+        name_y: parseInt(document.getElementById('name_y').value),
+        name_font_size: parseInt(document.getElementById('name_font_size').value),
+        name_visible: document.getElementById('name_visible').checked,
+        
+        ic_x: parseInt(document.getElementById('ic_x').value),
+        ic_y: parseInt(document.getElementById('ic_y').value),
+        ic_font_size: parseInt(document.getElementById('ic_font_size').value),
+        ic_visible: document.getElementById('ic_visible').checked,
+        
+        course_type_x: parseInt(document.getElementById('course_type_x').value),
+        course_type_y: parseInt(document.getElementById('course_type_y').value),
+        course_type_font_size: parseInt(document.getElementById('course_type_font_size').value),
+        course_type_visible: document.getElementById('course_type_visible').checked,
+        
+        percentage_x: parseInt(document.getElementById('percentage_x').value),
+        percentage_y: parseInt(document.getElementById('percentage_y').value),
+        percentage_font_size: parseInt(document.getElementById('percentage_font_size').value),
+        percentage_visible: document.getElementById('percentage_visible').checked,
+        
+        grade_x: parseInt(document.getElementById('grade_x').value),
+        grade_y: parseInt(document.getElementById('grade_y').value),
+        grade_font_size: parseInt(document.getElementById('grade_font_size').value),
+        grade_visible: document.getElementById('grade_visible').checked,
+        
+        date_x: parseInt(document.getElementById('date_x').value),
+        date_y: parseInt(document.getElementById('date_y').value),
+        date_font_size: parseInt(document.getElementById('date_font_size').value),
+        date_visible: document.getElementById('date_visible').checked
+    };
+    
+    try {
+        const response = await fetch('{{ url_for("main.update_certificate_template") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ Template saved successfully!');
+            window.location.href = '{{ url_for("main.admin_certificates") }}';
+        } else {
+            alert('❌ Error: ' + (result.message || 'Failed to save template'));
+        }
+    } catch (error) {
+        alert('❌ Error saving template: ' + error.message);
+    }
+});
+</script>
+{% endblock %}
