@@ -145,9 +145,6 @@ class ResponsiveTable {
       }
     });
     
-    // ALWAYS add chevron indicator to show cards are clickable
-    cardHTML += '<i class="fas fa-chevron-right mobile-card-chevron"></i>';
-    
     card.innerHTML = cardHTML;
     
     // Store row data for detail modal

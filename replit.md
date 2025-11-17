@@ -95,14 +95,14 @@ The app is configured for autoscale deployment:
 - **Mobile Card Layout (≤768px)**: Tables automatically transform into card-based layouts on mobile devices
   - Each table row becomes a tappable card showing primary information (Name + Email/Course)
   - Clicking/tapping any card opens a detail modal displaying ALL row data (Type, ID, Agency, Status, Actions, etc.)
-  - Cards show chevron indicator (→) to signal they're interactive
+  - Clean card design without arrows - simple, tap-friendly interface
   - Pagination works seamlessly with card view - showing "X-Y of Z" with navigation arrows
 - **Architecture**:
   - Created `static/css/responsive-tables.css` for styling (full-width enforcement + mobile card styles)
   - Created `static/responsiveTable.js` for mobile transformation logic (integrates with existing TablePagination)
   - Uses `data-responsive-table="true"` attribute on tables to enable responsive behavior
   - Uses `data-label`, `data-primary`, `data-secondary` attributes on headers for card rendering
-- **Coverage**: Applied to admin_users.html, monitor_progress.html, agency_progress_monitor.html tables
+- **Coverage**: Applied to admin_users.html, monitor_progress.html, agency_progress_monitor.html, admin_certificates.html tables
 
 **UI/UX Improvements - November 17 PM**:
 - **User Management Table Full Width**: Removed padding from table-responsive div to allow table to fill the full card width for better data visibility
