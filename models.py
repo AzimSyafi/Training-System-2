@@ -577,9 +577,19 @@ class Management:
                 .order_by(Course.name.asc())
                 .all()
             )
+            # Convert Row objects to dictionaries for JSON serialization
+            completion_stats = [
+                {
+                    'course_name': row.course_name,
+                    'total_attempts': row.total_attempts,
+                    'completed': row.completed,
+                    'avg_score': float(row.avg_score) if row.avg_score else 0
+                }
+                for row in completion_rows
+            ]
         except Exception:
             # Fallback to empty list on any DB error to keep dashboard rendering
-            completion_rows = []
+            completion_stats = []
 
         # Calculate performance metrics
         try:
@@ -604,7 +614,7 @@ class Management:
             'total_modules': total_modules,
             'total_certificates': total_certificates,
             'active_trainers': active_trainers,
-            'completion_stats': completion_rows,
+            'completion_stats': completion_stats,
             'performance_metrics': performance_metrics
         }
 
