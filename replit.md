@@ -94,6 +94,8 @@ The app is configured for autoscale deployment:
 - **Certificate Template Upload Fixed**: Corrected field name from `template_name` to `name` to match CertificateTemplate model
 - **Certificate Download Fixed**: Implemented missing `/generate_and_download_certificate` route allowing users to download approved certificates
 - **PDF Upload Size Fixed**: Increased file upload limit to 50 MB to support large PDF certificate templates
+- **Certificate Generation Fixed**: Updated to use admin-uploaded templates from `static/uploads/certificate_templates/` instead of hardcoded path
+- **Module Lookup Fixed**: Added direct module_id lookup and case-insensitive fallback to prevent "No module found" errors
 
 ### 2025-11-14
 **Critical Bug Fixes**:

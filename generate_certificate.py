@@ -16,8 +16,34 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None,
     date_str = datetime.now().strftime('%B %d, %Y')
     cert_id = cert_id or f"CERT-{user_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-    # Paths
-    template_path = os.path.join('static', 'cert_templates', 'Training_cert.pdf')
+    # Get active certificate template settings first (needed for template path)
+    from models import CertificateTemplate
+    template_settings = CertificateTemplate.query.filter_by(is_active=True).first()
+    if not template_settings:
+        # Create default template if none exists
+        template_settings = CertificateTemplate(name='Default Template')
+        db.session.add(template_settings)
+        db.session.commit()
+    
+    # Determine template path based on uploaded template
+    if template_settings and template_settings.name:
+        # Use uploaded template from admin panel
+        template_path = os.path.join('static', 'uploads', 'certificate_templates', template_settings.name)
+        # Check if file exists, fallback to old location if not
+        if not os.path.exists(template_path):
+            # Try old hardcoded location as fallback
+            fallback_path = os.path.join('static', 'cert_templates', 'Training_cert.pdf')
+            if os.path.exists(fallback_path):
+                template_path = fallback_path
+            else:
+                raise ValueError(f"Certificate template not found. Please upload a template in the admin panel.")
+    else:
+        # Fallback to hardcoded template
+        template_path = os.path.join('static', 'cert_templates', 'Training_cert.pdf')
+        if not os.path.exists(template_path):
+            raise ValueError(f"Certificate template not found. Please upload a template in the admin panel.")
+    
+    # Output paths
     output_dir = os.path.join('static', 'certificates')
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, f"certificate_{user_id}_{course_type}.pdf")
@@ -36,15 +62,6 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None,
         if not module:
             raise ValueError(f"No module found for course type {course_type}")
     module_name = module.module_name
-
-    # Get active certificate template settings
-    from models import CertificateTemplate
-    template_settings = CertificateTemplate.query.filter_by(is_active=True).first()
-    if not template_settings:
-        # Create default template if none exists
-        template_settings = CertificateTemplate(name='Default Template')
-        db.session.add(template_settings)
-        db.session.commit()
 
     # Create overlay PDF with user info
     packet = BytesIO()
