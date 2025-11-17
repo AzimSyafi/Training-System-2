@@ -61,6 +61,13 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-17 (Latest)
+**Agency Portal Mobile View Fix**:
+- **Responsive "Your Users" Table**: Applied responsive table system to the "Your Users" section in agency portal
+- **Mobile Card View**: Table now transforms into mobile-friendly cards on screens ≤768px
+- **Data Labels**: Added data-label, data-primary, and data-secondary attributes for proper mobile display
+- **Table ID**: Added unique table ID (agencyUsersTable) for responsive functionality
+- **Fixed Display Issue**: Users are now properly displayed on mobile devices in the agency portal
+
 **Scrollable Pages with Hidden Scrollbars**:
 - **Scrollable Pages**: Login, signup, and landing pages are now fully scrollable when content overflows
 - **Hidden Scrollbars**: Scrollbars are hidden for a clean, modern appearance

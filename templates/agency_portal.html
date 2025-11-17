@@ -125,7 +125,7 @@
         <div class="card-header">Your Users</div>
         <div class="card-body p-0">
           <div class="table-responsive">
-            <table class="table table-striped mb-0">
+            <table id="agencyUsersTable" class="table table-striped mb-0" data-responsive-table="true">
               <thead>
                 <tr>
                   <th>Name</th>
@@ -138,10 +138,10 @@
                 {% if agency_users and agency_users|length > 0 %}
                   {% for user in agency_users %}
                   <tr>
-                    <td>{{ user.full_name }}</td>
-                    <td>{{ user.email }}</td>
-                    <td>{{ (user.user_category or 'citizen')|capitalize }}</td>
-                    <td>
+                    <td data-label="Name" data-primary="true">{{ user.full_name }}</td>
+                    <td data-label="Email" data-secondary="true">{{ user.email }}</td>
+                    <td data-label="Citizenship">{{ (user.user_category or 'citizen')|capitalize }}</td>
+                    <td data-label="Number Series">
                       {% if user.number_series %}
                         <span class="badge bg-secondary">{{ user.number_series }}</span>
                       {% else %}
