@@ -90,6 +90,12 @@ The app is configured for autoscale deployment:
 ## Recent Changes
 
 ### 2025-11-17 (Latest)
+**Certificates Page UI Enhancement**:
+- **Delete Button Moved to Header**: Bulk delete button now appears in the card header at the top
+- **Trash Icon Only**: Changed from "Delete Selected" text button to compact trash icon button (32px square)
+- **Better Layout**: Card header now shows "All Certificates" title with delete button aligned to the right
+- **Form Association**: Checkboxes linked to header form using HTML5 form attribute for clean separation
+
 **Course Completion Graph Visualization**:
 - **Replaced Table with Chart**: Admin dashboard course completion statistics now uses Chart.js interactive graph instead of static table
 - **Graph Features**:
