@@ -102,6 +102,8 @@ The app is configured for autoscale deployment:
   - Added HTML escaping to prevent XSS attacks
   - Works correctly with special characters in names (apostrophes, quotes, etc.)
   - Available on both admin progress monitor and agency progress monitor pages
+  - Fixed agency_progress_monitor route to use correct template (agency_progress_monitor.html) and pass all required data fields
+  - Enhanced modal with better visibility: larger user name header (h5 bold), course count display, console debugging, and improved table styling with max-height scrolling
 
 **Mobile-Responsive Design System**:
 - **Comprehensive Mobile Support**: Implemented full mobile-responsive design system supporting screens from 320px to desktop
