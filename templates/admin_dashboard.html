@@ -168,7 +168,6 @@ body.dark-mode .stat-change, body.dark-mode .stat-title { color:#94a3b8; }
     </div>
     {% endif %}
 
-    {% if dashboard.completion_stats %}
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="card">
@@ -190,20 +189,137 @@ body.dark-mode .stat-change, body.dark-mode .stat-title { color:#94a3b8; }
         const ctx = document.getElementById('completionChart');
         if (!ctx) return;
 
-        const chartData = {{ dashboard.completion_stats | tojson }};
+        const chartData = {{ (dashboard.completion_stats if dashboard.completion_stats else []) | tojson }};
         
-        const labels = chartData.map(stat => stat.course_name);
+        if (!chartData || chartData.length === 0) {
+            ctx.parentElement.innerHTML = '<p class="text-center text-muted py-5">No course completion data available yet.</p>';
+            return;
+        }
+        
+        const labels = chartData.map(stat => stat.course_name || 'Unknown');
         const completionRates = chartData.map(stat => {
             return stat.total_attempts > 0 
-                ? ((stat.completed / stat.total_attempts) * 100).toFixed(1)
+                ? (stat.completed / stat.total_attempts) * 100
                 : 0;
         });
-        const avgScores = chartData.map(stat => stat.avg_score ? stat.avg_score.toFixed(1) : 0);
-        const totalAttempts = chartData.map(stat => stat.total_attempts);
+        const avgScores = chartData.map(stat => stat.avg_score || 0);
+        const totalAttempts = chartData.map(stat => stat.total_attempts || 0);
 
-        const isMobile = window.innerWidth <= 768;
+        function isMobile() {
+            return window.innerWidth <= 768;
+        }
 
-        new Chart(ctx, {
+        function getChartOptions() {
+            const mobile = isMobile();
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: mobile ? 'bottom' : 'top',
+                        labels: {
+                            padding: mobile ? 10 : 20,
+                            font: {
+                                size: mobile ? 11 : 12
+                            },
+                            usePointStyle: true,
+                            boxWidth: mobile ? 6 : 8
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: {
+                            size: mobile ? 13 : 14
+                        },
+                        bodyFont: {
+                            size: mobile ? 12 : 13
+                        },
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    const value = context.parsed.y;
+                                    if (context.datasetIndex === 2) {
+                                        label += Math.round(value);
+                                    } else {
+                                        label += value.toFixed(1) + '%';
+                                    }
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            font: {
+                                size: mobile ? 10 : 12
+                            },
+                            maxRotation: mobile ? 45 : 0,
+                            minRotation: mobile ? 45 : 0
+                        },
+                        grid: {
+                            display: false
+                        }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        min: 0,
+                        max: 100,
+                        ticks: {
+                            font: {
+                                size: mobile ? 10 : 12
+                            },
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        },
+                        title: {
+                            display: !mobile,
+                            text: 'Percentage',
+                            font: {
+                                size: 12
+                            }
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        min: 0,
+                        ticks: {
+                            font: {
+                                size: mobile ? 10 : 12
+                            }
+                        },
+                        title: {
+                            display: !mobile,
+                            text: 'Attempts',
+                            font: {
+                                size: 12
+                            }
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                }
+            };
+        }
+
+        const chart = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: labels,
@@ -238,122 +354,20 @@ body.dark-mode .stat-change, body.dark-mode .stat-title { color:#94a3b8; }
                     }
                 ]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index',
-                    intersect: false,
-                },
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: isMobile ? 'bottom' : 'top',
-                        labels: {
-                            padding: isMobile ? 10 : 20,
-                            font: {
-                                size: isMobile ? 11 : 12
-                            },
-                            usePointStyle: true,
-                            boxWidth: isMobile ? 6 : 8
-                        }
-                    },
-                    tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                        padding: 12,
-                        titleFont: {
-                            size: isMobile ? 13 : 14
-                        },
-                        bodyFont: {
-                            size: isMobile ? 12 : 13
-                        },
-                        callbacks: {
-                            label: function(context) {
-                                let label = context.dataset.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
-                                if (context.parsed.y !== null) {
-                                    if (context.datasetIndex === 2) {
-                                        label += context.parsed.y;
-                                    } else {
-                                        label += context.parsed.y + '%';
-                                    }
-                                }
-                                return label;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            font: {
-                                size: isMobile ? 10 : 12
-                            },
-                            maxRotation: isMobile ? 45 : 0,
-                            minRotation: isMobile ? 45 : 0
-                        },
-                        grid: {
-                            display: false
-                        }
-                    },
-                    y: {
-                        type: 'linear',
-                        display: true,
-                        position: 'left',
-                        min: 0,
-                        max: 100,
-                        ticks: {
-                            font: {
-                                size: isMobile ? 10 : 12
-                            },
-                            callback: function(value) {
-                                return value + '%';
-                            }
-                        },
-                        title: {
-                            display: !isMobile,
-                            text: 'Percentage',
-                            font: {
-                                size: 12
-                            }
-                        }
-                    },
-                    y1: {
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        min: 0,
-                        ticks: {
-                            font: {
-                                size: isMobile ? 10 : 12
-                            }
-                        },
-                        title: {
-                            display: !isMobile,
-                            text: 'Attempts',
-                            font: {
-                                size: 12
-                            }
-                        },
-                        grid: {
-                            drawOnChartArea: false
-                        }
-                    }
-                }
-            }
+            options: getChartOptions()
         });
 
+        let resizeTimeout;
         window.addEventListener('resize', function() {
-            const nowMobile = window.innerWidth <= 768;
-            if (nowMobile !== isMobile) {
-                location.reload();
-            }
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(function() {
+                chart.options = getChartOptions();
+                chart.resize();
+                chart.update('none');
+            }, 150);
         });
     })();
     </script>
-    {% endif %}
 
     <div class="row">
         <div class="col-md-12">

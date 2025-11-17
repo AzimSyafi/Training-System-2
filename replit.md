@@ -90,6 +90,26 @@ The app is configured for autoscale deployment:
 ## Recent Changes
 
 ### 2025-11-17 (Latest)
+**Course Completion Graph Visualization**:
+- **Replaced Table with Chart**: Admin dashboard course completion statistics now uses Chart.js interactive graph instead of static table
+- **Graph Features**:
+  - Mixed bar/line chart showing Completion Rate (%), Average Score (%), and Total Attempts
+  - Dual Y-axes: percentages (left), attempt counts (right)
+  - Green bars for completion rates, blue bars for average scores, orange line for attempts
+  - Hover tooltips showing formatted data
+- **Mobile-Responsive Design**:
+  - Dynamic responsive configuration using isMobile() function
+  - Smaller fonts on mobile (10-13px vs 12-14px desktop)
+  - Legend positioned at bottom on mobile, top on desktop
+  - 45-degree rotated X-axis labels on mobile for readability
+  - Axis titles hidden on mobile to save space
+  - Debounced (150ms) resize handler for smooth transitions without page reload
+- **Graceful Handling**:
+  - Empty data shows friendly "No course completion data available yet" message
+  - Numeric data preserved throughout (formatted only in tooltips)
+  - Fallback defaults for missing fields (course_name, scores, attempts)
+- **Backend Fix**: Converted SQLAlchemy Row objects to dictionaries for JSON serialization in models.py getDashboard()
+
 **Responsive Table System - Full-Width and Mobile Cards**:
 - **Full-Width Tables**: All tables now fill the entire width of their container boxes on desktop (removed padding restrictions)
 - **Mobile Card Layout (≤768px)**: Tables automatically transform into card-based layouts on mobile devices
