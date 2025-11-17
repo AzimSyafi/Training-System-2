@@ -2354,10 +2354,14 @@ def agency_progress_monitor():
                 last_activity = user_completed_q.with_entities(db.func.max(UserModule.completion_date)).scalar()
                 progress_rows.append({
                     'user_name': user.full_name,
+                    'user_category': user.category if hasattr(user, 'category') else 'citizen',
                     'course_name': course.name,
                     'course_code': course.code,
                     'agency_name': user.agency.agency_name if user.agency else '',
                     'progress_pct': round(user_progress_pct, 1),
+                    'completed_modules': completed_for_user,
+                    'total_modules': total_for_course,
+                    'avg_score': avg_user_score,
                     'score': avg_user_score,
                     'last_activity': last_activity,
                     'status': 'Completed' if user_progress_pct >= 100 else 'Active'
@@ -2367,17 +2371,22 @@ def agency_progress_monitor():
         progress_rows.sort(key=lambda r: (r['last_activity'] or datetime.min), reverse=True)
         progress_rows = progress_rows[:500]
 
-        agencies = [current_user.agency] if getattr(current_user, 'agency', None) else (Agency.query.order_by(Agency.agency_name).all() if isinstance(current_user, Admin) else [])
-        filters = SimpleNamespace(q=q, agency_id=agency_id, course_id=course_id, status='')
+        # Get agency for display
+        agency = None
+        if isinstance(current_user, AgencyAccount):
+            agency = current_user.agency
+        
+        users_count = len(users)
+        courses_with_modules_count = sum(1 for c in courses if len(c.modules) > 0)
 
     except Exception:
         logging.exception('[AGENCY PROGRESS] Failed loading progress data')
         progress_rows = []
-        agencies = []
-        courses = []
-        filters = SimpleNamespace(q='', agency_id=None, course_id=None, status='')
+        agency = None
+        users_count = 0
+        courses_with_modules_count = 0
 
-    return render_template('monitor_progress.html', course_progress_rows=progress_rows, agencies=agencies, courses=courses, filters=filters)
+    return render_template('agency_progress_monitor.html', progress_rows=progress_rows, agency=agency, users_count=users_count, courses_with_modules_count=courses_with_modules_count)
 
 # Certificate template editor
 @main_bp.route('/certificate_template_editor')

@@ -63,17 +63,27 @@ p, li, label, .form-text, .text-body, .text-body-secondary {
   justify-content: center;
 }
 
-/* Make trash icon buttons square */
+/* Make trash icon buttons small square */
 button.btn-outline-danger[title="Delete"],
 button.btn-danger[title="Delete"],
 .btn-outline-danger:has(i.fa-trash),
 .btn-danger:has(i.fa-trash) {
   aspect-ratio: 1 / 1;
-  padding: 0.375rem;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: auto;
+  font-size: 0.875rem;
+}
+
+.btn-sm.btn-outline-danger:has(i.fa-trash),
+.btn-sm.btn-danger:has(i.fa-trash) {
+  width: 28px;
+  height: 28px;
+  font-size: 0.75rem;
 }
 
 /* Cards and images */
