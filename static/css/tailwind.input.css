@@ -6,7 +6,7 @@
 
 /* Mobile-First Responsive Design System */
 @layer components {
-  /* Form Input Styling - Mobile-friendly with touch targets */
+  /* Form Input Styling - Base styles for all screens */
   input[type="text"],
   input[type="email"],
   input[type="password"],
@@ -23,8 +23,26 @@
     @apply border-2 border-gray-300 rounded-md shadow-sm px-3 py-2 
            focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none
            transition-all duration-200 bg-white;
-    min-height: 44px;
-    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  /* Mobile-specific touch targets */
+  @media (max-width: 768px) {
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="search"],
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"],
+    input[type="file"],
+    textarea,
+    select {
+      min-height: 44px;
+      font-size: 16px; /* Prevents zoom on iOS */
+    }
   }
   
   /* Hover state for better interactivity */
@@ -63,7 +81,12 @@
   /* Mobile-Responsive Buttons */
   .btn-mobile {
     @apply w-full sm:w-auto px-4 py-3 text-base;
-    min-height: 44px;
+  }
+
+  @media (max-width: 768px) {
+    .btn-mobile {
+      min-height: 44px;
+    }
   }
 
   /* Responsive Cards */

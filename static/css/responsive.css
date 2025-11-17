@@ -36,21 +36,23 @@ p, li, label, .form-text, .text-body, .text-body-secondary {
   font-size: clamp(0.95rem, calc(1rem * var(--rs-font-scale)), 1.125rem);
 }
 
-/* Ensure buttons and inputs are touch-friendly (minimum 44x44px touch target) */
-button, .btn,
-input[type="button"], input[type="submit"], input[type="reset"],
-input[type="text"], input[type="email"], input[type="password"],
-select, textarea, .form-control {
-  min-height: 44px;
-  padding: calc(0.5rem * var(--rs-spacing-scale)) calc(0.875rem * var(--rs-spacing-scale));
-  font-size: clamp(16px, calc(16px * var(--rs-font-scale)), 20px);
-}
+/* Touch-friendly inputs ONLY on mobile */
+@media (max-width: 768px) {
+  button, .btn,
+  input[type="button"], input[type="submit"], input[type="reset"],
+  input[type="text"], input[type="email"], input[type="password"],
+  select, textarea, .form-control {
+    min-height: 44px;
+    padding: calc(0.5rem * var(--rs-spacing-scale)) calc(0.875rem * var(--rs-spacing-scale));
+    font-size: clamp(16px, calc(16px * var(--rs-font-scale)), 20px);
+  }
 
-/* Enhanced touch targets for links and interactive elements */
-a, button, .btn, .nav-link, [role="button"] {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
+  /* Enhanced touch targets for links and interactive elements */
+  a, button, .btn, .nav-link, [role="button"] {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
 }
 
 /* Utility for making buttons square */
@@ -194,29 +196,31 @@ body.sidebar-open .desktop-nav-toggle,
   }
 }
 
-/* Sidebar slide-out behavior - FROM LEFT */
-.sidebar {
-  position: fixed !important;
-  top: 0;
-  left: -280px !important; /* Hidden off-screen to the left */
-  right: auto !important;
-  width: 280px !important;
-  height: 100vh;
-  z-index: 9999; /* Below hamburger button */
-  transition: left 0.3s ease-in-out !important;
-  overflow-y: auto;
-  box-shadow: 2px 0 15px rgba(0,0,0,0.15); /* Shadow on right side */
-  padding-top: 0;
-}
+/* Sidebar slide-out behavior - ONLY ON MOBILE AND TABLET (<=1024px) */
+@media (max-width: 1024px) {
+  .sidebar {
+    position: fixed !important;
+    top: 0;
+    left: -280px !important; /* Hidden off-screen to the left */
+    right: auto !important;
+    width: 280px !important;
+    height: 100vh;
+    z-index: 9999; /* Below hamburger button */
+    transition: left 0.3s ease-in-out !important;
+    overflow-y: auto;
+    box-shadow: 2px 0 15px rgba(0,0,0,0.15); /* Shadow on right side */
+    padding-top: 0;
+  }
 
-/* When menu is open, sidebar slides in from left to position 0 */
-.sidebar.menu-open {
-  left: 0 !important; /* Sidebar comes in from left, sits at left edge */
-}
+  /* When menu is open, sidebar slides in from left to position 0 */
+  .sidebar.menu-open {
+    left: 0 !important; /* Sidebar comes in from left, sits at left edge */
+  }
 
-/* Add top margin to first nav element to avoid overlap */
-.sidebar nav {
-  margin-top: 20px;
+  /* Add top margin to first nav element to avoid overlap */
+  .sidebar nav {
+    margin-top: 20px;
+  }
 }
 
 /* Overlay when menu is open (all screens) */
@@ -255,13 +259,15 @@ body.sidebar-open .desktop-nav-toggle,
   display: none !important;
 }
 
-/* Main content takes full width since sidebar is hidden by default */
-.main-content {
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  padding: calc(var(--desktop-hamburger-size) + 25px) 1.5rem 1.5rem 1.5rem !important;
-  width: 100% !important;
-  transition: none !important;
+/* Main content - only adjust on mobile/tablet */
+@media (max-width: 1024px) {
+  .main-content {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding: calc(var(--desktop-hamburger-size) + 25px) 1.5rem 1.5rem 1.5rem !important;
+    width: 100% !important;
+    transition: none !important;
+  }
 }
 
 /* Ensure sidebar nav links show full text when menu is open */
