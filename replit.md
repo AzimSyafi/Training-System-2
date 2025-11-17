@@ -61,6 +61,13 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-17 (Latest)
+**Password Toggle Button Styling**:
+- **Enhanced Button Design**: Password visibility toggle button now has polished, modern styling
+- **Interactive States**: Added smooth hover (light gray background) and active (pressed effect) states
+- **Visual Improvements**: White background, proper spacing, and smooth transitions
+- **Better UX**: Clear visual feedback on interaction with scale animation on click
+- **Consistent Design**: Seamlessly integrates with password input field
+
 **Agency Portal Mobile View Fix**:
 - **Responsive "Your Users" Table**: Applied responsive table system to the "Your Users" section in agency portal
 - **Mobile Card View**: Table now transforms into mobile-friendly cards on screens ≤768px

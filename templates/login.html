@@ -155,8 +155,26 @@
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
     border: 1.5px solid #d1d5db;
-    background: #f9fafb;
+    border-left: none;
+    background: #ffffff !important;
+    color: #6b7280;
+    padding: 0.85rem 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  #togglePassword:hover {
+    background: #f3f4f6 !important;
     color: #111827;
+  }
+  
+  #togglePassword:active {
+    background: #e5e7eb !important;
+    transform: scale(0.95);
+  }
+  
+  #togglePassword i {
+    font-size: 1rem;
   }
 
   .login-form-panel .text-muted {
