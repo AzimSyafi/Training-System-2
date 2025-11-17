@@ -173,51 +173,186 @@ body.dark-mode .stat-change, body.dark-mode .stat-title { color:#94a3b8; }
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
-                    <h5><i class="fas fa-chart-pie"></i> Course Completion Statistics</h5>
+                    <h5><i class="fas fa-chart-bar"></i> Course Completion Statistics</h5>
                 </div>
                 <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Course Name</th>
-                                    <th>Total Attempts</th>
-                                    <th>Completed</th>
-                                    <th>Completion Rate</th>
-                                    <th>Average Score</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for stat in dashboard.completion_stats %}
-                                <tr>
-                                    <td>{{ stat.course_name }}</td>
-                                    <td>{{ stat.total_attempts }}</td>
-                                    <td>{{ stat.completed }}</td>
-                                    <td>
-                                        {% set completion_rate = (stat.completed / stat.total_attempts * 100) if stat.total_attempts > 0 else 0 %}
-                                        <div class="progress">
-                                            <div class="progress-bar" style="width: {{ completion_rate }}%">
-                                                {{ "%.1f"|format(completion_rate) }}%
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        {% if stat.avg_score %}
-                                            <span class="{% if stat.avg_score <= 50 %}text-danger{% elif stat.avg_score > 75 %}text-success{% else %}text-primary{% endif %}">
-                                                {{ "%.1f"|format(stat.avg_score) }}%
-                                            </span>
-                                        {% else %}
-                                            <span class="text-muted">N/A</span>
-                                        {% endif %}
-                                    </td>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                    <div class="chart-container" style="position: relative; height: 400px; width: 100%;">
+                        <canvas id="completionChart"></canvas>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+    (function() {
+        const ctx = document.getElementById('completionChart');
+        if (!ctx) return;
+
+        const chartData = {{ dashboard.completion_stats | tojson }};
+        
+        const labels = chartData.map(stat => stat.course_name);
+        const completionRates = chartData.map(stat => {
+            return stat.total_attempts > 0 
+                ? ((stat.completed / stat.total_attempts) * 100).toFixed(1)
+                : 0;
+        });
+        const avgScores = chartData.map(stat => stat.avg_score ? stat.avg_score.toFixed(1) : 0);
+        const totalAttempts = chartData.map(stat => stat.total_attempts);
+
+        const isMobile = window.innerWidth <= 768;
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Completion Rate (%)',
+                        data: completionRates,
+                        backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                        borderColor: 'rgba(16, 185, 129, 1)',
+                        borderWidth: 2,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Average Score (%)',
+                        data: avgScores,
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 2,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Total Attempts',
+                        data: totalAttempts,
+                        type: 'line',
+                        backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                        borderColor: 'rgba(245, 158, 11, 1)',
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        yAxisID: 'y1',
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: isMobile ? 'bottom' : 'top',
+                        labels: {
+                            padding: isMobile ? 10 : 20,
+                            font: {
+                                size: isMobile ? 11 : 12
+                            },
+                            usePointStyle: true,
+                            boxWidth: isMobile ? 6 : 8
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: {
+                            size: isMobile ? 13 : 14
+                        },
+                        bodyFont: {
+                            size: isMobile ? 12 : 13
+                        },
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    if (context.datasetIndex === 2) {
+                                        label += context.parsed.y;
+                                    } else {
+                                        label += context.parsed.y + '%';
+                                    }
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            font: {
+                                size: isMobile ? 10 : 12
+                            },
+                            maxRotation: isMobile ? 45 : 0,
+                            minRotation: isMobile ? 45 : 0
+                        },
+                        grid: {
+                            display: false
+                        }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        min: 0,
+                        max: 100,
+                        ticks: {
+                            font: {
+                                size: isMobile ? 10 : 12
+                            },
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        },
+                        title: {
+                            display: !isMobile,
+                            text: 'Percentage',
+                            font: {
+                                size: 12
+                            }
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        min: 0,
+                        ticks: {
+                            font: {
+                                size: isMobile ? 10 : 12
+                            }
+                        },
+                        title: {
+                            display: !isMobile,
+                            text: 'Attempts',
+                            font: {
+                                size: 12
+                            }
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                }
+            }
+        });
+
+        window.addEventListener('resize', function() {
+            const nowMobile = window.innerWidth <= 768;
+            if (nowMobile !== isMobile) {
+                location.reload();
+            }
+        });
+    })();
+    </script>
     {% endif %}
 
     <div class="row">
