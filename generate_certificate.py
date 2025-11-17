@@ -7,7 +7,7 @@ from io import BytesIO
 from models import User, Certificate, Module
 from app import db  # Assuming you use SQLAlchemy
 
-def generate_certificate(user_id, course_type, overall_percentage, cert_id=None):
+def generate_certificate(user_id, course_type, overall_percentage, cert_id=None, module_id=None):
     # Fetch user info from database
     user = db.session.get(User, user_id)
     if not user:
@@ -22,10 +22,19 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None)
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, f"certificate_{user_id}_{course_type}.pdf")
 
-    # Find the module name for the certificate (first module of this type)
-    module = Module.query.filter_by(module_type=course_type.upper()).first()
-    if not module:
-        raise ValueError(f"No module found for course type {course_type}")
+    # Get module either by ID (preferred) or by looking up module_type
+    if module_id:
+        module = db.session.get(Module, module_id)
+        if not module:
+            raise ValueError(f"No module found with ID {module_id}")
+    else:
+        # Fallback: Find the module name for the certificate (first module of this type)
+        module = Module.query.filter_by(module_type=course_type.upper()).first()
+        if not module:
+            # Try without uppercase conversion
+            module = Module.query.filter_by(module_type=course_type).first()
+        if not module:
+            raise ValueError(f"No module found for course type {course_type}")
     module_name = module.module_name
 
     # Get active certificate template settings

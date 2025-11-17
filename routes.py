@@ -1894,12 +1894,13 @@ def generate_and_download_certificate(certificate_id):
         scores = [um.score for um in user_modules if um.score is not None]
         overall_percentage = sum(scores) / len(scores) if scores else 0
         
-        # Generate certificate PDF using the module's type
+        # Generate certificate PDF using the module's type and ID
         pdf_path = generate_certificate(
             user_id=cert.user_id,
             course_type=module.module_type,
             overall_percentage=overall_percentage,
-            cert_id=f"CERT-{cert.certificate_id}"
+            cert_id=f"CERT-{cert.certificate_id}",
+            module_id=module.module_id
         )
         
         # Update certificate URL in database
