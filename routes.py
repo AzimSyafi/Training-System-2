@@ -1051,6 +1051,13 @@ def admin_users():
             except ValueError:
                 pass
         users = users_q.all()
+        
+        # Track trainer emails to avoid duplicates
+        trainer_emails = set()
+        trainers = Trainer.query.all()
+        for t in trainers:
+            trainer_emails.add(t.email.lower() if t.email else '')
+        
         for u in users:
             if q and (q not in (u.full_name or '').lower() and q not in (u.email or '').lower()):
                 continue
@@ -1062,6 +1069,10 @@ def admin_users():
             elif user_role == 'admin':
                 display_type = 'admin'
             elif user_role == 'trainer':
+                # Skip users with trainer role if they have a Trainer record (avoid duplicates)
+                user_email = (u.email or '').lower()
+                if user_email in trainer_emails:
+                    continue
                 display_type = 'trainer'
             else:  # 'agency' or default
                 display_type = 'user'
@@ -1079,7 +1090,8 @@ def admin_users():
                 'agency': getattr(getattr(u, 'agency', None), 'agency_name', ''),
                 'active_status': True,
             })
-        trainers = Trainer.query.all()
+        
+        # Add trainers from Trainer table
         for t in trainers:
             if q and (q not in (t.name or '').lower() and q not in (t.email or '').lower()):
                 continue

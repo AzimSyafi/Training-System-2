@@ -70,6 +70,7 @@ Not specified.
 - **Flexible Access Control**: Trainers can be assigned to specific courses or given access to all courses
 - **Backend Route**: New /assign_trainer_course endpoint handles course assignments with validation
 - **Course List Integration**: Admin users page now includes full course list for assignment dropdown
+- **Duplicate Prevention**: Admin users page now filters out duplicate entries when users are converted to trainers (shows Trainer record only, not both User and Trainer)
 
 **Profile Action Buttons Mobile Fix**:
 - **Enhanced Mobile Display**: Profile page Export and Settings buttons now properly sized for mobile (44x44px touch targets)
