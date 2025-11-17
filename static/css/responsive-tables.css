@@ -1,0 +1,242 @@
+/**
+ * Responsive Tables System
+ * Makes all tables fill their container width and transforms to mobile cards on small screens
+ */
+
+/* ============================================
+   DESKTOP: Full-Width Tables
+   ============================================ */
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive table {
+  width: 100% !important;
+  min-width: 100%;
+}
+
+/* Ensure table fills container even without .table-responsive wrapper */
+table.table {
+  width: 100% !important;
+}
+
+/* Remove any padding that prevents full width */
+.table-responsive.px-4 {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Add padding to table cells instead */
+.table-responsive.px-4 table th,
+.table-responsive.px-4 table td {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.table-responsive.px-4 table th:first-child,
+.table-responsive.px-4 table td:first-child {
+  padding-left: 1.5rem;
+}
+
+.table-responsive.px-4 table th:last-child,
+.table-responsive.px-4 table td:last-child {
+  padding-right: 1.5rem;
+}
+
+/* ============================================
+   MOBILE: Card-Based Layout (≤768px)
+   ============================================ */
+
+@media (max-width: 768px) {
+  /* Hide the traditional table on mobile */
+  .responsive-table-wrapper table.table {
+    display: none;
+  }
+  
+  /* Show the mobile card container */
+  .mobile-table-cards {
+    display: block !important;
+  }
+  
+  /* Card styling */
+  .mobile-table-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .mobile-table-card:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+  }
+  
+  .mobile-table-card:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Primary info (shown in card) */
+  .mobile-card-primary {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.25rem;
+  }
+  
+  .mobile-card-secondary {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin-bottom: 0;
+  }
+  
+  /* Badge styling in cards */
+  .mobile-table-card .badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  /* Progress bars in cards */
+  .mobile-table-card .progress {
+    height: 18px;
+    margin-top: 0.5rem;
+  }
+  
+  /* Clickable card indicator */
+  .mobile-card-chevron {
+    float: right;
+    color: #94a3b8;
+    font-size: 1rem;
+    transition: transform 0.2s ease;
+  }
+  
+  .mobile-table-card:hover .mobile-card-chevron {
+    transform: translateX(3px);
+  }
+  
+  /* Dark mode support for cards */
+  body.dark-mode .mobile-table-card,
+  html.darkmode .mobile-table-card {
+    background: #1e293b;
+    border-color: #334155;
+  }
+  
+  body.dark-mode .mobile-card-primary,
+  html.darkmode .mobile-card-primary {
+    color: #f1f5f9;
+  }
+  
+  body.dark-mode .mobile-card-secondary,
+  html.darkmode .mobile-card-secondary {
+    color: #94a3b8;
+  }
+}
+
+/* Desktop: Hide mobile card container */
+@media (min-width: 769px) {
+  .mobile-table-cards {
+    display: none !important;
+  }
+  
+  .responsive-table-wrapper table.table {
+    display: table;
+  }
+}
+
+/* ============================================
+   MOBILE DETAIL MODAL
+   ============================================ */
+
+@media (max-width: 768px) {
+  /* Make modals full-screen on mobile for better UX */
+  .modal-dialog.modal-mobile-fullscreen {
+    margin: 0;
+    max-width: 100%;
+    height: 100%;
+  }
+  
+  .modal-dialog.modal-mobile-fullscreen .modal-content {
+    height: 100%;
+    border-radius: 0;
+  }
+  
+  .modal-dialog.modal-mobile-fullscreen .modal-header,
+  .modal-dialog.modal-mobile-fullscreen .modal-footer {
+    position: sticky;
+    z-index: 10;
+  }
+  
+  .modal-dialog.modal-mobile-fullscreen .modal-header {
+    top: 0;
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  
+  .modal-dialog.modal-mobile-fullscreen .modal-footer {
+    bottom: 0;
+    background: #ffffff;
+    border-top: 1px solid #e2e8f0;
+  }
+  
+  .modal-dialog.modal-mobile-fullscreen .modal-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ============================================
+   PAGINATION ADJUSTMENTS FOR MOBILE CARDS
+   ============================================ */
+
+@media (max-width: 768px) {
+  .table-pagination-controls {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  .pagination-info {
+    font-size: 0.8125rem;
+  }
+  
+  .pagination-nav {
+    gap: 0.125rem;
+  }
+  
+  .pagination-link {
+    min-width: 36px;
+    height: 36px;
+    padding: 0.5rem;
+    font-size: 0.8125rem;
+  }
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Force full width */
+.w-full {
+  width: 100% !important;
+}
+
+/* Mobile-only visibility */
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-only {
+    display: block;
+  }
+  
+  .desktop-only {
+    display: none;
+  }
+}

@@ -86,16 +86,16 @@
         <div class="card shadow-sm">
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-striped mb-0 align-middle" id="mergedAccountsTable" data-paginate="true" data-items-per-page="50">
+                    <table class="table table-striped mb-0 align-middle" id="mergedAccountsTable" data-paginate="true" data-items-per-page="50" data-responsive-table="true">
                         <thead class="table-light">
                             <tr>
-                                <th>Type</th>
-                                <th>ID</th>
-                                <th class="name-column">Name</th>
-                                <th class="email-column">Email</th>
-                                <th>Agency</th>
-                                <th>Status</th>
-                                <th class="text-center" style="width:60px;">Actions</th>
+                                <th data-label="Type">Type</th>
+                                <th data-label="ID">ID</th>
+                                <th class="name-column" data-label="Name" data-primary="true">Name</th>
+                                <th class="email-column" data-label="Email" data-secondary="true">Email</th>
+                                <th data-label="Agency">Agency</th>
+                                <th data-label="Status">Status</th>
+                                <th class="text-center" style="width:60px;" data-label="Actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
