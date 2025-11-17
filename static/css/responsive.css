@@ -63,6 +63,19 @@ p, li, label, .form-text, .text-body, .text-body-secondary {
   justify-content: center;
 }
 
+/* Make trash icon buttons square */
+button.btn-outline-danger[title="Delete"],
+button.btn-danger[title="Delete"],
+.btn-outline-danger:has(i.fa-trash),
+.btn-danger:has(i.fa-trash) {
+  aspect-ratio: 1 / 1;
+  padding: 0.375rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: auto;
+}
+
 /* Cards and images */
 .card img, .module-card-rounded img { width: 100%; height: auto; display: block; }
 .card-title { font-size: clamp(1.05rem, calc(1.15rem * var(--rs-font-scale)), 1.35rem); }
@@ -78,13 +91,20 @@ p, li, label, .form-text, .text-body, .text-body-secondary {
 }
 
 
-/* Tables: enable horizontal scroll on small screens without redesigning DOM */
+/* Tables: enable horizontal scroll on small screens without visible scrollbar */
 @media (max-width: 768px) {
   .table-responsive {
     display: block;
     width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .table-responsive::-webkit-scrollbar {
+    display: none;
   }
 
   .table {
@@ -92,6 +112,13 @@ p, li, label, .form-text, .text-body, .text-body-secondary {
     width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .table::-webkit-scrollbar {
+    display: none;
   }
 
   .table thead th, .table tbody td {
