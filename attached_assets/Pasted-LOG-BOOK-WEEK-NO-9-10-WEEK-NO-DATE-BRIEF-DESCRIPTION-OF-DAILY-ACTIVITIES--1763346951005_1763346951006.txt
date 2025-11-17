@@ -1,0 +1,294 @@
+LOG BOOK							WEEK NO: 9-10
+
+
+WEEK NO	DATE	BRIEF DESCRIPTION OF DAILY ACTIVITIES
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+Logbook Weekly Evaluation by HOST COMPANY SUPERVISOR
+Instruction to Host Company Supervisor
+Please refer to the student’s Logbook Report to assess his/her performance.
+Please award the scores based on the range below:
+Student’s Score	Beginning
+(<2.0)	Developing
+(2.0 to <3.25)	Accomplished 
+(3.25 to <4.0)	Exemplary
+(4.0 to 5.0)	Score
+Tasks Accomplishment & Commitment
+(CLO4)	Partially accomplished given tasks despite full supervision	Accomplished given tasks but with full supervision	Accomplished given tasks but with some supervision	Accomplished given tasks with very minimum supervision	/5
+Attendance & Punctuality
+(CLO4)	Frequently absent and always late	Sometimes absent and sometimes late	Never absent and almost always on time	Never absent and always on time	/5
+Attitude & Self Control
+(CLO4)	Unable to demonstrate positive attitude and hardly maintained self-control under pressure	Occasionally demonstrated positive attitude and occasionally maintained self-control under  pressure	Sometimes demonstrated positive attitude and maintained self-control under  pressure	Consistently demonstrated positive attitude and consistently maintained self-control under  pressure	/5
+Total Score	/15
+Comments:
+Host Company Supervisor’s Signature & stamp:
+
+Name & Designation: Dato’ Dr. Ahmad Firdaus bin Wan Teh (General Manager)
+Date: 
+ (make copies if necessary)
+
+
+
+
+
+DETAIL REPORT						WEEK NO: 9
+
+
+Objective(s) of the activities :
+-	Admin Quiz Builder Implementation
+-	Refactoring Quiz Data Handling
+Contents :
+
+-	Integrated a JavaScript quiz builder into the admin course management template.
+
+-	Developed backend routes to save and load the new JSON-based quiz format, likely updating the Module model.
+
+-	Created diagnostic and migration scripts  to validate and normalize quiz data in the database.
+
+
+DETAIL REPORT						WEEK NO: 9
+
+
+Objective(s) of the activities :
+-	Develop the user-facing quiz-taking interface.
+-	Test and validate the quiz API endpoints for loading and submitting answers.
+Contents :
+-	Created the main template to display questions and answer choices for users.
+
+-	Added client-side logic to the quiz page to fetch quiz data from the API and post the user's results.
+
+-	Wrote new diagnostic tests to ensure the quiz data flows correctly from the database to the user and that submissions are saved properly.
+
+DETAIL REPORT						WEEK NO: 9
+
+
+Objective(s) of the activities :
+-	Redesign the user authentication (Login and Signup) pages.
+-	Apply consistent styling and dark mode support across user-facing templates.
+Contents :
+-	Implemented a new background and floating panel layout for the login and signup pages.
+
+-	Updated the base template, dashboard, profile, and course pages to fix dark mode styling conflicts.
+
+-	Refined the CSS for module cards to ensure visual consistency with the new UI theme.
+
+DETAIL REPORT						WEEK NO: 9
+
+
+Objective(s) of the activities :
+-	Standardize the "Quick Actions" component for user dashboards.
+-	Improve the UI and styling of dashboard action buttons.
+Contents :
+-	Refactored the "Quick Actions" buttons on the Admin Dashboard for better usability and visual consistency.
+
+-	Applied the new, standardized styling to the "Quick Actions" section on the User Dashboard.
+
+-	Ensured the new action button styles are responsive and clear for all user roles.
+
+
+DETAIL REPORT						WEEK NO: 9
+
+
+Objective(s) of the activities :
+-	Fix the "Change Role" functionality for user accounts.
+-	Refine the Admin User Management interface.
+Contents :
+
+-	Investigated and resolved a bug in the backend logic that prevented user roles from being changed correctly.
+
+-	Modified the user management page to correctly display all user types and integrate the "Change Role" modal.
+
+-	Tested the updated "Change Role" feature to ensure it properly updates user permissions in the database.
+
+
+DETAIL REPORT						WEEK NO: 10
+
+
+Objective(s) of the activities :
+
+Contents :
+
+
+DETAIL REPORT						WEEK NO:10
+
+
+Objective(s) of the activities :
+-	logo
+Contents :
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+DETAIL REPORT						WEEK NO: 10
+
+
+Objective(s) of the activities :
+-logo
+Contents :
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+DETAIL REPORT						WEEK NO: 10
+
+
+Objective(s) of the activities :
+
+
+
+Contents :
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+DETAIL REPORT						WEEK NO: 10
+
+
+Objective(s) of the activities :
+-	deploy
+Contents :
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

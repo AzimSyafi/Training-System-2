@@ -1877,9 +1877,12 @@ def generate_and_download_certificate(certificate_id):
         # Import the generate_certificate function
         from generate_certificate import generate_certificate
         
+        # Get the module directly from the certificate
+        module = Module.query.get_or_404(cert.module_id)
+        
         # Get user's average score for this course
         user = User.query.get(cert.user_id)
-        modules_in_course = Module.query.filter_by(module_type=cert.module_type).all()
+        modules_in_course = Module.query.filter_by(module_type=module.module_type).all()
         module_ids = [m.module_id for m in modules_in_course]
         user_modules = UserModule.query.filter(
             UserModule.user_id == cert.user_id,
@@ -1891,10 +1894,10 @@ def generate_and_download_certificate(certificate_id):
         scores = [um.score for um in user_modules if um.score is not None]
         overall_percentage = sum(scores) / len(scores) if scores else 0
         
-        # Generate certificate PDF
+        # Generate certificate PDF using the module's type
         pdf_path = generate_certificate(
             user_id=cert.user_id,
-            course_type=cert.module_type,
+            course_type=module.module_type,
             overall_percentage=overall_percentage,
             cert_id=f"CERT-{cert.certificate_id}"
         )
