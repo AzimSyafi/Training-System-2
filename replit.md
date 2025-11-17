@@ -96,6 +96,7 @@ The app is configured for autoscale deployment:
 - **PDF Upload Size Fixed**: Increased file upload limit to 50 MB to support large PDF certificate templates
 - **Certificate Generation Fixed**: Updated to use admin-uploaded templates from `static/uploads/certificate_templates/` instead of hardcoded path
 - **Module Lookup Fixed**: Added direct module_id lookup and case-insensitive fallback to prevent "No module found" errors
+- **Certificate Template API Fixed**: Corrected API endpoint to use `template.name` instead of non-existent `template.template_file` field
 
 **UI/UX Improvements**:
 - **Form Field Visibility**: Added visible borders (2px gray) and shadow effects to all form inputs for better visibility

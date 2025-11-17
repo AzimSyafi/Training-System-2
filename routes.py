@@ -2475,10 +2475,11 @@ def get_active_certificate_template():
     
     try:
         template = CertificateTemplate.query.filter_by(is_active=True).first()
-        if not template or not template.template_file:
+        if not template or not template.name:
             return jsonify({'success': False, 'message': 'No active template found'})
         
-        template_path = url_for('static', filename='uploads/certificate_templates/' + template.template_file)
+        # The template filename is stored in the 'name' field
+        template_path = url_for('static', filename='uploads/certificate_templates/' + template.name)
         return jsonify({
             'success': True,
             'template_path': template_path,
