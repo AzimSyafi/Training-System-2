@@ -90,6 +90,20 @@ The app is configured for autoscale deployment:
 ## Recent Changes
 
 ### 2025-11-17 (Latest)
+**Responsive Table System - Full-Width and Mobile Cards**:
+- **Full-Width Tables**: All tables now fill the entire width of their container boxes on desktop (removed padding restrictions)
+- **Mobile Card Layout (≤768px)**: Tables automatically transform into card-based layouts on mobile devices
+  - Each table row becomes a tappable card showing primary information (Name + Email/Course)
+  - Clicking/tapping any card opens a detail modal displaying ALL row data (Type, ID, Agency, Status, Actions, etc.)
+  - Cards show chevron indicator (→) to signal they're interactive
+  - Pagination works seamlessly with card view - showing "X-Y of Z" with navigation arrows
+- **Architecture**:
+  - Created `static/css/responsive-tables.css` for styling (full-width enforcement + mobile card styles)
+  - Created `static/responsiveTable.js` for mobile transformation logic (integrates with existing TablePagination)
+  - Uses `data-responsive-table="true"` attribute on tables to enable responsive behavior
+  - Uses `data-label`, `data-primary`, `data-secondary` attributes on headers for card rendering
+- **Coverage**: Applied to admin_users.html, monitor_progress.html, agency_progress_monitor.html tables
+
 **UI/UX Improvements - November 17 PM**:
 - **User Management Table Full Width**: Removed padding from table-responsive div to allow table to fill the full card width for better data visibility
 - **Hidden Table Scrollbars on Mobile**: Tables maintain horizontal scroll functionality but scrollbar is now hidden on mobile for cleaner UI (using scrollbar-width: none and ::-webkit-scrollbar)

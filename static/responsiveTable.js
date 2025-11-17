@@ -145,10 +145,8 @@ class ResponsiveTable {
       }
     });
     
-    // Add chevron indicator for clickable cards
-    if (row.getAttribute('data-detail-modal') || row.classList.contains('clickable-row')) {
-      cardHTML += '<i class="fas fa-chevron-right mobile-card-chevron"></i>';
-    }
+    // ALWAYS add chevron indicator to show cards are clickable
+    cardHTML += '<i class="fas fa-chevron-right mobile-card-chevron"></i>';
     
     card.innerHTML = cardHTML;
     
@@ -156,29 +154,14 @@ class ResponsiveTable {
     card.setAttribute('data-row-index', rowIndex);
     card.setAttribute('data-row-id', row.getAttribute('data-id') || '');
     
-    // Add click handler if row has detail modal
-    const detailModalId = row.getAttribute('data-detail-modal');
-    if (detailModalId) {
-      card.addEventListener('click', () => {
+    // ALWAYS make cards clickable - show detail modal with all data
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', (e) => {
+      // Don't trigger if clicking on an interactive element
+      if (!e.target.closest('a, button, .badge, input, select')) {
         this.showDetailModal(row, cells);
-      });
-    }
-    
-    // Copy any click handlers from the row
-    if (row.onclick) {
-      card.onclick = row.onclick;
-    }
-    
-    // Handle clickable links inside first cell
-    const firstCellLink = cells[0]?.querySelector('a[href]:not([href="#"])');
-    if (firstCellLink && !detailModalId) {
-      card.style.cursor = 'pointer';
-      card.addEventListener('click', (e) => {
-        if (!e.target.closest('a, button, .badge')) {
-          firstCellLink.click();
-        }
-      });
-    }
+      }
+    });
     
     return card;
   }
