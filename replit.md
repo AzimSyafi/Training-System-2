@@ -61,18 +61,6 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-17 (Latest)
-**Mobile-Responsive Trainee Page and Navigation**:
-- **Mobile Hamburger Menu**: Added fixed top navigation bar with hamburger menu button (56px height)
-- **Slide-In Sidebar**: Sidebar slides in from left on mobile (280px width) instead of being always visible
-- **Backdrop Overlay**: Semi-transparent backdrop appears when mobile menu is open
-- **Full-Width Content**: Main content uses full width on mobile with no left margin
-- **Touch-Friendly Navigation**: Nav items are 52px minimum height with 16px font size on mobile
-- **Auto-Close Behavior**: Mobile menu closes when clicking backdrop, pressing Escape, or selecting a nav link
-- **Responsive Padding**: Container padding reduced to 8px on small devices (≤576px)
-- **User Dashboard Enhancements**: Stats cards, course cards, profile sections, and quick action buttons all fully responsive
-- **Dark Mode Support**: Mobile menu respects dark/light theme settings
-- **Accessibility**: Proper ARIA labels and keyboard navigation support
-
 **Trainer Role Assignment and Course Management**:
 - **Auto-Create Trainer Records**: When admin changes a user's role to 'trainer', system automatically creates a Trainer table record
 - **Number Series Generation**: New trainers get assigned a unique TR{YEAR}{NNNN} series number
