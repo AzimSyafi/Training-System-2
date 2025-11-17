@@ -340,6 +340,21 @@ def login():
                 return redirect(url_for('main.admin_dashboard'))
             user = User.query.filter_by(email=email).first()
             if user and user.check_password(password):
+                # Check if user has trainer role - login as trainer instead
+                if hasattr(user, 'role') and user.role == 'trainer':
+                    # Find corresponding trainer account
+                    trainer = Trainer.query.filter_by(email=email).first()
+                    if trainer:
+                        login_user(trainer)
+                        session['user_type'] = 'trainer'
+                        session['user_id'] = trainer.get_id()
+                        return redirect(url_for('main.trainer_portal'))
+                    else:
+                        # Trainer role but no trainer record - this shouldn't happen with new logic
+                        flash('Trainer account setup incomplete. Please contact admin.', 'warning')
+                        return redirect(url_for('main.login'))
+                
+                # Regular user login
                 login_user(user)
                 session['user_type'] = 'user'
                 session['user_id'] = user.get_id()
@@ -1103,7 +1118,15 @@ def admin_users():
     if isinstance(current_user, AgencyAccount):
         agency_users = User.query.filter_by(agency_id=current_user.agency_id).all()
         return render_template('agency_portal.html', agency=current_user.agency, agency_users=agency_users)
-    return render_template('admin_users.html', merged_accounts=merged_accounts, agencies=agencies, filters=filters)
+    
+    # Get all courses for the course assignment dropdown
+    try:
+        courses = Course.query.order_by(Course.name.asc()).all()
+    except Exception:
+        logging.exception('[ADMIN USERS] Failed loading courses')
+        courses = []
+    
+    return render_template('admin_users.html', merged_accounts=merged_accounts, agencies=agencies, filters=filters, courses=courses)
 
 @main_bp.route('/create_user', methods=['POST'])
 @login_required
@@ -1546,6 +1569,40 @@ def delete_trainer():
         logging.exception(f'[DELETE TRAINER] Failed to delete trainer {request.form.get("trainer_id", "unknown")}')
         return jsonify({'success': False, 'message': f'Error deleting trainer: {str(e)}'}), 500
 
+@main_bp.route('/assign_trainer_course', methods=['POST'])
+@login_required
+def assign_trainer_course():
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+    try:
+        trainer_id = request.form.get('trainer_id')
+        course_code = request.form.get('course_code', '').strip()
+
+        if not trainer_id:
+            return jsonify({'success': False, 'message': 'Trainer ID is required'}), 400
+
+        trainer = db.session.get(Trainer, int(trainer_id))
+        if not trainer:
+            return jsonify({'success': False, 'message': 'Trainer not found'}), 404
+
+        # Assign course (empty string means all courses)
+        trainer.course = course_code if course_code else None
+
+        db.session.commit()
+
+        course_name = course_code if course_code else "All Courses"
+        logging.info(f'[ASSIGN COURSE] Trainer {trainer_id} assigned to course: {course_name} by {current_user}')
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Trainer successfully assigned to {course_name}'
+        })
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f'[ASSIGN COURSE] Failed to assign course to trainer {request.form.get("trainer_id", "unknown")}')
+        return jsonify({'success': False, 'message': f'Error assigning course: {str(e)}'}), 500
+
 @main_bp.route('/change_role', methods=['POST'])
 @login_required
 def change_role():
@@ -1584,10 +1641,45 @@ def change_role():
         old_role = user.role
         mapped_role = role_mapping[new_role]
         user.role = mapped_role
+        
+        # If changing to trainer role, create/sync Trainer record
+        if mapped_role == 'trainer':
+            existing_trainer = Trainer.query.filter_by(email=user.email).first()
+            if not existing_trainer:
+                # Create new Trainer record
+                year = datetime.utcnow().strftime('%Y')
+                seq_name = f'trainer_number_series_{year}_seq'
+                
+                new_trainer = Trainer(
+                    name=user.full_name,
+                    email=user.email,
+                    address=user.address,
+                    active_status=True
+                )
+                # Copy password from user
+                new_trainer.password_hash = user.password_hash
+                
+                db.session.add(new_trainer)
+                db.session.flush()
+                
+                # Generate trainer number series
+                db.session.execute(text(f"CREATE SEQUENCE IF NOT EXISTS {seq_name}"))
+                seq_val = db.session.execute(text(f"SELECT nextval('{seq_name}')")).scalar()
+                new_trainer.number_series = f"TR{year}{int(seq_val):04d}"
+                
+                logging.info(f'[CHANGE ROLE] Created Trainer record for user {user_id} with series {new_trainer.number_series}')
+            else:
+                # Sync existing trainer
+                existing_trainer.name = user.full_name
+                existing_trainer.address = user.address
+                existing_trainer.password_hash = user.password_hash
+                existing_trainer.active_status = True
+                logging.info(f'[CHANGE ROLE] Synced existing Trainer record for user {user_id}')
+        
         db.session.commit()
 
         logging.info(f'[CHANGE ROLE] User {user_id} role changed from {old_role} to {mapped_role} (requested: {new_role}) by {current_user}')
-        return jsonify({'success': True, 'message': f'Role successfully changed to {new_role}'})
+        return jsonify({'success': True, 'message': f'Role successfully changed to {new_role}. {"Trainer account created." if mapped_role == "trainer" else ""}'})
     except Exception as e:
         db.session.rollback()
         logging.exception(f'[CHANGE ROLE] Failed to change role for user {request.form.get("user_id", "unknown")}')

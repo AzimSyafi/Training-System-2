@@ -142,6 +142,9 @@
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end">
                                             <li><a class="dropdown-item" href="#" onclick="openChangeRoleModal('{{ acc.id }}', '{{ acc.type }}'); return false;"><i class="fas fa-user-cog me-2 text-primary"></i>Change Role</a></li>
+                                            {% if acc.type == 'trainer' %}
+                                            <li><a class="dropdown-item" href="#" onclick="openAssignCourseModal('{{ acc.id }}', '{{ acc.name }}'); return false;"><i class="fas fa-book me-2 text-success"></i>Assign Course</a></li>
+                                            {% endif %}
                                             <li><hr class="dropdown-divider"></li>
                                             <li><a class="dropdown-item text-danger" href="#" onclick="deleteUserOrTrainer('{{ acc.id }}', '{{ acc.name }}', '{{ acc.type }}'); return false;"><i class="fas fa-trash-alt me-2"></i>Delete</a></li>
                                         </ul>
@@ -247,6 +250,40 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" class="btn btn-primary">Change Role</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Assign Course Modal -->
+<div class="modal fade" id="assignCourseModal" tabindex="-1" aria-labelledby="assignCourseModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="assignCourseModalLabel">Assign Course to Trainer</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="assignCourseForm">
+        <div class="modal-body">
+          <input type="hidden" id="assignCourseTrainerId" name="trainer_id">
+          <div class="mb-3">
+            <label class="form-label">Trainer: <strong id="trainerNameDisplay"></strong></label>
+          </div>
+          <div class="mb-3">
+            <label for="courseCode" class="form-label">Select Course</label>
+            <select class="form-select" id="courseCode" name="course_code">
+              <option value="">No Specific Course (All Courses)</option>
+              {% for course in courses %}
+              <option value="{{ course.code }}">{{ course.name }} ({{ course.code }})</option>
+              {% endfor %}
+            </select>
+            <small class="form-text text-muted">Select a specific course to limit trainer access, or leave blank to allow access to all courses.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success"><i class="fas fa-book"></i> Assign Course</button>
         </div>
       </form>
     </div>
@@ -399,6 +436,32 @@ function openChangeRoleModal(userId, userType) {
     }
 }
 
+function openAssignCourseModal(trainerId, trainerName) {
+    console.log('openAssignCourseModal called with:', { trainerId, trainerName });
+
+    const input = document.getElementById('assignCourseTrainerId');
+    const nameDisplay = document.getElementById('trainerNameDisplay');
+    const courseSelect = document.getElementById('courseCode');
+
+    if (!input || !nameDisplay || !courseSelect) {
+        console.error('Modal elements not found');
+        return;
+    }
+
+    // Set the values
+    input.value = trainerId;
+    nameDisplay.textContent = trainerName;
+    courseSelect.value = ''; // Reset to default
+
+    const modalElement = document.getElementById('assignCourseModal');
+    if (modalElement) {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } else {
+        console.error('Assign course modal element not found');
+    }
+}
+
 async function deleteUserOrTrainer(userId, fullName, userType) {
     console.log('Delete function called:', { userId, fullName, userType });
 
@@ -519,6 +582,62 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     } else {
         console.error('Change role form not found in DOM');
+    }
+
+    // Attach assign course form submit listener
+    const assignCourseForm = document.getElementById('assignCourseForm');
+    if (assignCourseForm) {
+        assignCourseForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const trainerId = document.getElementById('assignCourseTrainerId').value;
+            const courseCode = document.getElementById('courseCode').value;
+
+            console.log('Assign course request:', { trainerId, courseCode });
+
+            if (!trainerId) {
+                showTempAlert('Missing trainer ID. Please try again.', 'warning', 2000);
+                return;
+            }
+
+            try {
+                const response = await fetch('/assign_trainer_course', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `trainer_id=${encodeURIComponent(trainerId)}&course_code=${encodeURIComponent(courseCode)}`
+                });
+
+                console.log('Response status:', response.status);
+
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (!response.ok) {
+                    showTempAlert(data.message || `Server error: ${response.status}`, 'danger', 3000);
+                    return;
+                }
+
+                // Close modal
+                const modalElement = document.getElementById('assignCourseModal');
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) {
+                    modal.hide();
+                }
+
+                // Show result message
+                showTempAlert(data.message || 'Course assigned successfully.', data.success ? 'success' : 'danger', 2000);
+
+                // Reload page on success
+                if (data.success) {
+                    setTimeout(() => location.reload(), 2000);
+                }
+            } catch (error) {
+                console.error('Assign course error:', error);
+                showTempAlert(`Error: ${error.message || 'Failed to assign course. Please check console for details.'}`, 'danger', 3000);
+            }
+        });
+    } else {
+        console.error('Assign course form not found in DOM');
     }
 
     // Initialize all dropdowns explicitly

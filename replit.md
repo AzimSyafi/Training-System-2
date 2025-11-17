@@ -61,6 +61,16 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-17 (Latest)
+**Trainer Role Assignment and Course Management**:
+- **Auto-Create Trainer Records**: When admin changes a user's role to 'trainer', system automatically creates a Trainer table record
+- **Number Series Generation**: New trainers get assigned a unique TR{YEAR}{NNNN} series number
+- **Password Sync**: User passwords are automatically synced to trainer accounts for seamless login
+- **Smart Login Redirect**: Users with trainer role are automatically redirected to trainer portal upon login
+- **Course Assignment UI**: Admins can assign specific courses to trainers via dropdown in admin users page
+- **Flexible Access Control**: Trainers can be assigned to specific courses or given access to all courses
+- **Backend Route**: New /assign_trainer_course endpoint handles course assignments with validation
+- **Course List Integration**: Admin users page now includes full course list for assignment dropdown
+
 **Profile Action Buttons Mobile Fix**:
 - **Enhanced Mobile Display**: Profile page Export and Settings buttons now properly sized for mobile (44x44px touch targets)
 - **Better Spacing**: Added 12px gap between buttons on mobile for easier tapping
