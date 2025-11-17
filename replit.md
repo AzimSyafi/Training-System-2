@@ -61,12 +61,12 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-17 (Latest)
-**Login and Signup Page Scrollable with Hidden Scrollbars**:
-- **Scrollable Pages**: Login and signup pages are now fully scrollable when content overflows
+**Scrollable Pages with Hidden Scrollbars**:
+- **Scrollable Pages**: Login, signup, and landing pages are now fully scrollable when content overflows
 - **Hidden Scrollbars**: Scrollbars are hidden for a clean, modern appearance
 - **Cross-Browser Support**: Implemented scrollbar hiding for Chrome/Safari (webkit), Firefox (scrollbar-width), and IE/Edge (ms-overflow-style)
 - **Best of Both Worlds**: Pages scroll smoothly without visible scrollbars
-- **Applied to**: login.html and signup.html pages
+- **Applied to**: index.html (landing page), login.html, and signup.html pages
 
 **Dark Mode Text Visibility Fix**:
 - **Fixed Hardcoded Black Text**: Changed all `color: #000000 !important` instances to use `var(--text-color)` for proper dark mode support

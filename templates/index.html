@@ -33,6 +33,18 @@
       -webkit-font-smoothing:antialiased;
       -moz-osx-font-smoothing:grayscale;
       background: #f7f9fc;
+      overflow-y: auto;
+    }
+    
+    /* Hide scrollbars but allow scrolling */
+    html::-webkit-scrollbar,
+    body::-webkit-scrollbar {
+      display: none;
+    }
+    
+    html, body {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
     }
 
     .container{
