@@ -97,6 +97,15 @@ The app is configured for autoscale deployment:
 - **Certificate Generation Fixed**: Updated to use admin-uploaded templates from `static/uploads/certificate_templates/` instead of hardcoded path
 - **Module Lookup Fixed**: Added direct module_id lookup and case-insensitive fallback to prevent "No module found" errors
 
+**UI/UX Improvements**:
+- **Form Field Visibility**: Added visible borders (2px gray) and shadow effects to all form inputs for better visibility
+- **Interactive Form States**: Added hover effects (darker border + shadow) and focus states (blue ring glow) to form fields
+- **Working Experience Form**: Added dynamic work experience editor to Edit Profile modal with add/remove functionality
+  - Users can add multiple work experience entries (company name, position, start date, end date)
+  - Each entry can be individually removed
+  - Green "Add Experience" button to create new entries
+  - Red remove icon (X) to delete specific entries
+
 ### 2025-11-14
 **Critical Bug Fixes**:
 - **Slide Upload Fixed**: Created `allowed_slide_file()` validation function to accept PDF and PPTX files for module slides (previously only images were allowed)

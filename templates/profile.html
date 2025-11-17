@@ -476,6 +476,69 @@
               <input id="agency_name" name="agency_name" type="text" value="{{ user.agency.agency_name if user.agency else '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
             </div>
 
+            <!-- Working Experience Section -->
+            <div class="md:col-span-2 border-t pt-4 mt-4">
+              <div class="flex justify-between items-center mb-3">
+                <label class="block text-sm font-medium text-gray-700">Working Experience</label>
+                <button type="button" id="add-experience-btn" class="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-1 rounded-md shadow-sm">
+                  <i class="fas fa-plus mr-1"></i> Add Experience
+                </button>
+              </div>
+              <div id="experience-container" class="space-y-4">
+                {% if experiences and experiences|length > 0 %}
+                  {% for exp in experiences %}
+                    <div class="experience-entry border border-gray-300 rounded-lg p-4 bg-gray-50 relative">
+                      <button type="button" class="remove-experience-btn absolute top-2 right-2 text-red-600 hover:text-red-800" title="Remove">
+                        <i class="fas fa-times-circle"></i>
+                      </button>
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label class="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
+                          <input type="text" name="exp_company" value="{{ exp.company_name or '' }}" class="w-full rounded-md border-gray-300 shadow-sm text-sm" placeholder="Company Name" />
+                        </div>
+                        <div>
+                          <label class="block text-xs font-medium text-gray-600 mb-1">Position</label>
+                          <input type="text" name="exp_position" value="{{ exp.position_title or '' }}" class="w-full rounded-md border-gray-300 shadow-sm text-sm" placeholder="Position Title" />
+                        </div>
+                        <div>
+                          <label class="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
+                          <input type="date" name="exp_start_date" value="{{ exp.start_date.strftime('%Y-%m-%d') if exp.start_date else '' }}" class="w-full rounded-md border-gray-300 shadow-sm text-sm" />
+                        </div>
+                        <div>
+                          <label class="block text-xs font-medium text-gray-600 mb-1">End Date</label>
+                          <input type="date" name="exp_end_date" value="{{ exp.end_date.strftime('%Y-%m-%d') if exp.end_date else '' }}" class="w-full rounded-md border-gray-300 shadow-sm text-sm" />
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                {% else %}
+                  <div class="experience-entry border border-gray-300 rounded-lg p-4 bg-gray-50 relative">
+                    <button type="button" class="remove-experience-btn absolute top-2 right-2 text-red-600 hover:text-red-800" title="Remove">
+                      <i class="fas fa-times-circle"></i>
+                    </button>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
+                        <input type="text" name="exp_company" class="w-full rounded-md border-gray-300 shadow-sm text-sm" placeholder="Company Name" />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Position</label>
+                        <input type="text" name="exp_position" class="w-full rounded-md border-gray-300 shadow-sm text-sm" placeholder="Position Title" />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
+                        <input type="date" name="exp_start_date" class="w-full rounded-md border-gray-300 shadow-sm text-sm" />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">End Date</label>
+                        <input type="date" name="exp_end_date" class="w-full rounded-md border-gray-300 shadow-sm text-sm" />
+                      </div>
+                    </div>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+
             <div class="md:col-span-2">
               <label for="emergency_contact_name" class="block text-sm font-medium text-gray-700">Emergency Contact Name</label>
               <input id="emergency_contact_name" name="emergency_contact_name" type="text" value="{{ user.emergency_contact_name or '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" />
@@ -637,6 +700,57 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     exportBtn.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); exportBtn.click(); }
+    });
+  }
+
+  // Working Experience Add/Remove functionality
+  const addExperienceBtn = document.getElementById('add-experience-btn');
+  const experienceContainer = document.getElementById('experience-container');
+
+  if (addExperienceBtn && experienceContainer) {
+    // Add new experience entry
+    addExperienceBtn.addEventListener('click', function() {
+      const newEntry = document.createElement('div');
+      newEntry.className = 'experience-entry border border-gray-300 rounded-lg p-4 bg-gray-50 relative';
+      newEntry.innerHTML = `
+        <button type="button" class="remove-experience-btn absolute top-2 right-2 text-red-600 hover:text-red-800" title="Remove">
+          <i class="fas fa-times-circle"></i>
+        </button>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
+            <input type="text" name="exp_company" class="w-full rounded-md border-gray-300 shadow-sm text-sm" placeholder="Company Name" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Position</label>
+            <input type="text" name="exp_position" class="w-full rounded-md border-gray-300 shadow-sm text-sm" placeholder="Position Title" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
+            <input type="date" name="exp_start_date" class="w-full rounded-md border-gray-300 shadow-sm text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">End Date</label>
+            <input type="date" name="exp_end_date" class="w-full rounded-md border-gray-300 shadow-sm text-sm" />
+          </div>
+        </div>
+      `;
+      experienceContainer.appendChild(newEntry);
+      
+      // Attach remove listener to the new button
+      const removeBtn = newEntry.querySelector('.remove-experience-btn');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', function() {
+          newEntry.remove();
+        });
+      }
+    });
+
+    // Attach remove listeners to existing entries
+    document.querySelectorAll('.remove-experience-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        btn.closest('.experience-entry').remove();
+      });
     });
   }
 
