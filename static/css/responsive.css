@@ -1078,3 +1078,500 @@ body.sidebar-open .desktop-nav-toggle,
 
 /* developer note: make full use of card space — converted to a comment to avoid CSS parse errors */
 
+/* ========================================
+   COMPREHENSIVE MOBILE FORM ENHANCEMENTS
+   ======================================== */
+@media (max-width: 768px) {
+  /* All Form Controls - Touch-Friendly */
+  .form-control,
+  .form-select,
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  input[type="date"],
+  input[type="time"],
+  input[type="file"],
+  textarea,
+  select {
+    min-height: 48px !important;
+    font-size: 16px !important; /* Prevents zoom on iOS */
+    padding: 0.75rem !important;
+    width: 100% !important;
+  }
+
+  /* Form Groups */
+  .form-group,
+  .mb-3 {
+    margin-bottom: 1.25rem !important;
+  }
+
+  /* Form Labels */
+  label,
+  .form-label {
+    font-size: 15px !important;
+    margin-bottom: 0.5rem !important;
+    font-weight: 500;
+  }
+
+  /* Checkboxes and Radios - Larger Touch Targets */
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 20px !important;
+    height: 20px !important;
+    margin-right: 0.75rem;
+  }
+
+  .form-check {
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .form-check-label {
+    font-size: 15px !important;
+    cursor: pointer;
+  }
+
+  /* File Upload Buttons */
+  input[type="file"]::file-selector-button {
+    padding: 0.75rem 1rem;
+    font-size: 15px;
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  /* Form Row Stacking */
+  .row.g-3,
+  .row.g-2 {
+    margin-bottom: 0;
+  }
+
+  .row.g-3 > *,
+  .row.g-2 > * {
+    margin-bottom: 1rem;
+  }
+
+  /* Input Groups */
+  .input-group {
+    flex-wrap: wrap;
+  }
+
+  .input-group > * {
+    min-height: 48px;
+    font-size: 16px !important;
+  }
+
+  /* Select Dropdowns */
+  select.form-select,
+  select.form-control {
+    background-size: 16px;
+    padding-right: 2.5rem;
+  }
+
+  /* Textarea */
+  textarea.form-control {
+    min-height: 120px;
+    resize: vertical;
+  }
+
+  /* Form Validation Messages */
+  .invalid-feedback,
+  .valid-feedback {
+    font-size: 14px !important;
+    margin-top: 0.5rem;
+  }
+
+  /* Form Text/Help Text */
+  .form-text {
+    font-size: 14px !important;
+    margin-top: 0.5rem;
+  }
+}
+
+/* ========================================
+   MOBILE MODAL ENHANCEMENTS - FULL SCREEN
+   ======================================== */
+@media (max-width: 768px) {
+  /* Make modals full-screen or near-full-screen on mobile */
+  .modal-dialog {
+    margin: 0.5rem !important;
+    max-width: calc(100% - 1rem) !important;
+    min-height: calc(100vh - 1rem);
+    display: flex;
+    align-items: center;
+  }
+
+  .modal-content {
+    border-radius: 12px !important;
+    max-height: calc(100vh - 1rem);
+    overflow-y: auto;
+  }
+
+  .modal-header {
+    padding: 1rem !important;
+    position: sticky;
+    top: 0;
+    background: var(--card-bg);
+    z-index: 1050;
+    border-bottom: 2px solid var(--border-color);
+  }
+
+  .modal-title {
+    font-size: 1.15rem !important;
+  }
+
+  .modal-body {
+    padding: 1rem !important;
+    overflow-y: auto;
+    max-height: calc(100vh - 200px);
+  }
+
+  .modal-footer {
+    padding: 1rem !important;
+    position: sticky;
+    bottom: 0;
+    background: var(--card-bg);
+    border-top: 2px solid var(--border-color);
+  }
+
+  .modal-footer .btn {
+    width: 100% !important;
+    margin: 0.25rem 0 !important;
+  }
+
+  /* Close Button - Larger Touch Target */
+  .modal-header .btn-close {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Large Modals */
+  .modal-dialog-scrollable .modal-body {
+    overflow-y: auto;
+  }
+
+  .modal-lg,
+  .modal-xl {
+    max-width: calc(100% - 1rem) !important;
+  }
+}
+
+/* ========================================
+   MOBILE TABLE ENHANCEMENTS - CARD VIEW
+   ======================================== */
+@media (max-width: 768px) {
+  /* Convert tables to card-style on mobile */
+  .table-responsive {
+    border: none !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Better scrollable tables */
+  .table {
+    min-width: 600px; /* Force horizontal scroll for wide tables */
+    margin-bottom: 1rem;
+  }
+
+  .table thead th {
+    white-space: nowrap;
+    font-size: 14px !important;
+    padding: 0.75rem !important;
+  }
+
+  .table tbody td {
+    white-space: nowrap;
+    font-size: 14px !important;
+    padding: 0.75rem !important;
+  }
+
+  /* Action buttons in tables */
+  .table .btn-sm {
+    padding: 0.5rem 0.75rem !important;
+    font-size: 13px !important;
+  }
+
+  .table .btn-group-sm > .btn {
+    min-height: 36px;
+    padding: 0.375rem 0.625rem;
+  }
+
+  /* Pagination */
+  .pagination {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .pagination .page-item {
+    margin: 0.125rem;
+  }
+
+  .pagination .page-link {
+    padding: 0.5rem 0.75rem;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* ========================================
+   DASHBOARD CARDS MOBILE LAYOUT
+   ======================================== */
+@media (max-width: 768px) {
+  /* Stats Grid - Stack on Mobile */
+  .stats-container,
+  .stat-grid,
+  .dashboard-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 1rem;
+  }
+
+  /* Individual Stat Cards */
+  .stat-card {
+    padding: 1rem !important;
+    border-radius: 12px;
+  }
+
+  .stat-value {
+    font-size: 1.75rem !important;
+    font-weight: 700;
+  }
+
+  .stat-label {
+    font-size: 0.875rem !important;
+    margin-top: 0.25rem;
+  }
+
+  .stat-icon {
+    width: 48px !important;
+    height: 48px !important;
+    font-size: 24px !important;
+  }
+
+  /* Course Cards */
+  .course-card,
+  .module-card {
+    width: 100% !important;
+    margin-bottom: 1rem;
+  }
+
+  .course-card-header {
+    padding: 1rem !important;
+  }
+
+  .course-card-body {
+    padding: 1rem !important;
+  }
+
+  .course-card-footer {
+    padding: 1rem !important;
+  }
+
+  /* Progress Bars */
+  .progress {
+    height: 10px !important;
+    border-radius: 5px;
+  }
+
+  .progress-label {
+    font-size: 13px !important;
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* ========================================
+   CERTIFICATE TEMPLATE EDITOR - MOBILE
+   ======================================== */
+@media (max-width: 768px) {
+  /* Certificate Editor Container */
+  #certificate-editor-container {
+    flex-direction: column !important;
+    gap: 1rem;
+  }
+
+  /* PDF Preview Area */
+  #pdf-preview-container {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 400px;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #pdf-canvas {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Field Markers - Larger for Touch */
+  .field-marker {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 16px !important;
+    border-width: 3px !important;
+    cursor: pointer;
+    touch-action: none;
+  }
+
+  /* Settings Panel */
+  #template-settings-panel {
+    width: 100% !important;
+    max-width: none !important;
+    margin-top: 1rem;
+  }
+
+  .field-settings {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 8px;
+  }
+
+  .field-settings label {
+    font-size: 14px !important;
+    margin-bottom: 0.5rem;
+  }
+
+  .field-settings input {
+    font-size: 16px !important;
+    padding: 0.75rem !important;
+    min-height: 48px;
+  }
+
+  /* Save Button */
+  #save-template-btn {
+    width: 100% !important;
+    padding: 1rem !important;
+    font-size: 16px !important;
+    min-height: 52px;
+  }
+
+  /* Hide/Show Fields Checkbox */
+  .field-visibility-toggle {
+    min-height: 44px;
+    padding: 0.75rem;
+    display: flex;
+    align-items: center;
+  }
+}
+
+/* ========================================
+   ACCORDION MOBILE ENHANCEMENTS
+   ======================================== */
+@media (max-width: 768px) {
+  .accordion-button {
+    padding: 1rem !important;
+    font-size: 15px !important;
+    min-height: 52px;
+  }
+
+  .accordion-body {
+    padding: 1rem !important;
+  }
+
+  .accordion-item {
+    border-radius: 8px !important;
+    margin-bottom: 0.75rem;
+  }
+}
+
+/* ========================================
+   BADGE AND TAG MOBILE ADJUSTMENTS
+   ======================================== */
+@media (max-width: 768px) {
+  .badge {
+    padding: 0.5rem 0.75rem !important;
+    font-size: 13px !important;
+  }
+
+  .badge-lg {
+    padding: 0.625rem 1rem !important;
+    font-size: 14px !important;
+  }
+}
+
+/* ========================================
+   NAVBAR AND BREADCRUMB MOBILE
+   ======================================== */
+@media (max-width: 768px) {
+  .breadcrumb {
+    font-size: 13px !important;
+    padding: 0.75rem 0 !important;
+    flex-wrap: wrap;
+  }
+
+  .breadcrumb-item {
+    margin-bottom: 0.25rem;
+  }
+
+  .navbar-nav {
+    padding: 0.5rem 0;
+  }
+
+  .nav-item {
+    margin-bottom: 0.5rem;
+  }
+
+  .nav-link {
+    padding: 0.75rem 1rem !important;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+  }
+}
+
+/* ========================================
+   SPACING UTILITIES - MOBILE OPTIMIZED
+   ======================================== */
+@media (max-width: 768px) {
+  /* Reduce spacing on mobile */
+  .container,
+  .container-fluid {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  /* Vertical Spacing */
+  .mt-5,
+  .my-5 {
+    margin-top: 2rem !important;
+  }
+
+  .mb-5,
+  .my-5 {
+    margin-bottom: 2rem !important;
+  }
+
+  .pt-5,
+  .py-5 {
+    padding-top: 2rem !important;
+  }
+
+  .pb-5,
+  .py-5 {
+    padding-bottom: 2rem !important;
+  }
+
+  /* Gap Utilities */
+  .gap-3 {
+    gap: 0.75rem !important;
+  }
+
+  .gap-4 {
+    gap: 1rem !important;
+  }
+
+  .gap-5 {
+    gap: 1.25rem !important;
+  }
+}
+
