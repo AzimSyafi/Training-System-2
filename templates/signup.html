@@ -45,6 +45,18 @@
     background-attachment: fixed;
     background-repeat: no-repeat;
     color: #eaf6ff;
+    overflow: hidden;
+  }
+  
+  /* Hide scrollbars but allow scrolling */
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
+  }
+  
+  html, body {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 
   .split-root {
@@ -103,6 +115,16 @@
     padding: 48px 36px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.3);
     border-radius: 20px;
+  }
+  
+  /* Hide scrollbar on form panel */
+  .right-panel::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .right-panel {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 
   .auth-card {

@@ -30,6 +30,18 @@
     background-attachment: fixed;
     background-repeat: no-repeat;
     color: var(--light-text);
+    overflow: hidden;
+  }
+  
+  /* Hide scrollbars but allow scrolling */
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
+  }
+  
+  html, body {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 
   .login-split-screen {
@@ -78,10 +90,19 @@
     flex-direction: column;
     justify-content: center;
     padding: 48px 36px;
-    overflow-y: auto;
     position: relative;
     box-shadow: 0 20px 60px rgba(0,0,0,0.3);
     border-radius: 20px;
+  }
+  
+  /* Hide scrollbar on form panel */
+  .login-form-panel::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .login-form-panel {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 
   .login-form-wrapper {
