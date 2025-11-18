@@ -70,9 +70,9 @@
                         <input id="q" name="q" type="text" class="form-control" placeholder="Name, email" value="{{ (filters.q if filters else request.args.get('q','')) }}" />
                     </div>
                     <div class="col-6 col-md-2">
-                        <label for="role" class="form-label mb-1">Role</label>
+                        <label for="roleFilter" class="form-label mb-1">Role</label>
                         {% set role_val = (filters.role if filters else (request.args.get('role') or 'all'))|lower %}
-                        <select id="role" name="role" class="form-select">
+                        <select id="roleFilter" name="role" class="form-select">
                             <option value="all" {% if role_val=='all' %}selected{% endif %}>All</option>
                             <option value="user" {% if role_val=='user' %}selected{% endif %}>Users</option>
                             <option value="authority" {% if role_val=='authority' %}selected{% endif %}>Authority</option>
