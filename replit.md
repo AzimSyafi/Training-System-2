@@ -61,6 +61,13 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-18 (Latest)
+**Trainer Content Management Enhancement**:
+- **Admin-Style Upload Interface**: Trainers can now use the same content management system as admins
+- **Unified manage_module_content Route**: Both Admin and Trainer roles can upload slides, videos, and manage quizzes
+- **Improved Back Navigation**: Back button in upload_content page now includes icon and navigates to correct section
+- **Role-Based Redirects**: After uploading content, trainers redirect to trainer_portal, admins to admin_course_management
+- **Enhanced Upload Workflow**: Trainers have full access to slide uploads (PDF/PPTX), YouTube video URLs, and quiz management
+
 **Trainer Progress Monitoring Mobile View Fix**:
 - **Responsive Table System**: Applied responsive table system to "Trainee Performance" table in trainer portal
 - **Mobile Card View**: Tables now transform into mobile-friendly cards on screens ≤768px
