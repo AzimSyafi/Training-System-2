@@ -1,0 +1,989 @@
+{% extends 'base.html' %}
+{% block title %}Course Management{% endblock %}
+{% block content %}
+<div class="container-fluid" id="courseManagementRoot">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h3 fw-semibold mb-0">Course Management</h1>
+      <p class="text-muted mb-0 small">Manage your assigned courses and enrich training content.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary d-none" id="backToCourses"><i class="fas fa-arrow-left me-1"></i> All Courses</button>
+    </div>
+  </div>
+
+  <!-- Overview: Courses Grid -->
+  <div id="coursesOverview">
+    {% if courses %}
+    <div class="row g-4" id="courseCardsRow">
+      {% set accent_classes = ['accent-blue','accent-green','accent-purple'] %}
+      {% for course in courses %}
+        {% set module_list = course_modules.get(course.course_id, []) %}
+        {% set total_mods = module_list|length %}
+        {% set accent = accent_classes[loop.index0 % accent_classes|length] %}
+        <div class="col-xxl-3 col-xl-4 col-lg-4 col-md-6" data-course-id="{{ course.course_id }}">
+          <!-- widened: was col-xl-3; added col-xxl-3 to keep 4-up only on very large screens -->
+          <div class="lms-card card-hover-lift course-card {{ accent }} h-100" tabindex="0" aria-label="Course {{ course.course_id }}">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-start justify-content-between mb-2">
+                <div>
+                  <h5 class="card-title mb-0 fw-semibold" title="{{ course.name }}">{{ course.name }}</h5>
+                  <span class="badge bg-light text-dark border small mt-1">{{ course.code }}</span>
+                </div>
+              </div>
+              <div class="d-flex justify-content-between align-items-center small mt-auto pt-2">
+                <span class="text-muted"><i class="fas fa-layer-group me-1"></i>{{ total_mods }} module{{ 's' if total_mods!=1 }}</span>
+                <button class="btn btn-sm btn-primary manage-course-btn" data-course-id="{{ course.course_id }}"><i class="fas fa-gear me-1"></i>Manage</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+    {% else %}
+      <div class="text-center py-5 border rounded bg-white shadow-sm">
+        <p class="lead mb-2">No courses assigned</p>
+        <p class="text-muted small mb-3">Contact an administrator to assign you to courses.</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Manager Panels (one per course) -->
+  <div id="courseManager" class="d-none">
+    {% for course in courses %}
+    {% set module_list = course_modules.get(course.course_id, []) %}
+    <div class="course-manage-wrapper d-none" id="course-manage-{{ course.course_id }}" data-course-id="{{ course.course_id }}">
+      <div class="fade-in">
+        <div class="row g-4 align-items-stretch">
+          <div class="col-12 col-xl-4">
+            <div class="card h-100 shadow-sm border-start-thick">
+              <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0 fw-semibold"><i class="fas fa-circle-info text-primary me-1"></i>Course Details</h6>
+              </div>
+              <div class="card-body">
+                <div class="row g-3">
+                  <div class="col-12">
+                    <label class="form-label small">Name</label>
+                    <input class="form-control" value="{{ course.name }}" disabled>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small">Code</label>
+                    <input class="form-control" value="{{ course.code }}" disabled>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small">Allowed Category</label>
+                    <input class="form-control" value="{{ course.allowed_category|title }}" disabled>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-xl-8">
+            <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+              <h6 class="mb-0 fw-semibold"><i class="fas fa-layer-group text-primary me-1"></i>Modules</h6>
+            </div>
+            {% if module_list %}
+            <div class="row g-3" id="moduleCards-{{ course.course_id }}">
+              {% for m in module_list %}
+              <div class="col-md-6" id="module-{{ m.module_id }}" data-module-id="{{ m.module_id }}">
+                <div class="module-card card shadow-sm h-100 card-hover-lift" aria-label="Module {{ m.module_name }}">
+                  <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                      <div>
+                        <h6 class="mb-0 fw-semibold" title="{{ m.module_name }}">{{ m.module_name }}</h6>
+                        <span class="badge bg-secondary-subtle text-secondary-emphasis fw-normal border small">Series {{ m.series_number or '-' }}</span>
+                      </div>
+                    </div>
+                    <div class="mb-2 small">
+                      <span class="me-2 badge bg-light text-dark border status-badge {% if m.slide_url %}status-on{% endif %}"><i class="fas fa-file-powerpoint text-danger me-1"></i>Slides</span>
+                      <span class="me-2 badge bg-light text-dark border status-badge {% if m.youtube_url %}status-on{% endif %}"><i class="fab fa-youtube text-danger me-1"></i>Video</span>
+                      <span class="badge bg-light text-dark border status-badge {% if m.quiz_json %}status-on{% endif %}"><i class="fas fa-circle-question text-warning me-1"></i>Quiz</span>
+                    </div>
+                    <div class="mt-auto pt-1 text-end">
+                      <button class="btn btn-sm btn-link p-0 text-decoration-none show-module-modal" data-module-id="{{ m.module_id }}" aria-expanded="false">Details <i class="fas fa-chevron-right ms-1"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- Module Detail Template (Modal Content) -->
+              <template id="module-detail-template-{{ m.module_id }}">
+                <div class="module-modal-inner" data-module-id="{{ m.module_id }}">
+                  <div class="d-flex flex-wrap justify-content-between align-items-start mb-3 gap-2">
+                    <div>
+                      <h5 class="mb-0 fw-semibold">{{ m.module_name }}</h5>
+                      <span class="badge bg-secondary-subtle text-secondary-emphasis border small">Series {{ m.series_number or '-' }}</span>
+                    </div>
+                  </div>
+                  <div class="row g-4">
+                    <div class="col-12 col-lg-5">
+                      <div class="card shadow-sm mb-3">
+                        <div class="card-header py-2 bg-white"><span class="small fw-semibold text-uppercase">Module Details</span></div>
+                        <div class="card-body p-3">
+                          <div class="row g-2">
+                            <div class="col-12">
+                              <label class="form-label small mb-0">Name</label>
+                              <input class="form-control form-control-sm" value="{{ m.module_name }}" disabled>
+                            </div>
+                            <div class="col-12">
+                              <label class="form-label small mb-0">Series #</label>
+                              <input class="form-control form-control-sm" value="{{ m.series_number or '-' }}" disabled>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-12 col-lg-7">
+                      <div class="card shadow-sm h-100">
+                        <div class="card-header py-2 bg-white"><span class="small fw-semibold text-uppercase">Content</span></div>
+                        <div class="card-body p-3">
+                          <ul class="nav nav-pills nav-sm mb-3" role="tablist">
+                            <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#slide-pane-{{ m.module_id }}" type="button" role="tab">Slides</button></li>
+                            <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#video-pane-{{ m.module_id }}" type="button" role="tab">Video</button></li>
+                            <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#quiz-pane-{{ m.module_id }}" type="button" role="tab">Quiz</button></li>
+                          </ul>
+                          <div class="tab-content">
+                            <div class="tab-pane fade show active" id="slide-pane-{{ m.module_id }}" role="tabpanel">
+                              <form class="row g-2 align-items-start" method="post" enctype="multipart/form-data" action="{{ safe_url_for('main.manage_module_content', module_id=m.module_id) }}">
+                                <input type="hidden" name="content_type" value="slide">
+                                <div class="col-12">
+                                  <input type="file" name="slide_file" class="form-control form-control-sm" accept=".pdf,.ppt,.pptx">
+                                </div>
+                                <div class="col-12">
+                                  <label class="form-label small mb-1">Or paste slide text</label>
+                                  <textarea class="form-control form-control-sm" name="slide_text" rows="6" placeholder="Paste slide text here...">{{ m.content or '' }}</textarea>
+                                  <small class="text-muted">Provide either a file, text, or both. Text is saved even without a file.</small>
+                                </div>
+                                <div class="col-12 d-flex align-items-center gap-2 flex-wrap small">
+                                  {% if m.slide_url %}<a href="{{ url_for('main.serve_uploaded_slide', filename=m.slide_url) }}" target="_blank" class="text-success text-truncate" style="max-width:200px"><i class="fas fa-file-pdf me-1"></i>{{ m.slide_url }}</a>{% else %}<span class="text-muted">No slide</span>{% endif %}
+                                  <button class="btn btn-primary btn-sm" type="submit">Save</button>
+                                </div>
+                              </form>
+                            </div>
+                            <div class="tab-pane fade" id="video-pane-{{ m.module_id }}" role="tabpanel">
+                              <form class="row g-2" method="post" action="{{ safe_url_for('main.manage_module_content', module_id=m.module_id) }}">
+                                <input type="hidden" name="content_type" value="video">
+                                <div class="col-12">
+                                  <div class="input-group input-group-sm">
+                                    <span class="input-group-text"><i class="fab fa-youtube text-danger"></i></span>
+                                    <input class="form-control" name="youtube_url" placeholder="YouTube URL" value="{{ m.youtube_url }}">
+                                  </div>
+                                </div>
+                                <div class="col-12 text-end">
+                                  <button class="btn btn-primary btn-sm" type="submit">Save</button>
+                                </div>
+                              </form>
+                            </div>
+                            <div class="tab-pane fade" id="quiz-pane-{{ m.module_id }}" role="tabpanel">
+                              <form class="quiz-builder-form" method="post" id="quiz-form-{{ m.module_id }}" action="{{ safe_url_for('main.trainer_course_management') }}" enctype="multipart/form-data" data-module-id="{{ m.module_id }}">
+                                <input type="hidden" name="module_id" value="{{ m.module_id }}">
+                                <input type="hidden" name="content_type" value="quiz">
+                                <div class="accordion quiz-questions" data-module-id="{{ m.module_id }}"></div>
+                                <div class="d-flex justify-content-between align-items-center mt-3">
+                                  <button type="button" class="btn btn-outline-primary btn-sm add-question" data-module-id="{{ m.module_id }}"><i class="fas fa-plus me-1"></i>Question</button>
+                                  <small class="text-muted">Max 40 questions.</small>
+                                </div>
+                                <div class="mt-3 text-end">
+                                  <button class="btn btn-success btn-lg" type="submit" data-floating-for="quiz-form-{{ m.module_id }}"><i class="fas fa-save me-2"></i>Save Quiz</button>
+                                </div>
+                                {# Always include the script tag, even if empty, for debugging #}
+                                <script type="application/json" class="existing-quiz-data" data-module-id="{{ m.module_id }}">{% if m.quiz_json %}{{ m.quiz_json|safe }}{% else %}[]{% endif %}</script>
+                              </form>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+              {% endfor %}
+            </div>
+            {% else %}
+              <div class="card shadow-sm bg-white border-dashed-soft">
+                <div class="card-body text-center py-5">
+                  <p class="mb-1 fw-semibold">No modules yet</p>
+                  <p class="text-muted small mb-0">Contact an administrator to add modules to this course.</p>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+  /* Layout & Cards */
+  .course-card { position:relative; border:0; background: var(--card-bg); box-shadow:0 4px 14px rgba(0,0,0,.05); border-radius: 1rem; /* overflow removed to avoid clipping hover-scaled elements */ }
+  .course-card:before { content:""; position:absolute; inset:0; background:linear-gradient(135deg,rgba(255,255,255,.08),transparent); pointer-events:none; opacity:0; transition:opacity .35s; border-radius:inherit; }
+  /* Slightly increase internal padding for breathing room */
+  .course-card .card-body { padding:1.1rem 1.05rem 1rem; }
+  .accent-blue { border-top:5px solid #3b82f6; }
+  .accent-green { border-top:5px solid #10b981; }
+  .accent-purple { border-top:5px solid #8b5cf6; }
+  .card-hover-lift { transition: transform .25s ease, box-shadow .25s ease; }
+  .card-hover-lift:hover { transform: translateY(-4px); box-shadow:0 10px 28px -4px rgba(0,0,0,.18); }
+  .line-clamp-3 { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .border-start-thick { border-left:5px solid #3b82f6; }
+  .border-start-accent { border-left:4px solid #6366f1; }
+  .border-dashed-soft { border:2px dashed #cbd5e1; }
+  .status-badge { opacity:.45; transition:opacity .2s, transform .2s; }
+  .status-badge.status-on { opacity:1; background:#e0f2fe !important; }
+  .status-badge:hover { transform:scale(1.05); }
+  .module-card { border:0; border-radius: .85rem; }
+  .module-card .module-detail { background: var(--card-bg); }
+  .module-detail .nav-pills .nav-link { padding:.35rem .75rem; font-size:.75rem; }
+  .module-detail .nav-pills .nav-link.active { background:#2563eb; }
+  .nav-sm .nav-link { font-size:.7rem; }
+  .floating-save { position:fixed; bottom:1.25rem; right:1.25rem; z-index:1100; box-shadow:0 10px 24px -4px rgba(0,0,0,.35); animation:fadeInScale .35s ease; }
+  @keyframes fadeInScale { from { opacity:0; transform:translateY(8px) scale(.95);} to { opacity:1; transform:translateY(0) scale(1);} }
+  .fade-in { animation:fadeIn .4s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px);} to { opacity:1; transform:translateY(0);} }
+  .quiz-question-block legend { font-size: 0.8rem; }
+  .quiz-question { border:1px solid var(--border-color,#e2e8f0); border-radius:.65rem; background: var(--card-bg); box-shadow:0 2px 4px rgba(0,0,0,.05); }
+  .quiz-question + .quiz-question { margin-top:.75rem; }
+  .quiz-question-header { display:flex; align-items:center; justify-content:space-between; padding:.55rem .85rem; cursor:pointer; user-select:none; }
+  .quiz-question-header:hover { background:rgba(0,0,0,.04); }
+  html.darkmode .quiz-question-header:hover { background:rgba(255,255,255,.06); }
+  .quiz-question-body { display:none; padding:.85rem .9rem .9rem; border-top:1px solid var(--border-color,#e2e8f0); }
+  .quiz-question.open .quiz-question-body { display:block; }
+  .quiz-builder-form { position:relative; }
+  .quiz-builder-form:focus-within .floating-save { opacity:1; }
+  .quiz-question .question-index-badge { width:28px; height:28px; border-radius:50%; background:#2563eb; color:#fff; display:flex; align-items:center; justify-content:center; font-size:.75rem; font-weight:600; }
+  .answer-row .input-group-text { font-size:.65rem; min-width:28px; justify-content:center; }
+  #backToCourses { transition:background-color .2s; }
+  #backToCourses:hover { background:#1e3a8a; color:#fff; }
+  .add-module-wrapper { transition: all 0.3s ease; overflow: hidden; }
+  .toggle-module-sections[aria-expanded='true'] .more-text { display:none; }
+  .toggle-module-sections[aria-expanded='false'] .less-text { display:none; }
+  .toggle-module-sections .less-text { display:none; }
+  .toggle-module-sections[aria-expanded='true'] .less-text { display:inline; }
+  .toggle-module-sections[aria-expanded='true'] i { transform:rotate(180deg); }
+  .toggle-module-sections i { transition: transform .3s ease; }
+  /* Remove conflicting nowrap override & enforce 2-line clamp consistently */
+  .course-card h5.card-title, .module-card h6 {
+    white-space:normal !important;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    line-height:1.2;
+    word-break:break-word;
+  }
+  /* Ensure parent flex item can shrink */
+  .module-card .d-flex.align-items-start > div:first-child,
+  .course-card .d-flex.align-items-start > div:first-child { min-width:0; }
+  /* Remove old duplicate single-line rule (was causing overflow) */
+  /* Removed: .course-card h5.card-title, .module-card h6 { white-space:nowrap; text-overflow:ellipsis; overflow:hidden; } */
+  /* Manual detail visibility (replaces Bootstrap collapse) */
+  .module-detail { display:none; }
+  .module-detail.open { display:block; animation:fadeInDetail .25s ease; }
+  @keyframes fadeInDetail { from {opacity:0; transform:translateY(4px);} to {opacity:1; transform:translateY(0);} }
+  /* Remove legacy collapse related overrides */
+  .module-detail.show { display:block; } /* kept for backward compatibility if still present */
+  /* Optional: style for hide state indicator */
+  .toggle-module-sections.open i { transform:rotate(180deg); }
+  /* Highlight open module card for clarity */
+  .module-card.detail-open { outline:2px solid #2563eb; outline-offset:2px; }
+  /* Modal specific tweaks */
+  #moduleDetailModal .nav-pills .nav-link { padding:.4rem .75rem; font-size:.75rem; }
+  #moduleDetailModal .modal-body { max-height:70vh; overflow-y:auto; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function(){
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',arguments.callee);return;}
+  const overview = document.getElementById('coursesOverview');
+  const manager = document.getElementById('courseManager');
+  const backBtn = document.getElementById('backToCourses');
+  function showOverview(){ overview.classList.remove('d-none'); manager.classList.add('d-none'); backBtn.classList.add('d-none'); document.body.classList.remove('showing-manager'); }
+  function showCourse(courseId){
+    overview.classList.add('d-none'); manager.classList.remove('d-none'); backBtn.classList.remove('d-none');
+    document.querySelectorAll('.course-manage-wrapper').forEach(w=>w.classList.add('d-none'));
+    const wrap = document.getElementById('course-manage-'+courseId);
+    if(wrap){ wrap.classList.remove('d-none'); try{ localStorage.setItem('adminCourseMgmt.selectedCourse', courseId);}catch(e){} }
+    document.body.classList.add('showing-manager');
+  }
+  backBtn.addEventListener('click', ()=>{ showOverview(); });
+  document.addEventListener('click', async e=>{
+    const manageBtn = e.target.closest('.manage-course-btn');
+    if(manageBtn){ e.preventDefault(); showCourse(manageBtn.getAttribute('data-course-id')); }
+    const delCourseBtn = e.target.closest('.delete-course-btn');
+    if(delCourseBtn){
+      e.preventDefault();
+      const confirmed = await customConfirm('Delete this course?', 'Confirm Delete', {type: 'danger', confirmText: 'Delete', confirmClass: 'btn-danger'});
+      if(confirmed){
+        const cid=delCourseBtn.getAttribute('data-course-id');
+        const f=document.getElementById('delete-course-form-'+cid);
+        if(f) f.submit();
+      }
+    }
+    const toggleAdd = e.target.closest('.toggle-add-module');
+    if(toggleAdd){
+      e.preventDefault();
+      e.stopPropagation();
+      const targetId = toggleAdd.getAttribute('data-target');
+      const target = document.querySelector(targetId);
+      if(target){
+        if (target.style.display === 'block') {
+            target.style.display = 'none';
+        } else {
+            target.style.display = 'block';
+        }
+      }
+    }
+  });
+  // Removed localStorage restoration - always start on courses overview
+})();
+</script>
+<script>
+// Module detail modal logic (removed edit/content button handlers since buttons removed on cards)
+(function(){
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',arguments.callee);return;}
+  const modalEl = document.getElementById('moduleDetailModal');
+  if(!modalEl) return;
+  const bsModal = new bootstrap.Modal(modalEl);
+  const bodyContainer = document.getElementById('moduleDetailModalBody');
+  function openModuleModal(moduleId, focus){
+    const tpl = document.getElementById('module-detail-template-'+moduleId);
+    if(!tpl || !bodyContainer) return;
+    bodyContainer.innerHTML = tpl.innerHTML;
+    // After injecting, initialize the quiz builder (preload existing quiz JSON if any)
+    try{
+      if(window.initQuizBuilderForm){
+        const qbForm = bodyContainer.querySelector('.quiz-builder-form');
+        if(qbForm){ window.initQuizBuilderForm(qbForm); }
+      }
+    }catch(e){ /* non-fatal */ }
+    // If the injected template does not include the qcount controls, insert a visible control group
+    try{
+      const quizPane = bodyContainer.querySelector('#quiz-pane-'+moduleId) || bodyContainer.querySelector('[id^="quiz-pane-"]') || bodyContainer.querySelector('.quiz-questions')?.closest('.tab-pane');
+      // find the quiz-questions accordion or the container where to insert controls
+      const accordion = bodyContainer.querySelector('.quiz-questions');
+      if(accordion){
+        // look for an existing qcount control nearby
+        const existingCtrl = bodyContainer.querySelector('.qcount-input') || bodyContainer.querySelector('.qcount-decr');
+        if(!existingCtrl){
+          const ctrl = document.createElement('div');
+          ctrl.className = 'd-flex align-items-center gap-2 mb-2 qcount-controls';
+          ctrl.innerHTML = `<button type="button" class="btn btn-sm btn-outline-secondary qcount-decr" data-module-id="${moduleId}">&minus;</button>
+                              <input type="number" min="1" max="40" value="1" class="form-control form-control-sm qcount-input" data-module-id="${moduleId}" style="width:80px" />
+                              <button type="button" class="btn btn-sm btn-outline-secondary qcount-incr" data-module-id="${moduleId}">+</button>
+                              <small class="text-muted ms-2">Questions</small>`;
+          accordion.parentNode.insertBefore(ctrl, accordion);
+        }
+      }
+    }catch(e){ /* non-fatal */ }
+    if(focus==='edit'){ setTimeout(()=>{ const inp=bodyContainer.querySelector('input[name="module_name"]'); if(inp) inp.focus(); },120); }
+    if(focus==='content'){ setTimeout(()=>{ const firstTab=bodyContainer.querySelector('.nav-pills .nav-link:not(.active)'); if(firstTab) firstTab.click(); },150); }
+    bsModal.show();
+  }
+    // Wire up qcount controls for the injected modal content (plus/minus/slider/number)
+    (function wireCounts(root){
+      const decr = root.querySelectorAll('.qcount-decr');
+      const incr = root.querySelectorAll('.qcount-incr');
+      const inputs = root.querySelectorAll('.qcount-input');
+      decr.forEach(btn=>{ btn.addEventListener('click', (e)=>{ const mid=btn.dataset.moduleId; const container = root.querySelector('.quiz-questions') || document.querySelector(`#quiz-pane-${mid} .quiz-questions`); if(!container) return; const qs = container.querySelectorAll('.quiz-question'); if(qs.length<=1) return; const last = qs[qs.length-1]; const rem = last.querySelector('.remove-question'); if(rem && !rem.disabled) rem.click(); inputs.forEach(i=>{ if(i.dataset.moduleId===mid) i.value = Math.max(1, qs.length-1); }); }); });
+      incr.forEach(btn=>{ btn.addEventListener('click', (e)=>{ const mid=btn.dataset.moduleId; const add = root.querySelector('.add-question') || document.querySelector(`#quiz-pane-${mid} .add-question`); if(add) add.click(); setTimeout(()=>{ inputs.forEach(i=>{ if(i.dataset.moduleId===mid) i.value = parseInt(i.value||'1',10)+1; }); },60); }); });
+      inputs.forEach(inp=>{ inp.addEventListener('change', (e)=>{ const mid=inp.dataset.moduleId; const target = Math.max(1, Math.min(40, parseInt(e.target.value||'1',10))); const container = root.querySelector('.quiz-questions') || document.querySelector(`#quiz-pane-${mid} .quiz-questions`); if(!container) return; const add = root.querySelector('.add-question') || document.querySelector(`#quiz-pane-${mid} .add-question`); let current = container.querySelectorAll('.quiz-question').length; while(current < target && current < 40){ if(add) add.click(); current++; } while(current > target && current > 1) { const qs = container.querySelectorAll('.quiz-question'); const last = qs[qs.length-1]; const rem = last.querySelector('.remove-question'); if(rem && !rem.disabled){ rem.click(); } current--; } inp.value = target; }); });
+    })(bodyContainer);
+  document.addEventListener('click', e=>{
+    const showBtn = e.target.closest('.show-module-modal');
+    if(showBtn){ e.preventDefault(); openModuleModal(showBtn.getAttribute('data-module-id')); }
+  });
+})();
+</script>
+<!-- Module Detail Modal -->
+<div class="modal fade" id="moduleDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-layer-group me-2 text-primary"></i>Module Detail</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="moduleDetailModalBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+// Unified Quiz Builder
+(function quizBuilder() {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', quizBuilder);
+        return;
+    }
+    const MAX_Q = 40;
+    const MAX_A = 4;
+
+    function createQuestion(moduleId, idx, data) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'quiz-question';
+        wrapper.dataset.index = idx;
+        const qText = (data && data.text) ? data.text : '';
+        const answers_obj = (data && Array.isArray(data.answers)) ? data.answers : [];
+        const answers_text = answers_obj.map(a => a.text || '');
+        const correct_idx = answers_obj.findIndex(a => a.isCorrect);
+        let correct = (correct_idx > -1) ? correct_idx + 1 : 1;
+        const final_answers_text = answers_text.slice(0, MAX_A);
+        while (final_answers_text.length < MAX_A) {
+            final_answers_text.push('');
+        }
+        if (correct > MAX_A) correct = 1;
+        wrapper.innerHTML = `
+      <div class="quiz-question-header" role="button" tabindex="0" aria-expanded="false">
+        <div class="d-flex align-items-center gap-2">
+          <div class="question-index-badge">${idx}</div>
+          <strong class="small mb-0">Question ${idx}</strong>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-outline-danger btn-xs remove-question" ${idx === 1 ? 'disabled' : ''} title="Remove"><i class="fas fa-trash"></i></button>
+          <i class="fas fa-chevron-down rotate small text-secondary"></i>
+        </div>
+      </div>
+      <div class="quiz-question-body">
+        <div class="mb-2">
+          <label class="form-label small mb-1">Question Text</label>
+          <textarea class="form-control form-control-sm question-input" name="quiz_question_${idx}" rows="3" placeholder="Enter question ${idx}" required>${escapeHtml(qText)}</textarea>
+        </div>
+        <div class="answer-row row g-2 mb-2">
+          ${[1, 2, 3, 4].map(a => `<div class='col-6'><div class='input-group input-group-sm'><span class='input-group-text'>${a}</span><input class='form-control answer-input' data-answer-pos='${a}' name='answer_${idx}_${a}' placeholder='Answer ${a} (optional)' value='${escapeHtml(final_answers_text[a - 1] || '')}'></div></div>`).join('')}
+        </div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <label class="small mb-0">Correct Answer #</label>
+          <select class="form-select form-select-sm correct-select" name="correct_answer_${idx}" style="max-width:110px;"></select>
+          <small class="text-muted small flex-grow-1">Min 2 answers required.</small>
+        </div>
+      </div>`;
+        setTimeout(() => {
+            updateCorrectOptions(wrapper, correct);
+        }, 0);
+        return wrapper;
+    }
+
+    function updateCorrectOptions(questionEl, desired) {
+        const answers = [...questionEl.querySelectorAll('.answer-input')];
+        const filled = answers.filter(a => a.value.trim() !== '');
+        const select = questionEl.querySelector('.correct-select');
+        if (!select) return;
+        const prev = desired || parseInt(select.value, 10) || 1;
+        const count = filled.length;
+        select.innerHTML = '';
+        for (let i = 1; i <= count; i++) {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = i;
+            if (i === prev || (prev > count && i === 1)) opt.selected = true;
+            select.appendChild(opt);
+        }
+        if (count === 0) {
+            const opt = document.createElement('option');
+            opt.textContent = '-';
+            opt.value = '1';
+            select.appendChild(opt);
+        }
+    }
+
+    function escapeHtml(str) {
+        return (str || '').replace(/[&<>"]/g, c => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;"
+        }[c]));
+    }
+
+    function reindex(container) {
+        [...container.querySelectorAll('.quiz-question')].forEach((q, i) => {
+            const idx = i + 1;
+            q.dataset.index = idx;
+            q.querySelector('.question-index-badge').textContent = idx;
+            q.querySelector('strong').textContent = 'Question ' + idx;
+            const qInput = q.querySelector('.question-input');
+            qInput.name = 'quiz_question_' + idx;
+            qInput.placeholder = 'Enter question ' + idx;
+            [...q.querySelectorAll('.answer-input')].forEach((inp, aIdx) => {
+                inp.name = 'answer_' + idx + '_' + (aIdx + 1);
+            });
+            const sel = q.querySelector('.correct-select');
+            sel.name = 'correct_answer_' + idx;
+            const rm = q.querySelector('.remove-question');
+            if (rm) rm.disabled = idx === 1;
+        });
+    }
+
+    function updateAddBtnState(form) {
+        const btn = form.querySelector('.add-question');
+        if (!btn) return;
+        const count = form.querySelectorAll('.quiz-question').length;
+        btn.disabled = count >= MAX_Q;
+    }
+
+    function ensureFloatingSave(form) {
+        const floating = form.querySelector('.floating-save');
+        if (floating) floating.classList.remove('d-none');
+    }
+
+    function preloadExisting(form, container) {
+        let existingQuiz = null;
+        const script = form.querySelector('.existing-quiz-data');
+        const moduleId = container.dataset.moduleId || 'unknown';
+
+        console.log(`[Quiz Builder] preloadExisting for module ${moduleId}`);
+
+        if (script) {
+            const rawText = script.textContent.trim();
+            console.log(`[Quiz Builder] Found script tag, content length: ${rawText.length}`);
+            console.log(`[Quiz Builder] First 200 chars:`, rawText.substring(0, 200));
+
+            try {
+                existingQuiz = JSON.parse(rawText);
+                console.log(`[Quiz Builder] Successfully parsed quiz data, type: ${typeof existingQuiz}, is array: ${Array.isArray(existingQuiz)}`);
+                if (Array.isArray(existingQuiz)) {
+                    console.log(`[Quiz Builder] Number of questions: ${existingQuiz.length}`);
+                } else if (existingQuiz && typeof existingQuiz === 'object') {
+                    console.log(`[Quiz Builder] Quiz is object with keys:`, Object.keys(existingQuiz));
+                }
+            } catch (e) {
+                console.error('[Quiz Builder] Failed to parse existing quiz data:', e);
+                console.error('[Quiz Builder] Raw text:', rawText.substring(0, 500));
+                existingQuiz = null;
+            }
+        } else {
+            console.warn(`[Quiz Builder] No .existing-quiz-data script tag found for module ${moduleId}`);
+        }
+
+        if (existingQuiz && Array.isArray(existingQuiz) && existingQuiz.length > 0) {
+            console.log(`[Quiz Builder] Loading ${existingQuiz.length} questions (array format)`);
+            container.innerHTML = '';
+            existingQuiz.slice(0, MAX_Q).forEach((q, i) => {
+                console.log(`[Quiz Builder] Creating question ${i + 1}:`, q);
+                container.appendChild(createQuestion(container.dataset.moduleId || 'x', i + 1, q));
+            });
+            const first = container.querySelector('.quiz-question');
+            if (first) {
+                first.classList.add('open');
+                const header = first.querySelector('.quiz-question-header');
+                if (header) header.setAttribute('aria-expanded', 'true');
+            }
+            console.log(`[Quiz Builder] Successfully loaded ${existingQuiz.length} questions`);
+        } else if (existingQuiz && existingQuiz.questions && Array.isArray(existingQuiz.questions) && existingQuiz.questions.length) {
+            console.log(`[Quiz Builder] Loading ${existingQuiz.questions.length} questions (object format)`);
+            container.innerHTML = '';
+            existingQuiz.questions.slice(0, MAX_Q).forEach((q, i) => {
+                let newFormat;
+
+                // Check if this is already in the new format (has text and answers with objects)
+                if (q.text && Array.isArray(q.answers) && q.answers.length > 0 && typeof q.answers[0] === 'object' && 'isCorrect' in q.answers[0]) {
+                    // New format: already has text and answers with {text, isCorrect}
+                    newFormat = {
+                        text: q.text,
+                        answers: q.answers.map(ans => ({
+                            text: ans.text || '',
+                            isCorrect: !!ans.isCorrect
+                        }))
+                    };
+                } else {
+                    // Old format: has question and answers as string array with correct index
+                    newFormat = {
+                        text: q.question || q.text || '',
+                        answers: (q.answers || []).map((ansText, ansIdx) => ({
+                            text: typeof ansText === 'string' ? ansText : (ansText.text || ''),
+                            isCorrect: (ansIdx + 1) === parseInt(q.correct, 10)
+                        }))
+                    };
+                }
+
+                console.log(`[Quiz Builder] Creating question ${i + 1}:`, newFormat);
+                container.appendChild(createQuestion(container.dataset.moduleId || 'x', i + 1, newFormat));
+            });
+            const first = container.querySelector('.quiz-question');
+            if (first) {
+                first.classList.add('open');
+                const header = first.querySelector('.quiz-question-header');
+                if (header) header.setAttribute('aria-expanded', 'true');
+            }
+            console.log(`[Quiz Builder] Successfully loaded ${existingQuiz.questions.length} questions`);
+        } else {
+            console.log(`[Quiz Builder] No valid quiz data found for module ${moduleId}, will create empty question on initialization`);
+        }
+    }
+
+    function serializeQuizData(form) {
+        const container = form.querySelector('.quiz-questions');
+        if (!container) return '[]';
+
+        const questions = [];
+        container.querySelectorAll('.quiz-question').forEach((q, idx) => {
+            const questionText = q.querySelector('.question-input')?.value?.trim() || '';
+            if (!questionText) return;
+
+            const answers = [];
+            q.querySelectorAll('.answer-input').forEach((inp, aIdx) => {
+                const ansText = inp.value.trim();
+                if (ansText) {
+                    answers.push({
+                        text: ansText,
+                        isCorrect: false
+                    });
+                }
+            });
+
+            if (answers.length >= 2) {
+                const correctIdx = parseInt(q.querySelector('.correct-select')?.value || '1', 10) - 1;
+                if (correctIdx >= 0 && correctIdx < answers.length) {
+                    answers[correctIdx].isCorrect = true;
+                } else if (answers.length > 0) {
+                    answers[0].isCorrect = true;
+                }
+
+                questions.push({
+                    text: questionText,
+                    answers: answers
+                });
+            }
+        });
+
+        return JSON.stringify(questions);
+    }
+
+    function initQuizBuilderForm(form) {
+        if (!form) return;
+        const container = form.querySelector('.quiz-questions');
+        if (!container) return;
+        if (!container.dataset.moduleId) {
+            const mid = form.getAttribute('data-module-id');
+            if (mid) container.dataset.moduleId = mid;
+        }
+        if (container.children.length === 0) {
+            preloadExisting(form, container);
+            if (container.children.length === 0) {
+                container.appendChild(createQuestion(container.dataset.moduleId || 'x', 1));
+            }
+        }
+        updateAddBtnState(form);
+        ensureFloatingSave(form);
+
+        if (!form.dataset.quizBuilderInitialized) {
+            form.addEventListener('submit', (e) => {
+                reindex(form.querySelector('.quiz-questions'));
+
+                // Create hidden input with JSON data
+                let quizDataInput = form.querySelector('input[name="quiz_data"]');
+                if (!quizDataInput) {
+                    quizDataInput = document.createElement('input');
+                    quizDataInput.type = 'hidden';
+                    quizDataInput.name = 'quiz_data';
+                    form.appendChild(quizDataInput);
+                }
+                quizDataInput.value = serializeQuizData(form);
+            });
+            form.dataset.quizBuilderInitialized = 'true';
+        }
+    }
+
+    window.initQuizBuilderForm = initQuizBuilderForm;
+
+    document.querySelectorAll('.quiz-builder-form').forEach(initQuizBuilderForm);
+
+    // Use event delegation for dynamically added buttons
+    document.addEventListener('click', e => {
+        const addBtn = e.target.closest('.add-question');
+        if (addBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const form = addBtn.closest('form');
+            if (!form) return;
+            const container = form.querySelector('.quiz-questions');
+            if (!container) return;
+            const count = container.querySelectorAll('.quiz-question').length;
+            if (count < MAX_Q) {
+                const mid = container.dataset.moduleId;
+                const newQ = createQuestion(mid, count + 1);
+                container.appendChild(newQ);
+                // Open the newly added question
+                newQ.classList.add('open');
+                const header = newQ.querySelector('.quiz-question-header');
+                if (header) header.setAttribute('aria-expanded', 'true');
+                updateAddBtnState(form);
+                ensureFloatingSave(form);
+                // Scroll to the new question
+                setTimeout(() => {
+                    newQ.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 100);
+            }
+        }
+
+        const header = e.target.closest('.quiz-question-header');
+        if (header) {
+            const q = header.parentElement;
+            const open = q.classList.toggle('open');
+            header.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+
+        const rmBtn = e.target.closest('.remove-question');
+        if (rmBtn && !rmBtn.disabled) {
+            e.preventDefault();
+            e.stopPropagation();
+            const q = rmBtn.closest('.quiz-question');
+            const form = rmBtn.closest('form');
+            const container = form?.querySelector('.quiz-questions');
+            if (container && container.querySelectorAll('.quiz-question').length > 1) {
+                q.classList.add('removing');
+                setTimeout(() => {
+                    q.remove();
+                    reindex(container);
+                    updateAddBtnState(form);
+                }, 180);
+            }
+        }
+    });
+
+    document.addEventListener('input', e => {
+        const ans = e.target.closest('.answer-input');
+        if (ans) {
+            const q = ans.closest('.quiz-question');
+            updateCorrectOptions(q);
+        }
+    });
+
+    document.addEventListener('submit', e => {
+        const form = e.target.closest('.quiz-builder-form');
+        if (form) {
+            let ok = true;
+            let firstBad = null;
+            form.querySelectorAll('.quiz-question').forEach(q => {
+                const filled = [...q.querySelectorAll('.answer-input')].filter(a => a.value.trim() !== '');
+                const qText = q.querySelector('.question-input')?.value?.trim();
+                if (!qText || filled.length < 2) {
+                    ok = false;
+                    if (!firstBad) firstBad = q;
+                    q.classList.add('border', 'border-danger');
+                } else {
+                    q.classList.remove('border-danger');
+                }
+            });
+            if (!ok) {
+                e.preventDefault();
+                if (firstBad) {
+                    firstBad.classList.add('open');
+                    firstBad.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+                }
+                alert('Each question needs text and at least 2 answers.');
+            }
+        }
+    });
+})();
+</script>
+<script>
+// Global delegated handlers for quiz question count controls (works for injected modal content)
+document.addEventListener('DOMContentLoaded', function(){
+  const MAX_Q = 40;
+
+  function getQuizContainer(moduleId){
+    return document.querySelector(`.quiz-questions[data-module-id="${moduleId}"]`);
+  }
+
+  function getAddButton(moduleId){
+    return document.querySelector(`.add-question[data-module-id="${moduleId}"]`);
+  }
+
+  function currentQuestionCount(moduleId){
+    const c = getQuizContainer(moduleId);
+    return c ? c.querySelectorAll('.quiz-question').length : 0;
+  }
+
+  function ensureAtLeastOne(moduleId){
+    const cnt = currentQuestionCount(moduleId);
+    if(cnt === 0){ const add = getAddButton(moduleId); if(add) add.click(); }
+  }
+
+  function setCount(moduleId, target){
+    target = Math.max(1, Math.min(MAX_Q, parseInt(target||'1',10)||1));
+    const c = getQuizContainer(moduleId);
+    const add = getAddButton(moduleId);
+    if(!c || !add) return;
+    let curr = currentQuestionCount(moduleId);
+    while(curr < target && curr < MAX_Q){ add.click(); curr++; }
+    while(curr > target && curr > 1){
+      const qs = c.querySelectorAll('.quiz-question');
+      const last = qs[qs.length-1];
+      if(!last) break;
+      const rem = last.querySelector('.remove-question');
+      if(rem && !rem.disabled){ rem.click(); }
+      else break;
+      curr--;
+    }
+  }
+
+  // Click delegation for plus/minus buttons
+  document.addEventListener('click', function(e){
+    const decr = e.target.closest('.qcount-decr');
+    if(decr){
+      const moduleId = decr.dataset.moduleId;
+      if(!moduleId){
+        // try to find nearby input
+        const input = decr.closest('.qcount-controls')?.querySelector('.qcount-input');
+        if(input) { input.value = Math.max(1, parseInt(input.value||'1',10)-1); input.dispatchEvent(new Event('change')); }
+        return;
+      }
+      const input = document.querySelector(`.qcount-input[data-module-id="${moduleId}"]`);
+      const v = Math.max(1, parseInt((input && input.value) || '1',10) - 1);
+      if(input) { input.value = v; }
+      setCount(moduleId, v);
+    }
+    const incr = e.target.closest('.qcount-incr');
+    if(incr){
+      const moduleId = incr.dataset.moduleId;
+      if(!moduleId){
+        const input = incr.closest('.qcount-controls')?.querySelector('.qcount-input');
+        if(input) { input.value = Math.min(40, parseInt(input.value||'1',10)+1); input.dispatchEvent(new Event('change')); }
+        return;
+      }
+      const input = document.querySelector(`.qcount-input[data-module-id="${moduleId}"]`);
+      const v = Math.min(MAX_Q, parseInt((input && input.value) || '1',10) + 1);
+      if(input) { input.value = v; }
+      setCount(moduleId, v);
+    }
+  });
+
+  // Change / input delegation for numeric inputs (debounced)
+  const timers = new Map();
+  document.addEventListener('input', function(e){
+    const input = e.target.closest('.qcount-input');
+    if(!input) return;
+    const moduleId = input.dataset.moduleId;
+    clearTimeout(timers.get(input));
+    timers.set(input, setTimeout(()=>{
+      if(moduleId){ setCount(moduleId, input.value); }
+      else {
+        // try find nearest module id via ancestor
+        const container = input.closest('[data-module-id]');
+        const mid = container ? container.getAttribute('data-module-id') : null;
+        if(mid) setCount(mid, input.value);
+      }
+    }, 400));
+  });
+
+  // Immediate on Enter
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'Enter') return;
+    const input = e.target.closest('.qcount-input');
+    if(!input) return;
+    e.preventDefault();
+    const moduleId = input.dataset.moduleId;
+    if(moduleId) setCount(moduleId, input.value);
+    else {
+      const container = input.closest('[data-module-id]');
+      const mid = container ? container.getAttribute('data-module-id') : null;
+      if(mid) setCount(mid, input.value);
+    }
+  });
+});
+</script>
+<script>
+// Accessibility & minor enhancements
+(function(){
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',arguments.callee);return;}
+  document.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ const card = e.target.closest('.course-card'); if(card){ const btn = card.querySelector('.manage-course-btn'); if(btn){ btn.click(); e.preventDefault(); } } }
+  });
+
+  // Handle delete-course-form and delete-module-form submissions with custom modal
+  document.addEventListener('submit', async function(e){
+    const form = e.target;
+
+    // Handle course deletion in detail panel
+    if(form.classList.contains('delete-course-form')){
+      e.preventDefault();
+      const courseName = form.getAttribute('data-course-name') || 'this course';
+      const confirmed = await customConfirm(`Delete ${courseName}? This cannot be undone.`, 'Confirm Delete', {type: 'danger', confirmText: 'Delete', confirmClass: 'btn-danger'});
+      if(confirmed){
+        form.submit();
+      }
+    }
+
+    // Handle module deletion
+    if(form.classList.contains('delete-module-form')){
+      e.preventDefault();
+      const moduleName = form.getAttribute('data-module-name') || 'this module';
+      const confirmed = await customConfirm(`Delete module "${moduleName}"? This cannot be undone.`, 'Confirm Delete', {type: 'danger', confirmText: 'Delete', confirmClass: 'btn-danger'});
+      if(confirmed){
+        form.submit();
+      }
+    }
+  });
+})();
+</script>
+<script>
+// Safety override: remove legacy Bootstrap text-truncate side-effects if any leftover
+(function(){
+  document.querySelectorAll('.course-card h5.card-title.text-truncate, .module-card h6.text-truncate').forEach(el=>el.classList.remove('text-truncate'));
+})();
+</script>
+<script>
+// Scroll to module after upload/update if hash present
+(function(){
+  const hash = window.location.hash;
+  if(hash && hash.includes('module-')){
+    setTimeout(function(){
+      let courseId = null;
+      let moduleId = null;
+      
+      // Parse hash: #course-X-module-Y or #module-Y
+      const courseMatch = hash.match(/#course-(\d+)-module-(\d+)/);
+      if(courseMatch){
+        courseId = courseMatch[1];
+        moduleId = courseMatch[2];
+      } else {
+        const moduleMatch = hash.match(/#module-(\d+)/);
+        if(moduleMatch){
+          moduleId = moduleMatch[1];
+        }
+      }
+      
+      if(courseId){
+        // Expand the specific course panel first
+        document.getElementById('coursesOverview').classList.add('d-none');
+        document.getElementById('courseManager').classList.remove('d-none');
+        document.querySelectorAll('.course-manage-wrapper').forEach(w=>w.classList.add('d-none'));
+        const courseWrapper = document.getElementById('course-manage-' + courseId);
+        if(courseWrapper){
+          courseWrapper.classList.remove('d-none');
+          document.getElementById('backToCourses').classList.remove('d-none');
+          document.body.classList.add('showing-manager');
+        }
+      }
+      
+      // Now scroll to the module
+      if(moduleId){
+        setTimeout(function(){
+          const target = document.getElementById('module-' + moduleId);
+          if(target){
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Highlight briefly
+            target.style.transition = 'background-color 0.5s';
+            target.style.backgroundColor = '#fff3cd';
+            setTimeout(() => { target.style.backgroundColor = ''; }, 2000);
+          }
+        }, 100); // Wait for panel to expand
+      }
+    }, 300); // Wait for page to fully load
+  }
+})();
+</script>
+{% endblock %}

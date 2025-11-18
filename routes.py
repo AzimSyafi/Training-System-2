@@ -793,6 +793,77 @@ def change_password():
 
     return render_template('change_password.html')
 
+# Trainer course management
+@main_bp.route('/trainer_course_management', methods=['GET', 'POST'])
+@login_required
+def trainer_course_management():
+    if not isinstance(current_user, Trainer):
+        return redirect(url_for('main.login'))
+    if request.method == 'POST':
+        try:
+            module_id = request.form.get('module_id')
+            quiz_json = request.form.get('quiz_data')
+            if not module_id or not quiz_json:
+                flash('Missing module_id or quiz_json', 'danger')
+                return redirect(url_for('main.trainer_course_management'))
+            module = db.session.get(Module, int(module_id))
+            if not module:
+                flash('Module not found', 'danger')
+                return redirect(url_for('main.trainer_course_management'))
+            
+            # SECURITY: Verify trainer has access to this module's course
+            if not module.course:
+                flash('Module is not associated with a course', 'danger')
+                logging.error(f'[DATA ERROR] Module {module_id} has no course relationship')
+                return redirect(url_for('main.trainer_course_management'))
+            
+            if getattr(current_user, 'course', None):
+                # Trainer assigned to specific course(s)
+                if module.course.code != current_user.course:
+                    flash('You are not authorized to modify this module', 'danger')
+                    logging.warning(f'[SECURITY] Trainer {current_user.trainer_id} attempted to modify module {module_id} outside their assigned course')
+                    return redirect(url_for('main.trainer_course_management'))
+            # If trainer.course is None, they have access to all courses
+            
+            module.quiz_json = quiz_json
+            db.session.commit()
+            flash('Quiz updated successfully', 'success')
+        except Exception as e:
+            db.session.rollback()
+            logging.exception('[TRAINER COURSE MANAGEMENT] Failed to update quiz')
+            flash(f'Error updating quiz: {e}', 'danger')
+        return redirect(url_for('main.trainer_course_management'))
+    try:
+        # Filter courses based on trainer assignment
+        courses_query = Course.query.order_by(Course.name)
+        if getattr(current_user, 'course', None):
+            courses_query = courses_query.filter(Course.code == current_user.course)
+        courses = courses_query.all()
+        
+        # Get modules for these courses only
+        course_ids = [c.course_id for c in courses]
+        if course_ids:
+            modules = Module.query.filter(Module.course_id.in_(course_ids)).order_by(Module.series_number.asc()).all()
+        else:
+            modules = []
+        
+        # Group modules by course_id
+        course_modules = {}
+        for module in modules:
+            course_id = module.course_id
+            if course_id not in course_modules:
+                course_modules[course_id] = []
+            course_modules[course_id].append(module)
+        # Ensure each course's module list is sorted by series (numeric-aware)
+        for k in list(course_modules.keys()):
+            course_modules[k] = sorted(course_modules[k], key=_module_series_sort_key)
+    except Exception:
+        logging.exception('[TRAINER COURSE MANAGEMENT] Failed loading data')
+        courses = []
+        modules = []
+        course_modules = {}
+    return render_template('trainer_course_management.html', courses=courses, modules=modules, course_modules=course_modules)
+
 # Trainer portal
 @main_bp.route('/trainer_portal', methods=['GET', 'POST'])
 @login_required
@@ -1781,7 +1852,7 @@ def manage_module_content(module_id):
         module = db.session.get(Module, module_id)
         if not module:
             flash('Module not found.', 'danger')
-            redirect_route = 'main.trainer_portal' if isinstance(current_user, Trainer) else 'main.admin_course_management'
+            redirect_route = 'main.trainer_course_management' if isinstance(current_user, Trainer) else 'main.admin_course_management'
             return redirect(url_for(redirect_route))
 
         # SECURITY: Verify trainer has access to this module's course
@@ -1789,14 +1860,14 @@ def manage_module_content(module_id):
             if not module.course:
                 flash('Module is not associated with a course', 'danger')
                 logging.error(f'[DATA ERROR] Module {module_id} has no course relationship')
-                return redirect(url_for('main.trainer_portal', section='content'))
+                return redirect(url_for('main.trainer_course_management'))
             
             if getattr(current_user, 'course', None):
                 # Trainer assigned to specific course(s)
                 if module.course.code != current_user.course:
                     flash('You are not authorized to modify this module', 'danger')
                     logging.warning(f'[SECURITY] Trainer {current_user.trainer_id} attempted to modify module {module_id} outside their assigned course')
-                    return redirect(url_for('main.trainer_portal', section='content'))
+                    return redirect(url_for('main.trainer_course_management'))
             # If trainer.course is None, they have access to all courses
 
         content_type = request.form.get('content_type')
@@ -1840,11 +1911,11 @@ def manage_module_content(module_id):
     course_id = module.course_id if module else None
     
     # Redirect to appropriate dashboard based on user type
-    redirect_route = 'main.trainer_portal' if isinstance(current_user, Trainer) else 'main.admin_course_management'
+    redirect_route = 'main.trainer_course_management' if isinstance(current_user, Trainer) else 'main.admin_course_management'
     
     if course_id:
-        return redirect(url_for(redirect_route, section='content') + f'#course-{course_id}-module-{module_id}')
-    return redirect(url_for(redirect_route, section='content') + f'#module-{module_id}')
+        return redirect(url_for(redirect_route) + f'#course-{course_id}-module-{module_id}')
+    return redirect(url_for(redirect_route) + f'#module-{module_id}')
 
 # Admin certificates
 @main_bp.route('/admin_certificates')
