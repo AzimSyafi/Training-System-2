@@ -29,6 +29,11 @@
         body.dark-mode .progress-bar { background: var(--border-color); }
         body.dark-mode .file-item { background: var(--card-bg); }
         body.dark-mode #close-module-upload { color: #cbd5e1 !important; }
+        /* Ensure tables display correctly on desktop (not cards) */
+        @media (min-width: 769px) {
+            #progress-table { display: table !important; }
+            #course-detail-users-table { display: table !important; }
+        }
         /* Existing styles (unchanged) */
         /* ...existing code before .content-section... */
         .content-section { display:none; animation: fadeIn 0.5s ease; }
