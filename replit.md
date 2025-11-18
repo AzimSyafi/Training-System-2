@@ -68,13 +68,11 @@ Not specified.
 - **Role-Based Redirects**: After uploading content, trainers redirect to trainer_portal, admins to admin_course_management
 - **Enhanced Upload Workflow**: Trainers have full access to slide uploads (PDF/PPTX), YouTube video URLs, and quiz management
 
-**Trainer Progress Monitoring Mobile View Fix**:
-- **Responsive Table System**: Applied responsive table system to "Trainee Performance" table in trainer portal
-- **Mobile Card View**: Tables now transform into mobile-friendly cards on screens ≤768px
-- **Data Labels**: Added data-label, data-primary, and data-secondary attributes for proper mobile display
-- **Trainee Name Display**: User names now display prominently on mobile devices, just like in admin pages
-- **Course Details Table**: Also updated the course details user table with responsive attributes
-- **Dynamic Content**: JavaScript-generated table rows now include responsive attributes for consistency
+**Trainer Progress Monitoring Table Display**:
+- **Desktop Table View**: Progress monitoring tables now display as standard tables on desktop for better data visibility
+- **Removed Auto-Transform**: Disabled automatic card transformation on trainer portal tables
+- **Consistent Display**: Trainee Performance table shows all columns (Trainee, Course, Progress, Last Activity, Score, Status) in table format
+- **Mobile Support**: Tables remain accessible on mobile devices with standard table scrolling
 
 ### 2025-11-17
 **Trainer Role Assignment and Course Management**:
