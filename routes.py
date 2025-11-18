@@ -1730,9 +1730,9 @@ def update_course_module(module_id):
 @main_bp.route('/manage_module_content/<int:module_id>', methods=['POST'])
 @login_required
 def manage_module_content(module_id):
-    if not isinstance(current_user, Admin):
+    if not isinstance(current_user, (Admin, Trainer)):
         flash('You are not authorized to perform this action.', 'danger')
-        return redirect(url_for('main.admin_dashboard'))
+        return redirect(url_for('main.login'))
 
     try:
         module = db.session.get(Module, module_id)
@@ -1779,9 +1779,13 @@ def manage_module_content(module_id):
     # Redirect back with hash to preserve scroll position and module focus
     # Include course_id in hash so JavaScript can expand the correct panel
     course_id = module.course_id if module else None
+    
+    # Redirect to appropriate dashboard based on user type
+    redirect_route = 'main.trainer_portal' if isinstance(current_user, Trainer) else 'main.admin_course_management'
+    
     if course_id:
-        return redirect(url_for('main.admin_course_management') + f'#course-{course_id}-module-{module_id}')
-    return redirect(url_for('main.admin_course_management') + f'#module-{module_id}')
+        return redirect(url_for(redirect_route, section='content') + f'#course-{course_id}-module-{module_id}')
+    return redirect(url_for(redirect_route, section='content') + f'#module-{module_id}')
 
 # Admin certificates
 @main_bp.route('/admin_certificates')
