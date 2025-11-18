@@ -559,6 +559,30 @@ async function deleteUserOrTrainer(userId, fullName, userType) {
     }
 }
 
+// Toggle agency field visibility based on role selection - define globally
+function toggleAgencyField() {
+    const roleSelect = document.getElementById('role');
+    const agencyFieldRow = document.getElementById('agencyFieldRow');
+    const agencySelect = document.getElementById('agency_id');
+    
+    console.log('toggleAgencyField called, role:', roleSelect ? roleSelect.value : 'null');
+    
+    if (roleSelect && agencyFieldRow && agencySelect) {
+        if (roleSelect.value === 'user') {
+            agencyFieldRow.style.display = '';
+            agencySelect.required = true;
+            console.log('Agency field shown');
+        } else {
+            agencyFieldRow.style.display = 'none';
+            agencySelect.required = false;
+            agencySelect.value = '';
+            console.log('Agency field hidden');
+        }
+    } else {
+        console.error('toggleAgencyField: Elements not found', {roleSelect, agencyFieldRow, agencySelect});
+    }
+}
+
 // Initialize everything when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Admin users page loaded');
@@ -713,21 +737,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     {% endif %}
 });
-
-// Toggle agency field visibility based on role selection
-function toggleAgencyField() {
-    const roleSelect = document.getElementById('role');
-    const agencyFieldRow = document.getElementById('agencyFieldRow');
-    const agencySelect = document.getElementById('agency_id');
-    
-    if (roleSelect.value === 'user') {
-        agencyFieldRow.style.display = '';
-        agencySelect.required = true;
-    } else {
-        agencyFieldRow.style.display = 'none';
-        agencySelect.required = false;
-        agencySelect.value = '';
-    }
-}
 </script>
 {% endblock %}

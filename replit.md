@@ -64,7 +64,8 @@ Not specified.
 **Admin User Creation - User & Authority Role Support**:
 - **Fixed "Invalid role selected" Error**: Backend now properly handles 'user' and 'authority' roles in create account modal
 - **Fixed "agency_id" Error**: Added agency selector that appears when creating User accounts
-- **Dynamic Agency Selector**: Agency dropdown shows/hides automatically based on selected role
+- **Fixed Agency Selector Not Showing**: Moved toggleAgencyField() function to global scope for proper accessibility
+- **Dynamic Agency Selector**: Agency dropdown shows/hides automatically based on selected role (working correctly now)
 - **User Creation**: Creates regular user accounts with default 'citizen' category, required agency, and finalized status
 - **Authority Creation**: Creates authority accounts with 'authority' role, no agency, and finalized status
 - **Smart Form Validation**: Agency field is required when "User" role is selected, hidden for other roles
