@@ -196,7 +196,7 @@
                 <h2 class="section-title">Trainee Performance</h2>
                 <div class="search-bar"><i class="fas fa-search"></i><input id="progress-search" type="text" placeholder="Search trainees or courses..."></div>
             </div>
-            <table class="recent-table" id="progress-table">
+            <table class="recent-table" id="progress-table" data-responsive-table="true">
                 <thead>
                     <tr>
                         <th>Trainee</th><th>Course</th><th>Progress</th><th>Last Activity</th><th>Score</th><th>Status</th>
@@ -205,15 +205,15 @@
                 <tbody>
                 {% for row in progress_rows %}
                     <tr>
-                        <td>{{ row.user_name }}</td>
-                        <td>{{ row.course_code }}</td>
-                        <td>
+                        <td data-label="Trainee" data-primary="true">{{ row.user_name }}</td>
+                        <td data-label="Course" data-secondary="true">{{ row.course_code }}</td>
+                        <td data-label="Progress">
                             <div class="progress-bar"><div class="progress-fill high" style="width: {{ row.progress_pct }}%"></div></div>
                             <div class="progress-info">{{ row.progress_pct }}%</div>
                         </td>
-                        <td>{% if row.last_activity %}{{ row.last_activity.strftime('%Y-%m-%d %H:%M') }}{% else %}-{% endif %}</td>
-                        <td>{{ row.score }}%</td>
-                        <td><span class="status-badge {{ 'completed' if row.status == 'Completed' else 'pending' }}">{{ row.status }}</span></td>
+                        <td data-label="Last Activity">{% if row.last_activity %}{{ row.last_activity.strftime('%Y-%m-%d %H:%M') }}{% else %}-{% endif %}</td>
+                        <td data-label="Score">{{ row.score }}%</td>
+                        <td data-label="Status"><span class="status-badge {{ 'completed' if row.status == 'Completed' else 'pending' }}">{{ row.status }}</span></td>
                     </tr>
                 {% else %}
                     <tr><td colspan="6" class="text-center">No trainee progress yet.</td></tr>
@@ -259,7 +259,7 @@
                     </div>
                     <div id="modules-list" style="margin-top:10px;"></div>
                     <div id="users-list" style="margin-top:20px;">
-                        <table class="recent-table">
+                        <table class="recent-table" id="course-detail-users-table" data-responsive-table="true">
                             <thead><tr><th>Trainee</th><th>Progress</th><th>Score</th><th>Status</th></tr></thead>
                             <tbody id="detail-users-body"><tr><td colspan="4">Select a course to view trainees.</td></tr></tbody>
                         </table>
@@ -397,7 +397,7 @@
                 // Populate users (filter PROGRESS_ROWS)
                 const rows = PROGRESS_ROWS.filter(r => r.course_code === code);
                 if (rows.length) {
-                    detailUsersBody.innerHTML = rows.map(r => `\n<tr><td>${r.user_name}</td><td><div class='progress-bar'><div class='progress-fill high' style='width:${r.progress_pct}%'></div></div><div class='progress-info'>${r.progress_pct}%</div></td><td>${r.score}%</td><td><span class='status-badge ${r.status==='Completed'?'completed':'pending'}'>${r.status}</span></td></tr>`).join('');
+                    detailUsersBody.innerHTML = rows.map(r => `\n<tr><td data-label="Trainee" data-primary="true">${r.user_name}</td><td data-label="Progress"><div class='progress-bar'><div class='progress-fill high' style='width:${r.progress_pct}%'></div></div><div class='progress-info'>${r.progress_pct}%</div></td><td data-label="Score">${r.score}%</td><td data-label="Status"><span class='status-badge ${r.status==='Completed'?'completed':'pending'}'>${r.status}</span></td></tr>`).join('');
                 } else {
                     detailUsersBody.innerHTML = '<tr><td colspan="4">No trainees yet.</td></tr>';
                 }

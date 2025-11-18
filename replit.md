@@ -60,7 +60,16 @@ Not specified.
 
 ## Recent Changes
 
-### 2025-11-17 (Latest)
+### 2025-11-18 (Latest)
+**Trainer Progress Monitoring Mobile View Fix**:
+- **Responsive Table System**: Applied responsive table system to "Trainee Performance" table in trainer portal
+- **Mobile Card View**: Tables now transform into mobile-friendly cards on screens ≤768px
+- **Data Labels**: Added data-label, data-primary, and data-secondary attributes for proper mobile display
+- **Trainee Name Display**: User names now display prominently on mobile devices, just like in admin pages
+- **Course Details Table**: Also updated the course details user table with responsive attributes
+- **Dynamic Content**: JavaScript-generated table rows now include responsive attributes for consistency
+
+### 2025-11-17
 **Trainer Role Assignment and Course Management**:
 - **Auto-Create Trainer Records**: When admin changes a user's role to 'trainer', system automatically creates a Trainer table record
 - **Number Series Generation**: New trainers get assigned a unique TR{YEAR}{NNNN} series number
