@@ -10,6 +10,31 @@
     .btn-add-account {
       padding: 0.375rem 0.75rem;
     }
+    
+    /* Fix modal and dropdown positioning on mobile */
+    #createUserModal .modal-dialog {
+      margin: 1rem;
+      max-height: calc(100vh - 2rem);
+      display: flex;
+      align-items: center;
+    }
+    
+    #createUserModal .modal-content {
+      max-height: calc(100vh - 2rem);
+      display: flex;
+      flex-direction: column;
+    }
+    
+    #createUserModal .modal-body {
+      overflow-y: auto;
+      max-height: calc(100vh - 200px);
+    }
+    
+    /* Ensure dropdowns appear correctly on mobile */
+    #createUserModal .form-select {
+      -webkit-appearance: menulist;
+      appearance: menulist;
+    }
   }
 </style>
 {% endblock %}

@@ -63,9 +63,10 @@ Not specified.
 ### 2025-11-18 (Latest)
 **Admin User Creation - User & Authority Role Support**:
 - **Fixed "Invalid role selected" Error**: Backend now properly handles 'user' and 'authority' roles in create account modal
-- **User Creation**: Creates regular user accounts with default 'citizen' category and finalized status
-- **Authority Creation**: Creates authority accounts with 'authority' role and finalized status
-- **Improved Modal UX**: Changed modal from scrollable to centered positioning to fix dropdown appearing too far down on mobile
+- **Fixed "agency_id" Error**: Added agency_id=None to user_data when creating users/authorities from admin panel
+- **User Creation**: Creates regular user accounts with default 'citizen' category, no agency, and finalized status
+- **Authority Creation**: Creates authority accounts with 'authority' role, no agency, and finalized status
+- **Improved Modal UX on Mobile**: Fixed dropdown positioning on mobile with custom CSS for proper scrolling and viewport handling
 - **All Four Roles Supported**: Admin can now create Admin, Trainer, User, and Authority accounts from the modal
 
 **Trainer Course Management - Admin-Style Interface**:

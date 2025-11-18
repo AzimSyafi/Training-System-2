@@ -1325,7 +1325,8 @@ def create_user():
                 'full_name': full_name,
                 'email': email,
                 'password': password,
-                'user_category': 'citizen'
+                'user_category': 'citizen',
+                'agency_id': None
             }
             new_user = Registration.registerUser(user_data)
             new_user.is_finalized = True
@@ -1343,7 +1344,8 @@ def create_user():
                 'full_name': full_name,
                 'email': email,
                 'password': password,
-                'user_category': 'citizen'
+                'user_category': 'citizen',
+                'agency_id': None
             }
             new_user = Registration.registerUser(user_data)
             new_user.role = 'authority'
