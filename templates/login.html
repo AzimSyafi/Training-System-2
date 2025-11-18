@@ -119,6 +119,12 @@
     margin-bottom: 8px;
   }
 
+  /* --- NEW --- */
+  /* This wrapper is needed for positioning the icon */
+  .password-wrapper {
+    position: relative;
+  }
+
   /* CHANGED: Targeting by ID for maximum specificity */
   .login-form-panel #email,
   .login-form-panel #password {
@@ -128,6 +134,13 @@
     background-color: #ffffff !important; /* Forced white background */
     color: #111827 !important; /* Forced dark text inside */
     font-weight: 400;
+    width: 100%; /* Ensure it fills the wrapper */
+  }
+  
+  /* --- MODIFIED --- */
+  /* Added padding-right to password field */
+  .login-form-panel #password {
+      padding-right: 3rem; /* Make space for the icon */
   }
 
   /* CHANGED: Targeting placeholders by ID */
@@ -151,30 +164,47 @@
     border-radius: 0.5rem;
   }
 
+  /* --- MODIFIED --- */
+  /* Styles for the positioned icon button */
   #togglePassword {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-    border: 1.5px solid #d1d5db;
-    border-left: none;
-    background: #ffffff !important;
+    position: absolute;
+    top: 50%;
+    right: 1rem; /* Adjust as needed */
+    transform: translateY(-50%);
+    
+    /* Reset button styles */
+    background: transparent !important;
+    border: none;
+    padding: 0;
+    margin: 0;
+    
+    /* Style the icon */
     color: #6b7280;
-    padding: 0.85rem 1rem;
     cursor: pointer;
     transition: all 0.2s ease;
+    
+    /* Remove any leftover input-group styles */
+    border-radius: 0.5rem; /* Can add a small radius */
+    height: auto;
+    width: auto;
   }
   
   #togglePassword:hover {
-    background: #f3f4f6 !important;
+    background: transparent !important;
     color: #111827;
   }
   
   #togglePassword:active {
-    background: #e5e7eb !important;
-    transform: scale(0.95);
+    background: transparent !important;
+    /* Keep vertical centering on transform */
+    transform: translateY(-50%) scale(0.95);
   }
   
   #togglePassword i {
     font-size: 1rem;
+    /* Ensure icon isn't clipped */
+    display: block;
+    line-height: 1;
   }
 
   .login-form-panel .text-muted {
@@ -272,11 +302,12 @@
           <label for="email" class="form-label">Email Address</label>
           <input type="email" class="form-control" id="email" name="email" required placeholder="you@example.com">
         </div>
+        
         <div class="mb-4">
           <label for="password" class="form-label">Password</label>
-          <div class="input-group">
+          <div class="password-wrapper">
             <input type="password" class="form-control" id="password" name="password" required placeholder="Enter your password">
-            <button class="btn btn-outline-secondary" type="button" id="togglePassword" tabindex="-1">
+            <button class="btn" type="button" id="togglePassword" tabindex="-1">
               <i class="fas fa-eye"></i>
             </button>
           </div>

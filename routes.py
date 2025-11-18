@@ -794,11 +794,45 @@ def change_password():
     return render_template('change_password.html')
 
 # Trainer portal
-@main_bp.route('/trainer_portal')
+@main_bp.route('/trainer_portal', methods=['GET', 'POST'])
 @login_required
 def trainer_portal():
     if not isinstance(current_user, Trainer):
         return redirect(url_for('main.login'))
+    if request.method == 'POST':
+        try:
+            module_id = request.form.get('module_id')
+            quiz_json = request.form.get('quiz_data')
+            if not module_id or not quiz_json:
+                flash('Missing module_id or quiz_json', 'danger')
+                return redirect(url_for('main.trainer_portal', section='content'))
+            module = db.session.get(Module, int(module_id))
+            if not module:
+                flash('Module not found', 'danger')
+                return redirect(url_for('main.trainer_portal', section='content'))
+            
+            # SECURITY: Verify trainer has access to this module's course
+            if not module.course:
+                flash('Module is not associated with a course', 'danger')
+                logging.error(f'[DATA ERROR] Module {module_id} has no course relationship')
+                return redirect(url_for('main.trainer_portal', section='content'))
+            
+            if getattr(current_user, 'course', None):
+                # Trainer assigned to specific course(s)
+                if module.course.code != current_user.course:
+                    flash('You are not authorized to modify this module', 'danger')
+                    logging.warning(f'[SECURITY] Trainer {current_user.trainer_id} attempted to modify module {module_id} outside their assigned course')
+                    return redirect(url_for('main.trainer_portal', section='content'))
+            # If trainer.course is None, they have access to all courses (handled by admin)
+            
+            module.quiz_json = quiz_json
+            db.session.commit()
+            flash('Quiz updated successfully', 'success')
+        except Exception as e:
+            db.session.rollback()
+            logging.exception('[TRAINER PORTAL] Failed to update quiz')
+            flash(f'Error updating quiz: {e}', 'danger')
+        return redirect(url_for('main.trainer_portal', section='content'))
     try:
         courses_query = Course.query
         if getattr(current_user, 'course', None):
@@ -976,11 +1010,18 @@ def trainer_portal():
                     'last_activity': last_activity,
                     'status': 'Completed' if user_progress_pct >= 100 else 'Active'
                 })
+        # Build course_modules structure for content management UI (like admin)
+        course_modules = {}
+        for course in courses:
+            modules = sorted(list(course.modules), key=_module_series_sort_key)
+            course_modules[course.course_id] = modules
     except Exception as e:
         logging.exception('[TRAINER PORTAL] Error building dynamic stats')
+        courses = []
         course_stats = []
         progress_rows = []
         modules_by_course = {}
+        course_modules = {}
         active_trainees = 0
         certificates_issued = 0
         avg_rating_pct = 0
@@ -994,7 +1035,9 @@ def trainer_portal():
         avg_rating_pct=avg_rating_pct,
         course_stats=course_stats,
         progress_rows=progress_rows,
-        modules_by_course=modules_by_course
+        modules_by_course=modules_by_course,
+        courses=courses,
+        course_modules=course_modules
     )
 
 # Admin dashboard
@@ -1738,7 +1781,23 @@ def manage_module_content(module_id):
         module = db.session.get(Module, module_id)
         if not module:
             flash('Module not found.', 'danger')
-            return redirect(url_for('main.admin_course_management'))
+            redirect_route = 'main.trainer_portal' if isinstance(current_user, Trainer) else 'main.admin_course_management'
+            return redirect(url_for(redirect_route))
+
+        # SECURITY: Verify trainer has access to this module's course
+        if isinstance(current_user, Trainer):
+            if not module.course:
+                flash('Module is not associated with a course', 'danger')
+                logging.error(f'[DATA ERROR] Module {module_id} has no course relationship')
+                return redirect(url_for('main.trainer_portal', section='content'))
+            
+            if getattr(current_user, 'course', None):
+                # Trainer assigned to specific course(s)
+                if module.course.code != current_user.course:
+                    flash('You are not authorized to modify this module', 'danger')
+                    logging.warning(f'[SECURITY] Trainer {current_user.trainer_id} attempted to modify module {module_id} outside their assigned course')
+                    return redirect(url_for('main.trainer_portal', section='content'))
+            # If trainer.course is None, they have access to all courses
 
         content_type = request.form.get('content_type')
 
