@@ -61,42 +61,20 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-18 (Latest)
-**Trainer Progress Monitoring Complete Redesign to Match Admin Page**:
-- **Complete UI Overhaul**: Redesigned trainer progress monitoring section to match admin's monitor_progress.html page design
-- **Five Working Filters**: Added fully functional 5-filter layout matching admin page:
-  - Search input (filters by User, Agency, Course name) - col-md-3
-  - Agency dropdown (filters by agency_id) - col-md-2  
-  - Course dropdown (filters by course_id) - col-md-2
-  - Status dropdown (All/In Progress/Completed) - col-md-2
-  - Progress % range (Min-Max number inputs) - col-md-3
-  - Apply & Reset buttons
-- **Backend Filtering Logic**: trainer_portal route now applies all filters to progress_rows data:
-  - Search query (q) filters by user name, email, agency name, and course name
-  - Agency filter applies User.agency_id filter to database query
-  - Course filter skips courses not matching course_id
-  - Status filter separates 'Completed' (100% progress) from 'In Progress'
-  - Progress range filter applies min_progress and max_progress bounds
-  - All filters work together and preserve selected state via request.args
-- **Bootstrap Components**: Replaced custom components with Bootstrap:
-  - Bootstrap card (card shadow-sm) for filter section
-  - Bootstrap table (table table-striped align-middle) for data display
-  - Bootstrap modal (modal fade, modal-dialog modal-lg) for user progress details
-  - Proper responsive table attributes (data-label, data-primary, data-secondary)
-- **Custom CSS Cleanup**: Removed all custom modal CSS that conflicted with Bootstrap (.modal, .modal-content, .modal-close, etc.)
-- **Bootstrap Modal Functionality**: Clicking a user name shows ALL their courses in a Bootstrap modal with:
-  - User info (name, agency)
-  - Table of all courses showing progress bars, scores, and status badges
-  - Proper XSS protection with HTML escaping
-- **Backend Data Provision**: Added agencies and courses queries to trainer_portal route (matching admin approach)
-- **Responsive Design**: Table transforms to mobile-friendly cards on screens ≤768px
-- **Full Parity**: Trainer progress monitoring now has complete functional and visual parity with admin monitor_progress page
-
 **Trainer Content Management Enhancement**:
 - **Admin-Style Upload Interface**: Trainers can now use the same content management system as admins
 - **Unified manage_module_content Route**: Both Admin and Trainer roles can upload slides, videos, and manage quizzes
 - **Improved Back Navigation**: Back button in upload_content page now includes icon and navigates to correct section
 - **Role-Based Redirects**: After uploading content, trainers redirect to trainer_portal, admins to admin_course_management
 - **Enhanced Upload Workflow**: Trainers have full access to slide uploads (PDF/PPTX), YouTube video URLs, and quiz management
+
+**Trainer Progress Monitoring Mobile View Fix**:
+- **Responsive Table System**: Applied responsive table system to "Trainee Performance" table in trainer portal
+- **Mobile Card View**: Tables now transform into mobile-friendly cards on screens ≤768px
+- **Data Labels**: Added data-label, data-primary, and data-secondary attributes for proper mobile display
+- **Trainee Name Display**: User names now display prominently on mobile devices, just like in admin pages
+- **Course Details Table**: Also updated the course details user table with responsive attributes
+- **Dynamic Content**: JavaScript-generated table rows now include responsive attributes for consistency
 
 ### 2025-11-17
 **Trainer Role Assignment and Course Management**:
