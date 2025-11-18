@@ -1321,12 +1321,23 @@ def create_user():
                 flash(f'User with email {email} already exists', 'warning')
                 return redirect(url_for('main.admin_users'))
             
+            agency_id = request.form.get('agency_id', '').strip()
+            if not agency_id:
+                flash('Agency is required when creating a User account', 'danger')
+                return redirect(url_for('main.admin_users'))
+            
+            try:
+                agency_id_int = int(agency_id)
+            except (ValueError, TypeError):
+                flash('Invalid agency selected', 'danger')
+                return redirect(url_for('main.admin_users'))
+            
             user_data = {
                 'full_name': full_name,
                 'email': email,
                 'password': password,
                 'user_category': 'citizen',
-                'agency_id': None
+                'agency_id': agency_id_int
             }
             new_user = Registration.registerUser(user_data)
             new_user.is_finalized = True

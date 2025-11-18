@@ -229,13 +229,27 @@
             <div class="col-md-6">
               <div class="mb-3">
                 <label for="role" class="form-label">Role</label>
-                <select class="form-select" id="role" name="role" required>
+                <select class="form-select" id="role" name="role" required onchange="toggleAgencyField()">
                   <option value="">Select Role</option>
                   <option value="user">User</option>
                   <option value="admin">Admin</option>
                   <option value="trainer">Trainer</option>
                   <option value="authority">Authority</option>
                 </select>
+              </div>
+            </div>
+          </div>
+          <div class="row" id="agencyFieldRow" style="display: none;">
+            <div class="col-md-12">
+              <div class="mb-3">
+                <label for="agency_id" class="form-label">Agency <span class="text-danger">*</span></label>
+                <select class="form-select" id="agency_id" name="agency_id">
+                  <option value="">Select Agency</option>
+                  {% for ag in agencies %}
+                    <option value="{{ ag.agency_id }}">{{ ag.agency_name }}</option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">Required when creating a User account.</div>
               </div>
             </div>
           </div>
@@ -699,5 +713,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     {% endif %}
 });
+
+// Toggle agency field visibility based on role selection
+function toggleAgencyField() {
+    const roleSelect = document.getElementById('role');
+    const agencyFieldRow = document.getElementById('agencyFieldRow');
+    const agencySelect = document.getElementById('agency_id');
+    
+    if (roleSelect.value === 'user') {
+        agencyFieldRow.style.display = '';
+        agencySelect.required = true;
+    } else {
+        agencyFieldRow.style.display = 'none';
+        agencySelect.required = false;
+        agencySelect.value = '';
+    }
+}
 </script>
 {% endblock %}
