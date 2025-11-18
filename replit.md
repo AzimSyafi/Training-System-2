@@ -72,7 +72,7 @@ Not specified.
 - **No Create/Delete**: Removed all course and module creation/deletion buttons for trainers
 - **Course Filtering**: Trainers only see courses they're assigned to via `current_user.course` field
 - **Security Enforcement**: Server-side authorization prevents trainers from accessing modules outside their assigned courses
-- **Navigation Integration**: Added "Course Management" link in sidebar navigation for trainers
+- **Navigation Cleanup**: Added "Course Management" link and removed redundant "My Courses" navigation item
 - **Proper Redirects**: All content upload endpoints redirect trainers to `trainer_course_management` after saving
 - **Defensive Checks**: Validates module-course relationships and logs security warnings for unauthorized access attempts
 
