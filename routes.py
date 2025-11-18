@@ -873,101 +873,14 @@ def trainer_portal():
                 avg_user_score = round(float(avg_user_score_val or 0.0), 1)
                 last_activity = user_completed_q.with_entities(db.func.max(UserModule.completion_date)).scalar()
                 progress_rows.append({
+                    'user_id': user.User_id,
                     'user_name': user.full_name,
                     'user_number_series': user.number_series,
                     'user_category': user.user_category,
-                    'course_name': course.name,
-                    'course_code': course.code,
-                    'agency_name': user.agency.agency_name if user.agency else '',
-                    'progress_pct': round(user_progress_pct, 1),
-                    'completed_modules': completed_for_user,
-                    'total_modules': total_for_course,
-                    'score': avg_user_score,
-                    'last_activity': last_activity,
-                    'status': 'Completed' if user_progress_pct >= 100 else 'Active'
-                })
-        active_trainees = User.query.count()
-        certificates_issued = Certificate.query.count()
-        avg_rating_pct = 0.0
-        my_courses = len(course_stats)
-        progress_rows = []
-        for course_stat in course_stats:
-            code = course_stat['code']
-            course_obj = next((c for c in courses if c.code == code), None)
-            if not course_obj:
-                continue
-            course_module_ids = [m.module_id for m in course_obj.modules]
-            if not course_module_ids:
-                continue
-            trainees_q = User.query
-            if course_obj.allowed_category == 'citizen':
-                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'citizen')
-            elif course_obj.allowed_category == 'foreigner':
-                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'foreigner')
-            trainees = trainees_q.all()
-            for user in trainees:
-                user_completed_q = UserModule.query.filter(
-                    UserModule.user_id == user.User_id,
-                    UserModule.module_id.in_(course_module_ids),
-                    UserModule.is_completed.is_(True)
-                )
-                completed_for_user = user_completed_q.count()
-                total_for_course = len(course_module_ids)
-                user_progress_pct = (completed_for_user / total_for_course * 100.0) if total_for_course else 0.0
-                avg_user_score_val = user_completed_q.with_entities(db.func.avg(UserModule.score)).scalar()
-                avg_user_score = round(float(avg_user_score_val or 0.0), 1)
-                last_activity = user_completed_q.with_entities(db.func.max(UserModule.completion_date)).scalar()
-                progress_rows.append({
-                    'user_name': user.full_name,
-                    'user_number_series': user.number_series,
-                    'user_category': user.user_category,
-                    'course_name': course.name,
-                    'course_code': course.code,
-                    'agency_name': user.agency.agency_name if user.agency else '',
-                    'progress_pct': round(user_progress_pct, 1),
-                    'completed_modules': completed_for_user,
-                    'total_modules': total_for_course,
-                    'score': avg_user_score,
-                    'last_activity': last_activity,
-                    'status': 'Completed' if user_progress_pct >= 100 else 'Active'
-                })
-        active_trainees = User.query.count()
-        certificates_issued = Certificate.query.count()
-        avg_rating_pct = 0.0
-        my_courses = len(course_stats)
-        progress_rows = []
-        for course_stat in course_stats:
-            code = course_stat['code']
-            course_obj = next((c for c in courses if c.code == code), None)
-            if not course_obj:
-                continue
-            course_module_ids = [m.module_id for m in course_obj.modules]
-            if not course_module_ids:
-                continue
-            trainees_q = User.query
-            if course_obj.allowed_category == 'citizen':
-                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'citizen')
-            elif course_obj.allowed_category == 'foreigner':
-                trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'foreigner')
-            trainees = trainees_q.all()
-            for user in trainees:
-                user_completed_q = UserModule.query.filter(
-                    UserModule.user_id == user.User_id,
-                    UserModule.module_id.in_(course_module_ids),
-                    UserModule.is_completed.is_(True)
-                )
-                completed_for_user = user_completed_q.count()
-                total_for_course = len(course_module_ids)
-                user_progress_pct = (completed_for_user / total_for_course * 100.0) if total_for_course else 0.0
-                avg_user_score_val = user_completed_q.with_entities(db.func.avg(UserModule.score)).scalar()
-                avg_user_score = round(float(avg_user_score_val or 0.0), 1)
-                last_activity = user_completed_q.with_entities(db.func.max(UserModule.completion_date)).scalar()
-                progress_rows.append({
-                    'user_name': user.full_name,
-                    'user_number_series': user.number_series,
-                    'user_category': user.user_category,
-                    'course_name': course.name,
-                    'course_code': course.code,
+                    'user_email': user.email,
+                    'user_phone': user.emergency_contact_phone or '',
+                    'course_name': course_obj.name,
+                    'course_code': course_obj.code,
                     'agency_name': user.agency.agency_name if user.agency else '',
                     'progress_pct': round(user_progress_pct, 1),
                     'completed_modules': completed_for_user,

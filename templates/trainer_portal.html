@@ -123,6 +123,63 @@
         .tab-content.active { display:block; }
         /* Modal dialog class for module upload */
         .module-upload-dialog { background:var(--card-bg); color:var(--text-color); border:1px solid var(--border-color); border-radius:12px; max-width:420px; width:95%; margin:auto; padding:32px 24px; position:relative; box-shadow:0 8px 32px rgba(0,0,0,0.18); }
+        
+        /* Trainee Modal Styles */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); }
+        .modal.show { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: var(--card-bg); margin: auto; padding: 30px; border-radius: 12px; max-width: 800px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; }
+        .modal-close { color: var(--text-secondary); float: right; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1; }
+        .modal-close:hover, .modal-close:focus { color: var(--text-primary); }
+        .modal-title { font-size: 24px; font-weight: 600; margin-bottom: 20px; color: var(--text-primary); }
+        .modal-body { margin-top: 20px; }
+        .trainee-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        .info-section h3 { font-size: 18px; font-weight: 600; margin-bottom: 15px; color: var(--primary); border-bottom: 2px solid var(--border-color); padding-bottom: 8px; }
+        .info-item { margin-bottom: 15px; }
+        .info-label { font-weight: 500; color: var(--text-secondary); display: block; margin-bottom: 5px; font-size: 14px; }
+        .info-value { color: var(--text-primary); font-size: 15px; }
+        
+        /* Clickable row styles */
+        .clickable-row { cursor: pointer; transition: background-color 0.2s ease; }
+        .clickable-row:hover { background-color: rgba(59, 130, 246, 0.1) !important; }
+        
+        /* Mobile responsive styles for trainee table */
+        @media screen and (max-width: 768px) {
+            .trainee-info-grid { grid-template-columns: 1fr; gap: 20px; }
+            .modal-content { width: 95%; padding: 20px; }
+            
+            .trainee-table thead { display: none; }
+            .trainee-table tbody { display: block; }
+            .trainee-table tr { 
+                display: block; 
+                margin-bottom: 15px; 
+                background: var(--card-bg); 
+                border-radius: 10px; 
+                padding: 15px; 
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                border: 1px solid var(--border-color);
+            }
+            .trainee-table td { 
+                display: flex; 
+                justify-content: space-between; 
+                padding: 10px 0; 
+                border: none; 
+                border-bottom: 1px solid var(--border-color);
+            }
+            .trainee-table td:last-child { border-bottom: none; }
+            .trainee-table td:before { 
+                content: attr(data-label); 
+                font-weight: 600; 
+                color: var(--text-secondary);
+                flex-basis: 40%;
+            }
+            .trainee-table td .progress-bar { 
+                width: 60%; 
+                margin-left: auto; 
+            }
+            .trainee-table td .progress-info { 
+                text-align: right; 
+            }
+        }
     </style>
 {% endblock %}
 
@@ -201,7 +258,8 @@
                 <h2 class="section-title">Trainee Performance</h2>
                 <div class="search-bar"><i class="fas fa-search"></i><input id="progress-search" type="text" placeholder="Search trainees or courses..."></div>
             </div>
-            <table class="recent-table" id="progress-table">
+            
+            <table class="recent-table trainee-table" id="progress-table">
                 <thead>
                     <tr>
                         <th>Trainee</th><th>Course</th><th>Progress</th><th>Last Activity</th><th>Score</th><th>Status</th>
@@ -209,22 +267,101 @@
                 </thead>
                 <tbody>
                 {% for row in progress_rows %}
-                    <tr>
-                        <td>{{ row.user_name }}</td>
-                        <td>{{ row.course_code }}</td>
-                        <td>
+                    <tr class="trainee-row clickable-row" 
+                        data-user-name="{{ row.user_name }}"
+                        data-user-email="{{ row.user_email }}"
+                        data-user-phone="{{ row.user_phone }}"
+                        data-user-series="{{ row.user_number_series }}"
+                        data-course-name="{{ row.course_name }}"
+                        data-course-code="{{ row.course_code }}"
+                        data-agency="{{ row.agency_name }}"
+                        data-progress="{{ row.progress_pct }}"
+                        data-completed="{{ row.completed_modules }}"
+                        data-total="{{ row.total_modules }}"
+                        data-score="{{ row.score }}"
+                        data-last-activity="{% if row.last_activity %}{{ row.last_activity.strftime('%Y-%m-%d %H:%M') }}{% else %}-{% endif %}"
+                        data-status="{{ row.status }}">
+                        <td data-label="Trainee">{{ row.user_name }}</td>
+                        <td data-label="Course">{{ row.course_code }}</td>
+                        <td data-label="Progress">
                             <div class="progress-bar"><div class="progress-fill high" style="width: {{ row.progress_pct }}%"></div></div>
                             <div class="progress-info">{{ row.progress_pct }}%</div>
                         </td>
-                        <td>{% if row.last_activity %}{{ row.last_activity.strftime('%Y-%m-%d %H:%M') }}{% else %}-{% endif %}</td>
-                        <td>{{ row.score }}%</td>
-                        <td><span class="status-badge {{ 'completed' if row.status == 'Completed' else 'pending' }}">{{ row.status }}</span></td>
+                        <td data-label="Last Activity">{% if row.last_activity %}{{ row.last_activity.strftime('%Y-%m-%d %H:%M') }}{% else %}-{% endif %}</td>
+                        <td data-label="Score">{{ row.score }}%</td>
+                        <td data-label="Status"><span class="status-badge {{ 'completed' if row.status == 'Completed' else 'pending' }}">{{ row.status }}</span></td>
                     </tr>
                 {% else %}
                     <tr><td colspan="6" class="text-center">No trainee progress yet.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <div id="trainee-modal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <h2 class="modal-title">Trainee Details</h2>
+            <div class="modal-body">
+                <div class="trainee-info-grid">
+                    <div class="info-section">
+                        <h3>Personal Information</h3>
+                        <div class="info-item">
+                            <span class="info-label">Name:</span>
+                            <span class="info-value" id="modal-name"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">ID Number:</span>
+                            <span class="info-value" id="modal-series"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Email:</span>
+                            <span class="info-value" id="modal-email"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Phone:</span>
+                            <span class="info-value" id="modal-phone"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Agency:</span>
+                            <span class="info-value" id="modal-agency"></span>
+                        </div>
+                    </div>
+                    <div class="info-section">
+                        <h3>Course Progress</h3>
+                        <div class="info-item">
+                            <span class="info-label">Course:</span>
+                            <span class="info-value" id="modal-course"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Progress:</span>
+                            <div>
+                                <div class="progress-bar" style="margin: 8px 0;">
+                                    <div class="progress-fill high" id="modal-progress-bar"></div>
+                                </div>
+                                <span class="info-value" id="modal-progress"></span>
+                            </div>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Modules Completed:</span>
+                            <span class="info-value" id="modal-modules"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Average Score:</span>
+                            <span class="info-value" id="modal-score"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Last Activity:</span>
+                            <span class="info-value" id="modal-activity"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Status:</span>
+                            <span class="info-value"><span id="modal-status" class="status-badge"></span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -438,6 +575,66 @@
             const a = document.createElement('a');
             a.href = url; a.download = 'trainer_progress_report.csv';
             document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        });
+
+        // Trainee modal functionality
+        const modal = document.getElementById('trainee-modal');
+        const modalClose = document.querySelector('.modal-close');
+        
+        // Close modal when clicking X
+        if (modalClose) {
+            modalClose.addEventListener('click', () => {
+                modal.classList.remove('show');
+            });
+        }
+        
+        // Close modal when clicking outside
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('show');
+            }
+        });
+        
+        // Add click handlers to all trainee rows
+        document.querySelectorAll('.trainee-row.clickable-row').forEach(row => {
+            row.addEventListener('click', () => {
+                // Get data from row attributes
+                const data = {
+                    name: row.dataset.userName || '',
+                    email: row.dataset.userEmail || '',
+                    phone: row.dataset.userPhone || '',
+                    series: row.dataset.userSeries || '',
+                    courseName: row.dataset.courseName || '',
+                    courseCode: row.dataset.courseCode || '',
+                    agency: row.dataset.agency || '',
+                    progress: row.dataset.progress || '0',
+                    completed: row.dataset.completed || '0',
+                    total: row.dataset.total || '0',
+                    score: row.dataset.score || '0',
+                    lastActivity: row.dataset.lastActivity || '-',
+                    status: row.dataset.status || 'Active'
+                };
+                
+                // Populate modal with data
+                document.getElementById('modal-name').textContent = data.name;
+                document.getElementById('modal-series').textContent = data.series;
+                document.getElementById('modal-email').textContent = data.email || 'Not provided';
+                document.getElementById('modal-phone').textContent = data.phone || 'Not provided';
+                document.getElementById('modal-agency').textContent = data.agency || 'Not assigned';
+                document.getElementById('modal-course').textContent = `${data.courseName} (${data.courseCode})`;
+                document.getElementById('modal-progress').textContent = `${data.progress}%`;
+                document.getElementById('modal-progress-bar').style.width = `${data.progress}%`;
+                document.getElementById('modal-modules').textContent = `${data.completed} / ${data.total}`;
+                document.getElementById('modal-score').textContent = `${data.score}%`;
+                document.getElementById('modal-activity').textContent = data.lastActivity;
+                
+                const statusBadge = document.getElementById('modal-status');
+                statusBadge.textContent = data.status;
+                statusBadge.className = 'status-badge ' + (data.status === 'Completed' ? 'completed' : 'pending');
+                
+                // Show modal
+                modal.classList.add('show');
+            });
         });
     });
 </script>
