@@ -61,17 +61,35 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-18 (Latest)
-**Trainer Progress Monitoring Table Fix and Enhancement**:
-- **Fixed Empty Table Data**: Removed duplicate code in routes.py that was resetting progress_rows to empty array, causing no data to display
-- **Backend Improvements**: Added additional user data (user_id, email, phone) to progress_rows for modal display
-- **Mobile-Responsive Cards**: Table now transforms into clickable card layout on mobile devices (≤768px screens)
-- **Clickable Rows/Cards**: All trainee rows and cards are now clickable to view detailed information
-- **Modal Dialog**: Added comprehensive modal showing trainee details including:
-  - Personal Information: Name, ID Number, Email, Phone, Agency
-  - Course Progress: Course name, progress bar, modules completed, average score, last activity, status
-- **Enhanced UX**: Hover effects on rows, smooth modal transitions, mobile-optimized layout
-- **Desktop Display**: Table maintains standard table format on desktop (≥769px) with all columns visible
-- **Mobile Display**: Cards show data labels and values in a clean, touch-friendly format
+**Trainer Progress Monitoring Complete Redesign to Match Admin Page**:
+- **Complete UI Overhaul**: Redesigned trainer progress monitoring section to match admin's monitor_progress.html page design
+- **Five Working Filters**: Added fully functional 5-filter layout matching admin page:
+  - Search input (filters by User, Agency, Course name) - col-md-3
+  - Agency dropdown (filters by agency_id) - col-md-2  
+  - Course dropdown (filters by course_id) - col-md-2
+  - Status dropdown (All/In Progress/Completed) - col-md-2
+  - Progress % range (Min-Max number inputs) - col-md-3
+  - Apply & Reset buttons
+- **Backend Filtering Logic**: trainer_portal route now applies all filters to progress_rows data:
+  - Search query (q) filters by user name, email, agency name, and course name
+  - Agency filter applies User.agency_id filter to database query
+  - Course filter skips courses not matching course_id
+  - Status filter separates 'Completed' (100% progress) from 'In Progress'
+  - Progress range filter applies min_progress and max_progress bounds
+  - All filters work together and preserve selected state via request.args
+- **Bootstrap Components**: Replaced custom components with Bootstrap:
+  - Bootstrap card (card shadow-sm) for filter section
+  - Bootstrap table (table table-striped align-middle) for data display
+  - Bootstrap modal (modal fade, modal-dialog modal-lg) for user progress details
+  - Proper responsive table attributes (data-label, data-primary, data-secondary)
+- **Custom CSS Cleanup**: Removed all custom modal CSS that conflicted with Bootstrap (.modal, .modal-content, .modal-close, etc.)
+- **Bootstrap Modal Functionality**: Clicking a user name shows ALL their courses in a Bootstrap modal with:
+  - User info (name, agency)
+  - Table of all courses showing progress bars, scores, and status badges
+  - Proper XSS protection with HTML escaping
+- **Backend Data Provision**: Added agencies and courses queries to trainer_portal route (matching admin approach)
+- **Responsive Design**: Table transforms to mobile-friendly cards on screens ≤768px
+- **Full Parity**: Trainer progress monitoring now has complete functional and visual parity with admin monitor_progress page
 
 **Trainer Content Management Enhancement**:
 - **Admin-Style Upload Interface**: Trainers can now use the same content management system as admins

@@ -800,6 +800,20 @@ def trainer_portal():
     if not isinstance(current_user, Trainer):
         return redirect(url_for('main.login'))
     try:
+        # Get filter parameters (like admin monitor_progress)
+        q = request.args.get('q', '').strip().lower()
+        agency_id = request.args.get('agency_id')
+        course_id = request.args.get('course_id')
+        status_filter = request.args.get('status', '').lower()
+        try:
+            min_progress = float(request.args.get('min_progress', 0))
+        except (ValueError, TypeError):
+            min_progress = 0
+        try:
+            max_progress = float(request.args.get('max_progress', 100))
+        except (ValueError, TypeError):
+            max_progress = 100
+        
         courses_query = Course.query
         if getattr(current_user, 'course', None):
             courses_query = courses_query.filter(Course.code == current_user.course)
@@ -845,22 +859,46 @@ def trainer_portal():
         certificates_issued = Certificate.query.count()
         avg_rating_pct = 0.0
         my_courses = len(course_stats)
+        
+        # Build progress_rows with filtering (like admin monitor_progress)
         progress_rows = []
         for course_stat in course_stats:
             code = course_stat['code']
             course_obj = next((c for c in courses if c.code == code), None)
             if not course_obj:
                 continue
+            
+            # Apply course_id filter
+            if course_id and str(course_obj.course_id) != course_id:
+                continue
+                
             course_module_ids = [m.module_id for m in course_obj.modules]
             if not course_module_ids:
                 continue
-            trainees_q = User.query
+            
+            trainees_q = User.query.options(db.joinedload(User.agency))
+            
+            # Apply agency_id filter
+            if agency_id:
+                try:
+                    trainees_q = trainees_q.filter(User.agency_id == int(agency_id))
+                except ValueError:
+                    pass
+            
             if course_obj.allowed_category == 'citizen':
                 trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'citizen')
             elif course_obj.allowed_category == 'foreigner':
                 trainees_q = trainees_q.filter(db.func.lower(db.func.trim(User.user_category)) == 'foreigner')
             trainees = trainees_q.all()
+            
             for user in trainees:
+                # Apply search filter (q)
+                if q and (q not in (user.full_name or '').lower() and 
+                         q not in (user.email or '').lower() and 
+                         q not in (user.agency.agency_name if user.agency else '').lower() and
+                         q not in (course_obj.name or '').lower()):
+                    continue
+                
                 user_completed_q = UserModule.query.filter(
                     UserModule.user_id == user.User_id,
                     UserModule.module_id.in_(course_module_ids),
@@ -869,9 +907,24 @@ def trainer_portal():
                 completed_for_user = user_completed_q.count()
                 total_for_course = len(course_module_ids)
                 user_progress_pct = (completed_for_user / total_for_course * 100.0) if total_for_course else 0.0
+                
+                # Apply progress range filter
+                if user_progress_pct < min_progress or user_progress_pct > max_progress:
+                    continue
+                
                 avg_user_score_val = user_completed_q.with_entities(db.func.avg(UserModule.score)).scalar()
                 avg_user_score = round(float(avg_user_score_val or 0.0), 1)
                 last_activity = user_completed_q.with_entities(db.func.max(UserModule.completion_date)).scalar()
+                
+                status = 'Completed' if user_progress_pct >= 100 else 'In Progress'
+                
+                # Apply status filter
+                if status_filter and status_filter != 'all':
+                    if status_filter == 'completed' and status != 'Completed':
+                        continue
+                    if status_filter == 'in progress' and status != 'In Progress':
+                        continue
+                
                 progress_rows.append({
                     'user_id': user.User_id,
                     'user_name': user.full_name,
@@ -887,7 +940,7 @@ def trainer_portal():
                     'total_modules': total_for_course,
                     'score': avg_user_score,
                     'last_activity': last_activity,
-                    'status': 'Completed' if user_progress_pct >= 100 else 'Active'
+                    'status': status
                 })
     except Exception as e:
         logging.exception('[TRAINER PORTAL] Error building dynamic stats')
@@ -898,6 +951,10 @@ def trainer_portal():
         certificates_issued = 0
         avg_rating_pct = 0
         my_courses = 0
+    # Get agencies and courses for filters (like admin monitor_progress)
+    agencies = Agency.query.order_by(Agency.agency_name).all()
+    all_courses = Course.query.order_by(Course.name).all()
+    
     return render_template(
         'trainer_portal.html',
         trainer=current_user,
@@ -907,7 +964,9 @@ def trainer_portal():
         avg_rating_pct=avg_rating_pct,
         course_stats=course_stats,
         progress_rows=progress_rows,
-        modules_by_course=modules_by_course
+        modules_by_course=modules_by_course,
+        agencies=agencies,
+        courses=all_courses
     )
 
 # Admin dashboard
