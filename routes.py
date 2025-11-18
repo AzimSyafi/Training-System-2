@@ -1314,6 +1314,44 @@ def create_user():
             db.session.commit()
             flash(f'Trainer "{full_name}" created successfully', 'success')
             logging.info(f'[CREATE USER] Trainer created: {email}')
+            
+        elif role == 'user':
+            existing = User.query.filter_by(email=email).first()
+            if existing:
+                flash(f'User with email {email} already exists', 'warning')
+                return redirect(url_for('main.admin_users'))
+            
+            user_data = {
+                'full_name': full_name,
+                'email': email,
+                'password': password,
+                'user_category': 'citizen'
+            }
+            new_user = Registration.registerUser(user_data)
+            new_user.is_finalized = True
+            db.session.commit()
+            flash(f'User "{full_name}" created successfully', 'success')
+            logging.info(f'[CREATE USER] User created: {email}')
+            
+        elif role == 'authority':
+            existing = User.query.filter_by(email=email).first()
+            if existing:
+                flash(f'Authority with email {email} already exists', 'warning')
+                return redirect(url_for('main.admin_users'))
+            
+            user_data = {
+                'full_name': full_name,
+                'email': email,
+                'password': password,
+                'user_category': 'citizen'
+            }
+            new_user = Registration.registerUser(user_data)
+            new_user.role = 'authority'
+            new_user.is_finalized = True
+            db.session.commit()
+            flash(f'Authority "{full_name}" created successfully', 'success')
+            logging.info(f'[CREATE USER] Authority created: {email}')
+            
         else:
             flash('Invalid role selected', 'danger')
             

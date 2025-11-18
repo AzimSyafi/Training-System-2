@@ -61,6 +61,13 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-18 (Latest)
+**Admin User Creation - User & Authority Role Support**:
+- **Fixed "Invalid role selected" Error**: Backend now properly handles 'user' and 'authority' roles in create account modal
+- **User Creation**: Creates regular user accounts with default 'citizen' category and finalized status
+- **Authority Creation**: Creates authority accounts with 'authority' role and finalized status
+- **Improved Modal UX**: Changed modal from scrollable to centered positioning to fix dropdown appearing too far down on mobile
+- **All Four Roles Supported**: Admin can now create Admin, Trainer, User, and Authority accounts from the modal
+
 **Trainer Course Management - Admin-Style Interface**:
 - **New Dedicated Page**: Created `/trainer_course_management` route with full admin-style course management UI
 - **Course Cards Grid**: Beautiful card layout matching admin interface, showing assigned courses with module counts
