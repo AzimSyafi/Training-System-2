@@ -142,43 +142,16 @@
         .clickable-row { cursor: pointer; transition: background-color 0.2s ease; }
         .clickable-row:hover { background-color: rgba(59, 130, 246, 0.1) !important; }
         
-        /* Mobile responsive styles for trainee table */
+        /* Mobile card styles (for responsiveTable.js) */
+        .mobile-card { cursor: pointer; transition: all 0.2s ease; }
+        .mobile-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; }
+        .mobile-card-primary { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary); }
+        .mobile-card-secondary { font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; }
+        
+        /* Mobile responsive modal */
         @media screen and (max-width: 768px) {
             .trainee-info-grid { grid-template-columns: 1fr; gap: 20px; }
             .modal-content { width: 95%; padding: 20px; }
-            
-            .trainee-table thead { display: none; }
-            .trainee-table tbody { display: block; }
-            .trainee-table tr { 
-                display: block; 
-                margin-bottom: 15px; 
-                background: var(--card-bg); 
-                border-radius: 10px; 
-                padding: 15px; 
-                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-                border: 1px solid var(--border-color);
-            }
-            .trainee-table td { 
-                display: flex; 
-                justify-content: space-between; 
-                padding: 10px 0; 
-                border: none; 
-                border-bottom: 1px solid var(--border-color);
-            }
-            .trainee-table td:last-child { border-bottom: none; }
-            .trainee-table td:before { 
-                content: attr(data-label); 
-                font-weight: 600; 
-                color: var(--text-secondary);
-                flex-basis: 40%;
-            }
-            .trainee-table td .progress-bar { 
-                width: 60%; 
-                margin-left: auto; 
-            }
-            .trainee-table td .progress-info { 
-                text-align: right; 
-            }
         }
     </style>
 {% endblock %}
@@ -262,7 +235,12 @@
             <table class="recent-table trainee-table" id="progress-table">
                 <thead>
                     <tr>
-                        <th>Trainee</th><th>Course</th><th>Progress</th><th>Last Activity</th><th>Score</th><th>Status</th>
+                        <th data-primary="true">Trainee</th>
+                        <th data-secondary="true">Course</th>
+                        <th>Progress</th>
+                        <th>Last Activity</th>
+                        <th>Score</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -595,47 +573,78 @@
             }
         });
         
-        // Add click handlers to all trainee rows
+        // Function to show trainee details in modal
+        function showTraineeModal(element) {
+            // Get data from element attributes (works for both rows and cards)
+            const data = {
+                name: element.dataset.userName || '',
+                email: element.dataset.userEmail || '',
+                phone: element.dataset.userPhone || '',
+                series: element.dataset.userSeries || '',
+                courseName: element.dataset.courseName || '',
+                courseCode: element.dataset.courseCode || '',
+                agency: element.dataset.agency || '',
+                progress: element.dataset.progress || '0',
+                completed: element.dataset.completed || '0',
+                total: element.dataset.total || '0',
+                score: element.dataset.score || '0',
+                lastActivity: element.dataset.lastActivity || '-',
+                status: element.dataset.status || 'Active'
+            };
+            
+            // Populate modal with data
+            document.getElementById('modal-name').textContent = data.name;
+            document.getElementById('modal-series').textContent = data.series;
+            document.getElementById('modal-email').textContent = data.email || 'Not provided';
+            document.getElementById('modal-phone').textContent = data.phone || 'Not provided';
+            document.getElementById('modal-agency').textContent = data.agency || 'Not assigned';
+            document.getElementById('modal-course').textContent = `${data.courseName} (${data.courseCode})`;
+            document.getElementById('modal-progress').textContent = `${data.progress}%`;
+            document.getElementById('modal-progress-bar').style.width = `${data.progress}%`;
+            document.getElementById('modal-modules').textContent = `${data.completed} / ${data.total}`;
+            document.getElementById('modal-score').textContent = `${data.score}%`;
+            document.getElementById('modal-activity').textContent = data.lastActivity;
+            
+            const statusBadge = document.getElementById('modal-status');
+            statusBadge.textContent = data.status;
+            statusBadge.className = 'status-badge ' + (data.status === 'Completed' ? 'completed' : 'pending');
+            
+            // Show modal
+            modal.classList.add('show');
+        }
+        
+        // Add click handlers to all trainee rows (desktop)
         document.querySelectorAll('.trainee-row.clickable-row').forEach(row => {
-            row.addEventListener('click', () => {
-                // Get data from row attributes
-                const data = {
-                    name: row.dataset.userName || '',
-                    email: row.dataset.userEmail || '',
-                    phone: row.dataset.userPhone || '',
-                    series: row.dataset.userSeries || '',
-                    courseName: row.dataset.courseName || '',
-                    courseCode: row.dataset.courseCode || '',
-                    agency: row.dataset.agency || '',
-                    progress: row.dataset.progress || '0',
-                    completed: row.dataset.completed || '0',
-                    total: row.dataset.total || '0',
-                    score: row.dataset.score || '0',
-                    lastActivity: row.dataset.lastActivity || '-',
-                    status: row.dataset.status || 'Active'
-                };
-                
-                // Populate modal with data
-                document.getElementById('modal-name').textContent = data.name;
-                document.getElementById('modal-series').textContent = data.series;
-                document.getElementById('modal-email').textContent = data.email || 'Not provided';
-                document.getElementById('modal-phone').textContent = data.phone || 'Not provided';
-                document.getElementById('modal-agency').textContent = data.agency || 'Not assigned';
-                document.getElementById('modal-course').textContent = `${data.courseName} (${data.courseCode})`;
-                document.getElementById('modal-progress').textContent = `${data.progress}%`;
-                document.getElementById('modal-progress-bar').style.width = `${data.progress}%`;
-                document.getElementById('modal-modules').textContent = `${data.completed} / ${data.total}`;
-                document.getElementById('modal-score').textContent = `${data.score}%`;
-                document.getElementById('modal-activity').textContent = data.lastActivity;
-                
-                const statusBadge = document.getElementById('modal-status');
-                statusBadge.textContent = data.status;
-                statusBadge.className = 'status-badge ' + (data.status === 'Completed' ? 'completed' : 'pending');
-                
-                // Show modal
-                modal.classList.add('show');
+            row.addEventListener('click', () => showTraineeModal(row));
+        });
+        
+        // Add click handlers to mobile cards (when they're created by responsiveTable.js)
+        // Use MutationObserver to detect when mobile cards are added
+        const observeCards = new MutationObserver(() => {
+            document.querySelectorAll('.mobile-card').forEach(card => {
+                // Check if click handler already added
+                if (!card.hasAttribute('data-click-added')) {
+                    card.setAttribute('data-click-added', 'true');
+                    card.addEventListener('click', () => {
+                        // Find corresponding table row to get data
+                        const cardIndex = Array.from(card.parentElement.children).indexOf(card);
+                        const tableRow = document.querySelectorAll('#progress-table tbody tr')[cardIndex];
+                        if (tableRow) {
+                            showTraineeModal(tableRow);
+                        }
+                    });
+                }
             });
         });
+        
+        // Start observing for mobile cards
+        const mobileContainer = document.querySelector('.mobile-cards-container');
+        if (mobileContainer) {
+            observeCards.observe(mobileContainer, { childList: true, subtree: true });
+        } else {
+            // If container doesn't exist yet, observe document body
+            observeCards.observe(document.body, { childList: true, subtree: true });
+        }
     });
 </script>
 {% endblock %}
