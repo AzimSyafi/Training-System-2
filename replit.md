@@ -61,18 +61,24 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-18 (Latest)
+**Trainer Progress Monitoring Table Fix and Enhancement**:
+- **Fixed Empty Table Data**: Removed duplicate code in routes.py that was resetting progress_rows to empty array, causing no data to display
+- **Backend Improvements**: Added additional user data (user_id, email, phone) to progress_rows for modal display
+- **Mobile-Responsive Cards**: Table now transforms into clickable card layout on mobile devices (≤768px screens)
+- **Clickable Rows/Cards**: All trainee rows and cards are now clickable to view detailed information
+- **Modal Dialog**: Added comprehensive modal showing trainee details including:
+  - Personal Information: Name, ID Number, Email, Phone, Agency
+  - Course Progress: Course name, progress bar, modules completed, average score, last activity, status
+- **Enhanced UX**: Hover effects on rows, smooth modal transitions, mobile-optimized layout
+- **Desktop Display**: Table maintains standard table format on desktop (≥769px) with all columns visible
+- **Mobile Display**: Cards show data labels and values in a clean, touch-friendly format
+
 **Trainer Content Management Enhancement**:
 - **Admin-Style Upload Interface**: Trainers can now use the same content management system as admins
 - **Unified manage_module_content Route**: Both Admin and Trainer roles can upload slides, videos, and manage quizzes
 - **Improved Back Navigation**: Back button in upload_content page now includes icon and navigates to correct section
 - **Role-Based Redirects**: After uploading content, trainers redirect to trainer_portal, admins to admin_course_management
 - **Enhanced Upload Workflow**: Trainers have full access to slide uploads (PDF/PPTX), YouTube video URLs, and quiz management
-
-**Trainer Progress Monitoring Table Display**:
-- **Desktop Table View**: Progress monitoring tables now display as standard tables on desktop for better data visibility
-- **Removed Auto-Transform**: Disabled automatic card transformation on trainer portal tables
-- **Consistent Display**: Trainee Performance table shows all columns (Trainee, Course, Progress, Last Activity, Score, Status) in table format
-- **Mobile Support**: Tables remain accessible on mobile devices with standard table scrolling
 
 ### 2025-11-17
 **Trainer Role Assignment and Course Management**:
