@@ -15,9 +15,15 @@ class ModalUtils {
         const style = document.createElement('style');
         style.id = 'modal-utils-styles';
         style.textContent = `
+            /* Ensure custom modals appear above other modals */
+            .custom-modal {
+                z-index: 1060 !important;
+            }
+            
             .custom-modal-backdrop {
                 background-color: rgba(0, 0, 0, 0.5);
                 backdrop-filter: blur(2px);
+                z-index: 1059 !important;
             }
             
             .custom-modal .modal-content {
