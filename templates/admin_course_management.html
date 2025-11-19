@@ -1042,23 +1042,28 @@ document.addEventListener('DOMContentLoaded', function(){
 })();
 </script>
 <script>
-// Scroll to module after upload/update if hash present
+// Scroll to module after upload/update if hash present, or restore course view
 (function(){
   const hash = window.location.hash;
-  if(hash && hash.includes('module-')){
+  if(hash && (hash.includes('module-') || hash.includes('course-'))){
     setTimeout(function(){
       let courseId = null;
       let moduleId = null;
       
-      // Parse hash: #course-X-module-Y or #module-Y
-      const courseMatch = hash.match(/#course-(\d+)-module-(\d+)/);
-      if(courseMatch){
-        courseId = courseMatch[1];
-        moduleId = courseMatch[2];
+      // Parse hash: #course-X-module-Y or #module-Y or #course-X
+      const courseModuleMatch = hash.match(/#course-(\d+)-module-(\d+)/);
+      if(courseModuleMatch){
+        courseId = courseModuleMatch[1];
+        moduleId = courseModuleMatch[2];
       } else {
-        const moduleMatch = hash.match(/#module-(\d+)/);
-        if(moduleMatch){
-          moduleId = moduleMatch[1];
+        const courseMatch = hash.match(/#course-(\d+)/);
+        if(courseMatch){
+          courseId = courseMatch[1];
+        } else {
+          const moduleMatch = hash.match(/#module-(\d+)/);
+          if(moduleMatch){
+            moduleId = moduleMatch[1];
+          }
         }
       }
       
@@ -1075,7 +1080,7 @@ document.addEventListener('DOMContentLoaded', function(){
         }
       }
       
-      // Now scroll to the module
+      // Now scroll to the module if specified
       if(moduleId){
         setTimeout(function(){
           const target = document.getElementById('module-' + moduleId);

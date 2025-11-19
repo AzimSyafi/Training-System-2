@@ -1621,6 +1621,7 @@ def add_course_module(course_id):
 
         if not module_name:
             flash('Module name is required.', 'danger')
+            return redirect(url_for('main.admin_course_management') + f'#course-{course_id}')
         else:
             new_module = Module(
                 module_name=module_name,
@@ -1636,7 +1637,7 @@ def add_course_module(course_id):
         logging.exception(f'[ADD MODULE] Failed to add module to course {course_id}')
         flash(f'Error adding module: {e}', 'danger')
 
-    return redirect(url_for('main.admin_course_management'))
+    return redirect(url_for('main.admin_course_management') + f'#course-{course_id}')
 
 @main_bp.route('/delete_course_module/<int:module_id>', methods=['POST'])
 @login_required
@@ -1651,6 +1652,9 @@ def delete_course_module(module_id):
             flash('Module not found.', 'danger')
             return redirect(url_for('main.admin_course_management'))
 
+        # Store course_id before deleting the module
+        course_id = module.course_id
+        
         # Also delete user progress for this module
         UserModule.query.filter_by(module_id=module.module_id).delete()
 
@@ -1661,7 +1665,11 @@ def delete_course_module(module_id):
         db.session.rollback()
         logging.exception(f'[DELETE MODULE] Failed to delete module {module_id}')
         flash(f'Error deleting module: {e}', 'danger')
+        return redirect(url_for('main.admin_course_management'))
 
+    # Redirect back to the course management panel
+    if course_id:
+        return redirect(url_for('main.admin_course_management') + f'#course-{course_id}')
     return redirect(url_for('main.admin_course_management'))
 
 @main_bp.route('/delete_module/<int:module_id>', methods=['POST'])
@@ -1914,6 +1922,9 @@ def update_course_module(module_id):
             flash('Module not found.', 'danger')
             return redirect(url_for('main.admin_course_management'))
 
+        # Store course_id to preserve navigation state
+        course_id = module.course_id
+
         module_name = request.form.get('module_name')
         series_number = request.form.get('series_number')
 
@@ -1928,7 +1939,11 @@ def update_course_module(module_id):
         db.session.rollback()
         logging.exception(f'[UPDATE MODULE] Failed to update module {module_id}')
         flash(f'Error updating module: {e}', 'danger')
+        return redirect(url_for('main.admin_course_management'))
 
+    # Redirect back to the course management panel
+    if course_id:
+        return redirect(url_for('main.admin_course_management') + f'#course-{course_id}-module-{module_id}')
     return redirect(url_for('main.admin_course_management'))
 
 @main_bp.route('/manage_module_content/<int:module_id>', methods=['POST'])
