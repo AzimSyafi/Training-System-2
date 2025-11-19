@@ -1224,13 +1224,13 @@
                   const isCompleted = {{ 'true' if user_module.is_completed else 'false' }};
                   const quizHeader = document.getElementById('quiz-header-{{ module.module_id }}');
                   const quizBody = document.getElementById('quiz-body-{{ module.module_id }}');
-                  const questionsRow = document.getElementById('questions-row-mv');
-                  const progressText = document.getElementById('progress-text-mv');
-                  const statusText = document.getElementById('status-text-mv');
-                  const btnSubmit = document.getElementById('btn-submit-mv');
-                  const noQuiz = document.getElementById('no-quiz-mv');
-                  const quizContainer = document.getElementById('quiz-container-mv');
-                  const resultsContainer = document.getElementById('results-container-mv');
+                  const questionsRow = document.getElementById('questions-row-{{ module.module_id }}');
+                  const progressText = document.getElementById('progress-text-{{ module.module_id }}');
+                  const statusText = document.getElementById('status-text-{{ module.module_id }}');
+                  const btnSubmit = document.getElementById('btn-submit-{{ module.module_id }}');
+                  const noQuiz = document.getElementById('no-quiz-{{ module.module_id }}');
+                  const quizContainer = document.getElementById('quiz-container-{{ module.module_id }}');
+                  const resultsContainer = document.getElementById('results-container-{{ module.module_id }}');
 
                   // Hide quiz accordion if module is completed
                   if (isCompleted) {
@@ -1486,7 +1486,7 @@
                     resultsContainer.innerHTML = html;
                     resultsContainer.style.display = 'block';
                     
-                    document.getElementById('btn-reattempt-mv')?.addEventListener('click', startReattempt);
+                    document.getElementById('btn-reattempt-{{ module.module_id }}')?.addEventListener('click', startReattempt);
                   }
 
                   function startReattempt(){
