@@ -28,19 +28,6 @@
                         </div>
                     {% endif %}
                 </div>
-
-                <!-- Module Status -->
-                {% if user_module.is_completed %}
-                    <div class="alert alert-success">
-                        <h5><i class="fas fa-check-circle"></i> Module Completed!</h5>
-                        <p>Your Score:
-                            <span class="{% if user_module.score <= 50 %}score-red{% elif user_module.score > 75 %}score-green{% else %}score-blue{% endif %}">
-                                {{ user_module.score }}%
-                            </span>
-                        </p>
-                        <p>Completed on: {{ user_module.completion_date.strftime('%B %d, %Y at %I:%M %p') if user_module.completion_date else 'N/A' }}</p>
-                    </div>
-                {% else %}
                 <!-- Horizontal Scrollable Quiz Component -->
                 <style>
                   /* Modern Quiz Container with Collapsible Accordion */
@@ -597,6 +584,7 @@
                 <script>
                 (function(){
                   const moduleId = {{ module.module_id|tojson }};
+                  const isCompleted = {{ 'true' if user_module.is_completed else 'false' }};
                   const quizHeader = document.getElementById('quiz-header-mv');
                   const quizBody = document.getElementById('quiz-body-mv');
                   const questionsRow = document.getElementById('questions-row-mv');
@@ -606,6 +594,13 @@
                   const noQuiz = document.getElementById('no-quiz-mv');
                   const quizContainer = document.getElementById('quiz-container-mv');
                   const resultsContainer = document.getElementById('results-container-mv');
+
+                  // Hide quiz accordion if module is completed
+                  if (isCompleted) {
+                    const accordion = document.querySelector('.quiz-accordion');
+                    if (accordion) accordion.style.display = 'none';
+                    return;
+                  }
 
                   let quiz = [];
                   let answers = {};
@@ -954,6 +949,18 @@
                   fetchQuiz();
                 })();
                 </script>
+
+                <!-- Module Status -->
+                {% if user_module.is_completed %}
+                    <div class="alert alert-success mt-3">
+                        <h5><i class="fas fa-check-circle"></i> Module Completed!</h5>
+                        <p>Your Score:
+                            <span class="{% if user_module.score <= 50 %}score-red{% elif user_module.score > 75 %}score-green{% else %}score-blue{% endif %}">
+                                {{ user_module.score }}%
+                            </span>
+                        </p>
+                        <p>Completed on: {{ user_module.completion_date.strftime('%B %d, %Y at %I:%M %p') if user_module.completion_date else 'N/A' }}</p>
+                    </div>
                 {% endif %}
 
                 <!-- Module Details -->
