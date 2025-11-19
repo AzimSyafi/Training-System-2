@@ -116,12 +116,12 @@
       </div>
       <div class="flex flex-col gap-2 w-full items-center">
         <span class="text-sm font-semibold text-gray-700 text-center">Progress</span>
-        <div class="flex items-center gap-3 justify-center w-full">
-          <div class="flex items-center w-full justify-center">
-            <div class="progress-bar-container h-4 bg-gray-200 rounded-full overflow-hidden flex-shrink-0" style="width: 300px; min-width: 200px; max-width: 100%;">
+        <div class="progress-wrapper w-full">
+          <div class="flex items-center gap-2 w-full">
+            <div class="progress-bar-container h-4 bg-gray-200 rounded-full overflow-hidden flex-1">
               <div class="progress-bar h-4 rounded-full transition-all duration-700" style="width: {{ course.progress }}%; background: linear-gradient(90deg, #4CAF50, #2E7D32);"></div>
             </div>
-            <span class="progress-label font-semibold text-gray-700 w-14 text-right ml-2">{{ course.progress }}%</span>
+            <span class="progress-label font-semibold text-gray-700 flex-shrink-0">{{ course.progress }}%</span>
           </div>
         </div>
       </div>
@@ -131,21 +131,21 @@
   </div>
 
   <style>
-    .progress-bar-container {
-      width: 400px !important;
-      min-width: 400px !important;
-      max-width: 400px !important;
+    .progress-wrapper {
+      max-width: 400px;
       margin-left: auto;
       margin-right: auto;
     }
+    
     .progress-bar {
       transition: width 0.5s ease-in-out;
     }
+    
     @media (max-width: 600px) {
-      .progress-bar-container {
-        width: 100% !important;
-        min-width: 100% !important;
-        max-width: 100% !important;
+      .progress-wrapper {
+        max-width: 100%;
+        padding-left: 1rem;
+        padding-right: 1rem;
       }
     }
 
