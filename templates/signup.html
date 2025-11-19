@@ -503,6 +503,7 @@
           <label for="agency_id" class="form-label">Select Agency</label>
           <select class="form-select" id="agency_id" name="agency_id" required>
             <option value="" disabled selected>Select your agency</option>
+            <option value="none">None</option>
             {% if agencies %}
               {% for agency in agencies %}
                 <option value="{{ agency.agency_id }}">{{ agency.agency_name }}</option>

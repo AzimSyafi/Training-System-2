@@ -126,19 +126,24 @@ def signup():
         if not full_name or not email or not password or not agency_id:
             flash('All required fields must be filled: name, email, password, agency.', 'danger')
             return render_template('signup.html', agencies=agencies)
-        try:
-            agency_id_int = int(agency_id)
-        except (ValueError, TypeError):
-            flash('Invalid agency selected.', 'danger')
-            return render_template('signup.html', agencies=agencies)
-        try:
-            agency_obj = db.session.get(Agency, agency_id_int)
-            if not agency_obj:
-                flash('Selected agency does not exist.', 'danger')
+        
+        # Handle "none" agency selection
+        agency_id_int = None
+        if agency_id and agency_id.lower() != 'none':
+            try:
+                agency_id_int = int(agency_id)
+            except (ValueError, TypeError):
+                flash('Invalid agency selected.', 'danger')
                 return render_template('signup.html', agencies=agencies)
-        except Exception:
-            flash('Database error checking agency.', 'danger')
-            return render_template('signup.html', agencies=agencies)
+            try:
+                agency_obj = db.session.get(Agency, agency_id_int)
+                if not agency_obj:
+                    flash('Selected agency does not exist.', 'danger')
+                    return render_template('signup.html', agencies=agencies)
+            except Exception:
+                flash('Database error checking agency.', 'danger')
+                return render_template('signup.html', agencies=agencies)
+        
         data = {
             'full_name': full_name,
             'email': email,
