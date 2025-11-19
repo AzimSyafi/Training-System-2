@@ -652,10 +652,7 @@
 
               <hr class="my-4" style="border-color: rgba(30, 64, 175, 0.1);">
 
-              <!-- Quiz Component Embedded Here -->
-
-            </div>
-                <!-- Horizontal Scrollable Quiz Component -->
+              <!-- Horizontal Scrollable Quiz Component -->
                 <style>
                   /* Modern Quiz Container with Collapsible Accordion */
                   .quiz-accordion {
@@ -1584,6 +1581,18 @@
                       
                     }catch(error){
                       console.error('Error fetching quiz:', error);
+                      noQuiz.style.display = 'block';
+                      noQuiz.textContent = `Could not load quiz at this time. Error: ${error.message}`;
+                      quizContainer.style.display = 'none';
+                    }
+                  }
+
+                  fetchQuiz();
+                })();
+                </script>
+
+            </div>
+          </div>
         </div>
         {% endif %}
       </div>
