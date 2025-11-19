@@ -1016,6 +1016,11 @@ document.addEventListener('DOMContentLoaded', function(){
     // Handle course deletion in detail panel
     if(form.classList.contains('delete-course-form')){
       e.preventDefault();
+      // Hide any open modals before showing confirmation
+      document.querySelectorAll('.modal.show').forEach(modal => {
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if(bsModal) bsModal.hide();
+      });
       const courseName = form.getAttribute('data-course-name') || 'this course';
       const confirmed = await customConfirm(`Delete ${courseName}? This cannot be undone.`, 'Confirm Delete', {type: 'danger', confirmText: 'Delete', confirmClass: 'btn-danger'});
       if(confirmed){
@@ -1026,6 +1031,11 @@ document.addEventListener('DOMContentLoaded', function(){
     // Handle module deletion
     if(form.classList.contains('delete-module-form')){
       e.preventDefault();
+      // Hide any open modals before showing confirmation
+      document.querySelectorAll('.modal.show').forEach(modal => {
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if(bsModal) bsModal.hide();
+      });
       const moduleName = form.getAttribute('data-module-name') || 'this module';
       const confirmed = await customConfirm(`Delete module "${moduleName}"? This cannot be undone.`, 'Confirm Delete', {type: 'danger', confirmText: 'Delete', confirmClass: 'btn-danger'});
       if(confirmed){

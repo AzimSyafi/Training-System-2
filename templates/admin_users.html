@@ -441,6 +441,12 @@ async function resetUserProgress(userId, userName) {
 function openChangeRoleModal(userId, userType) {
     console.log('openChangeRoleModal called with:', { userId, userType });
 
+    // Hide any open modals before showing this modal
+    document.querySelectorAll('.modal.show').forEach(modal => {
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if(bsModal) bsModal.hide();
+    });
+
     const input = document.getElementById('changeRoleUserId');
     const select = document.getElementById('newRole');
     const orig = document.getElementById('changeRoleOrigType');
@@ -478,6 +484,12 @@ function openChangeRoleModal(userId, userType) {
 function openAssignCourseModal(trainerId, trainerName) {
     console.log('openAssignCourseModal called with:', { trainerId, trainerName });
 
+    // Hide any open modals before showing this modal
+    document.querySelectorAll('.modal.show').forEach(modal => {
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if(bsModal) bsModal.hide();
+    });
+
     const input = document.getElementById('assignCourseTrainerId');
     const nameDisplay = document.getElementById('trainerNameDisplay');
     const courseSelect = document.getElementById('courseCode');
@@ -503,6 +515,12 @@ function openAssignCourseModal(trainerId, trainerName) {
 
 async function deleteUserOrTrainer(userId, fullName, userType) {
     console.log('Delete function called:', { userId, fullName, userType });
+
+    // Hide any open modals before showing confirmation
+    document.querySelectorAll('.modal.show').forEach(modal => {
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if(bsModal) bsModal.hide();
+    });
 
     try {
         const confirmed = await customConfirm(`Delete ${userType} "${fullName}"? This action cannot be undone.`, 'Confirm Delete', {type: 'danger', confirmText: 'Delete', confirmClass: 'btn-danger'});
