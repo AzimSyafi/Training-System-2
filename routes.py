@@ -692,7 +692,50 @@ def profile():
 
     malaysian_states = ['Johor', 'Kedah', 'Kelantan', 'Melaka', 'Negeri Sembilan', 'Pahang', 'Perak', 'Perlis', 'Pulau Pinang', 'Sabah', 'Sarawak', 'Selangor', 'Terengganu', 'Wilayah Persekutuan Kuala Lumpur', 'Wilayah Persekutuan Labuan', 'Wilayah Persekutuan Putrajaya']
 
-    return render_template('profile.html', user=current_user, experiences=experiences, malaysian_states=malaysian_states)
+    # For authority users, fetch pending certificates data
+    pending_certificates = []
+    pending_count = 0
+    approved_today = 0
+    total_approved = 0
+    
+    if getattr(current_user, 'role', None) == 'authority':
+        try:
+            from datetime import date
+            # Get pending certificates
+            pending_certificates = (
+                Certificate.query
+                .filter_by(status='pending')
+                .join(User, User.User_id == Certificate.user_id)
+                .join(Module, Module.module_id == Certificate.module_id)
+                .outerjoin(Course, Course.course_id == Module.course_id)
+                .order_by(Certificate.certificate_id.desc())
+                .limit(10)
+                .all()
+            )
+            pending_count = Certificate.query.filter_by(status='pending').count()
+            
+            # Get approved today count
+            today = date.today()
+            approved_today = Certificate.query.filter(
+                Certificate.status == 'approved',
+                db.func.date(Certificate.approved_at) == today
+            ).count()
+            
+            # Get total approved count
+            total_approved = Certificate.query.filter_by(status='approved').count()
+        except Exception:
+            logging.exception('[PROFILE] Failed to load authority dashboard data')
+
+    return render_template(
+        'profile.html', 
+        user=current_user, 
+        experiences=experiences, 
+        malaysian_states=malaysian_states,
+        pending_certificates=pending_certificates,
+        pending_count=pending_count,
+        approved_today=approved_today,
+        total_approved=total_approved
+    )
 
 # My certificates
 @main_bp.route('/my_certificates')

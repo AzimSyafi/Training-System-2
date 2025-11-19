@@ -324,7 +324,116 @@
   </div>
 
   <div id="profile-export-section">
-    <!-- Personal Information Card -->
+    {% set is_authority = (current_user.role | default('')) == 'authority' %}
+    
+    {% if is_authority %}
+    <!-- Pending Approvals Dashboard for Authority Users -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-8" id="pending-approvals-section">
+      <div class="flex justify-between items-center mb-6 border-b pb-4">
+        <h2 class="text-2xl font-bold text-gray-800">Pending Approvals Dashboard</h2>
+        <a href="{{ url_for('authority.authority_portal') }}" class="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-lg font-semibold shadow-md transition">
+          <i class="fas fa-external-link-alt mr-2"></i>View Full Portal
+        </a>
+      </div>
+      
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div class="bg-gradient-to-r from-yellow-100 to-yellow-50 rounded-lg p-6 shadow-sm border border-yellow-200">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-yellow-700 text-sm font-medium">Pending Certificates</p>
+              <p class="text-3xl font-bold text-yellow-900 mt-2">{{ pending_count or 0 }}</p>
+            </div>
+            <div class="bg-yellow-200 rounded-full p-3">
+              <i class="fas fa-hourglass-half text-yellow-700 text-2xl"></i>
+            </div>
+          </div>
+        </div>
+        
+        <div class="bg-gradient-to-r from-green-100 to-green-50 rounded-lg p-6 shadow-sm border border-green-200">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-green-700 text-sm font-medium">Approved Today</p>
+              <p class="text-3xl font-bold text-green-900 mt-2">{{ approved_today or 0 }}</p>
+            </div>
+            <div class="bg-green-200 rounded-full p-3">
+              <i class="fas fa-check-circle text-green-700 text-2xl"></i>
+            </div>
+          </div>
+        </div>
+        
+        <div class="bg-gradient-to-r from-blue-100 to-blue-50 rounded-lg p-6 shadow-sm border border-blue-200">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-blue-700 text-sm font-medium">Total Approved</p>
+              <p class="text-3xl font-bold text-blue-900 mt-2">{{ total_approved or 0 }}</p>
+            </div>
+            <div class="bg-blue-200 rounded-full p-3">
+              <i class="fas fa-award text-blue-700 text-2xl"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {% if pending_certificates and pending_certificates|length > 0 %}
+      <div class="overflow-x-auto">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Recent Pending Certificates (Top 10)</h3>
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cert ID</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issue Date</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            {% for cert in pending_certificates[:10] %}
+            <tr class="hover:bg-gray-50">
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{{ cert.certificate_id }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                {% if cert.user %}
+                  {{ cert.user.full_name }}
+                  {% if cert.user.number_series %}
+                    <div class="text-xs text-gray-500">{{ cert.user.number_series }}</div>
+                  {% endif %}
+                {% else %}
+                  User #{{ cert.user_id }}
+                {% endif %}
+              </td>
+              <td class="px-6 py-4 text-sm text-gray-900">
+                {% if cert.module and cert.module.course %}
+                  {{ cert.module.course.name }}
+                  {% if cert.module.course.code %}
+                    <span class="text-xs text-gray-500">({{ cert.module.course.code }})</span>
+                  {% endif %}
+                {% elif cert.module %}
+                  {{ cert.module.module_name }}
+                {% else %}
+                  Module #{{ cert.module_id }}
+                {% endif %}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ cert.issue_date }}</td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                  pending
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-12">
+        <i class="fas fa-check-circle text-green-500 text-5xl mb-4"></i>
+        <p class="text-gray-600 text-lg">No pending approvals at the moment</p>
+        <p class="text-gray-500 text-sm mt-2">All certificates have been processed!</p>
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <!-- Personal Information Card (hidden for authority users) -->
     <div class="bg-white rounded-xl shadow-lg p-6 mb-8" id="personal-info-section">
       <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">Personal Information</h2>
       <div class="flex flex-col md:flex-row items-start gap-8">
@@ -377,8 +486,7 @@
           </div>
       </div>
     </div>
-
-    {% set is_authority = (current_user.role | default('')) == 'authority' %}
+    {% endif %}
     {% if not is_authority %}
     <!-- Working Experience Card -->
     <div class="bg-white rounded-xl shadow-lg p-6 mb-8" id="working-info-section">
