@@ -65,9 +65,10 @@ Not specified.
 - **Fixed Hamburger Button**: Hamburger button now works on ALL screen sizes (desktop, tablet, mobile)
 - **Slide-Out Behavior**: Sidebar slides in/out from the left on all devices, controlled by hamburger button
 - **Overlay on All Screens**: Dark overlay appears when sidebar is open on any screen size
-- **Smaller Profile Picture**: Reduced sidebar profile avatar from 46px to 38px for a more compact appearance
+- **Smaller Profile Picture**: Reduced sidebar profile avatar from 46px to 32px for a more compact appearance
 - **Unified UX**: Consistent slide-out sidebar behavior across all devices - no separate desktop/mobile logic
 - **Hidden by Default**: Sidebar starts hidden off-screen; click hamburger to reveal it
+- **Full-Width Content**: Removed left margin gap so main content fills entire screen width when sidebar is closed
 
 ### 2025-11-18
 **Admin User Creation - User & Authority Role Support**:
