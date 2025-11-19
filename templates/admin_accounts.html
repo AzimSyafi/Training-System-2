@@ -218,13 +218,40 @@ function viewUserProgress(id){
   html+='</tbody></table></div>'; document.getElementById('userProgressContent').innerHTML=html; new bootstrap.Modal(document.getElementById('userProgressModal')).show();
  }).catch(()=>{document.getElementById('userProgressContent').innerHTML='<div class="alert alert-danger">Error loading.</div>';});
 }
-function resetUserProgress(id,name){ if(!confirm(`Reset all progress for ${name}?`)) return; fetch('{{ url_for('reset_user_progress') }}',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`user_id=${id}`}).then(r=>r.json()).then(resp=>{showTempAlert(resp.message||'Done',resp.success?'success':'danger'); }).catch(()=>showTempAlert('Reset failed','danger')); }
-function deleteUser(id,name){ if(!confirm(`Delete user ${name}?`)) return; fetch('{{ url_for('delete_user') }}',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`user_id=${id}`}).then(r=>r.json()).then(resp=>{ if(resp.success){ const row=document.getElementById(`user-row-${id}`); if(row) row.remove(); } showTempAlert(resp.message||'Action done',resp.success?'success':'danger'); }).catch(()=>showTempAlert('Delete failed','danger')); }
+async function resetUserProgress(id,name){ 
+  // Hide any open modals before showing confirmation
+  document.querySelectorAll('.modal.show').forEach(modal => {
+    const bsModal = bootstrap.Modal.getInstance(modal);
+    if(bsModal) bsModal.hide();
+  });
+  const confirmed = await customConfirm(`Reset all progress for ${name}?`, 'Confirm Reset', {type: 'warning', confirmText: 'Reset', confirmClass: 'btn-warning'});
+  if(!confirmed) return;
+  fetch('{{ url_for('reset_user_progress') }}',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`user_id=${id}`}).then(r=>r.json()).then(resp=>{showTempAlert(resp.message||'Done',resp.success?'success':'danger'); }).catch(()=>showTempAlert('Reset failed','danger')); 
+}
+async function deleteUser(id,name){ 
+  // Hide any open modals before showing confirmation
+  document.querySelectorAll('.modal.show').forEach(modal => {
+    const bsModal = bootstrap.Modal.getInstance(modal);
+    if(bsModal) bsModal.hide();
+  });
+  const confirmed = await customConfirm(`Delete user ${name}?`, 'Confirm Delete', {type: 'danger', confirmText: 'Delete', confirmClass: 'btn-danger'});
+  if(!confirmed) return;
+  fetch('{{ url_for('delete_user') }}',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`user_id=${id}`}).then(r=>r.json()).then(resp=>{ if(resp.success){ const row=document.getElementById(`user-row-${id}`); if(row) row.remove(); } showTempAlert(resp.message||'Action done',resp.success?'success':'danger'); }).catch(()=>showTempAlert('Delete failed','danger')); 
+}
 // Trainer actions
 function openEditTrainer(id){ const row=document.getElementById(`trainer-row-${id}`); if(!row) return; document.getElementById('edit-trainer-id').value=id; document.getElementById('edit-name').value=row.children[2].innerText.trim(); document.getElementById('edit-email').value=row.children[3].innerText.trim(); const courseVal=row.children[4].innerText.trim(); const select=document.getElementById('edit-course'); [...select.options].forEach(o=>{ if(o.value===courseVal) select.value=o.value; }); document.getElementById('edit-availability').value=row.children[5].innerText.trim()==='—'?'':row.children[5].innerText.trim(); document.getElementById('edit-contact').value=row.children[6].innerText.trim()==='—'?'':row.children[6].innerText.trim(); new bootstrap.Modal(document.getElementById('editTrainerModal')).show(); }
 const editForm=document.getElementById('editTrainerForm'); editForm.addEventListener('submit',e=>{e.preventDefault(); const id=document.getElementById('edit-trainer-id').value; const fd=new FormData(editForm); fetch(`/admin/trainer/${id}/update`,{method:'POST',body:fd}).then(r=>r.json()).then(resp=>{ if(resp.success){ const row=document.getElementById(`trainer-row-${id}`); if(row){ row.children[2].innerText=fd.get('name'); row.children[3].innerText=fd.get('email'); row.children[4].innerText=fd.get('course')||'—'; row.children[5].innerText=fd.get('availability')||'—'; row.children[6].innerText=fd.get('contact_number')||'—'; } showTempAlert('Trainer updated','success'); bootstrap.Modal.getInstance(document.getElementById('editTrainerModal')).hide(); } else showTempAlert(resp.message||'Update failed','danger'); }).catch(()=>showTempAlert('Error updating','danger')); });
 function toggleActive(id){ fetch(`/admin/trainer/${id}/toggle_active`,{method:'POST'}).then(r=>r.json()).then(resp=>{ if(resp.success){ const badge=document.getElementById(`trainer-status-${id}`); if(badge){ badge.classList.remove('bg-success','bg-secondary'); if(resp.active_status){ badge.classList.add('bg-success'); badge.innerText='Active'; } else { badge.classList.add('bg-secondary'); badge.innerText='Inactive'; } } showTempAlert('Status toggled','success'); } else showTempAlert(resp.message||'Toggle failed','danger'); }).catch(()=>showTempAlert('Error toggling','danger')); }
-function deleteTrainer(id,name){ if(!confirm(`Delete trainer ${name}?`)) return; fetch(`/admin/trainer/${id}/delete`,{method:'POST'}).then(r=>r.json()).then(resp=>{ if(resp.success){ const row=document.getElementById(`trainer-row-${id}`); if(row) row.remove(); showTempAlert('Trainer deleted','success'); } else showTempAlert(resp.message||'Action failed','danger'); }).catch(()=>showTempAlert('Delete failed','danger')); }
+async function deleteTrainer(id,name){ 
+  // Hide any open modals before showing confirmation
+  document.querySelectorAll('.modal.show').forEach(modal => {
+    const bsModal = bootstrap.Modal.getInstance(modal);
+    if(bsModal) bsModal.hide();
+  });
+  const confirmed = await customConfirm(`Delete trainer ${name}?`, 'Confirm Delete', {type: 'danger', confirmText: 'Delete', confirmClass: 'btn-danger'});
+  if(!confirmed) return;
+  fetch(`/admin/trainer/${id}/delete`,{method:'POST'}).then(r=>r.json()).then(resp=>{ if(resp.success){ const row=document.getElementById(`trainer-row-${id}`); if(row) row.remove(); showTempAlert('Trainer deleted','success'); } else showTempAlert(resp.message||'Action failed','danger'); }).catch(()=>showTempAlert('Delete failed','danger')); 
+}
 {% if request.args.get('show_create_modal') %}document.addEventListener('DOMContentLoaded',()=>{ new bootstrap.Modal(document.getElementById('createAccountModal')).show(); });{% endif %}
 </script>
 {% endblock %}
