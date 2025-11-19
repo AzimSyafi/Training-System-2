@@ -652,19 +652,938 @@
 
               <hr class="my-4" style="border-color: rgba(30, 64, 175, 0.1);">
 
-              <h4><i class="fas fa-question-circle"></i> Knowledge Check</h4>
-              {% if user_module and user_module.is_completed %}
-                <div class="alert alert-success">
-                  <i class="fas fa-check-circle"></i> Quiz completed. You can review or reattempt in the Quiz Player.
-                </div>
-              {% endif %}
-              <p class="text-muted-mobile mb-3">Test your understanding of the video content with this interactive quiz.</p>
-              <a href="/module/{{ module.module_id }}/quiz" class="btn btn-primary btn-lg">
-                <i class="fas fa-play"></i> <span>Open Quiz Player</span>
-              </a>
+              <!-- Quiz Component Embedded Here -->
 
             </div>
-          </div>
+                <!-- Horizontal Scrollable Quiz Component -->
+                <style>
+                  /* Modern Quiz Container with Collapsible Accordion */
+                  .quiz-accordion {
+                    background: var(--card-bg, #fff);
+                    border: 2px solid var(--border-color, #e5e7eb);
+                    border-radius: 12px;
+                    overflow: hidden;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+                    margin-top: 24px;
+                    margin-bottom: 20px;
+                  }
+
+                  .quiz-accordion-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 20px 24px;
+                    cursor: pointer;
+                    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+                    color: white;
+                    transition: all 0.2s ease;
+                    user-select: none;
+                  }
+
+                  .quiz-accordion-header:hover {
+                    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+                  }
+
+                  .quiz-accordion-header.collapsed {
+                    background: var(--card-bg, #fff);
+                    color: var(--text-color, #1e293b);
+                  }
+                  
+                  .quiz-accordion-header:not(.open) {
+                    background: var(--card-bg, #fff);
+                    color: var(--text-color, #1e293b);
+                  }
+                  
+                  .quiz-accordion-header:not(.open) .quiz-accordion-title > div:first-child {
+                    background: #3b82f6;
+                  }
+
+                  .quiz-accordion-title {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    font-size: 1.25rem;
+                    font-weight: 700;
+                  }
+
+                  .quiz-accordion-chevron {
+                    width: 24px;
+                    height: 24px;
+                    transition: transform 0.3s ease;
+                  }
+
+                  .quiz-accordion-header.open .quiz-accordion-chevron {
+                    transform: rotate(180deg);
+                  }
+
+                  .quiz-accordion-body {
+                    max-height: 0;
+                    overflow: hidden;
+                    transition: max-height 0.3s ease;
+                  }
+
+                  .quiz-accordion-body.open {
+                    max-height: 2000px;
+                  }
+
+                  .quiz-accordion-content {
+                    padding: 24px;
+                  }
+
+                  .quiz-scroll-container {
+                    position: relative;
+                    overflow-x: auto;
+                    overflow-y: hidden;
+                    scroll-behavior: smooth;
+                    -webkit-overflow-scrolling: touch;
+                    scrollbar-width: thin;
+                    scrollbar-color: #cbd5e1 #f1f5f9;
+                    margin-bottom: 24px;
+                  }
+
+                  .quiz-scroll-container::-webkit-scrollbar {
+                    height: 8px;
+                  }
+
+                  .quiz-scroll-container::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                    border-radius: 4px;
+                  }
+
+                  .quiz-scroll-container::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 4px;
+                  }
+
+                  .quiz-scroll-container::-webkit-scrollbar-thumb:hover {
+                    background: #94a3b8;
+                  }
+
+                  .questions-row {
+                    display: flex;
+                    gap: 20px;
+                    padding: 10px 5px;
+                    scroll-snap-type: x mandatory;
+                  }
+
+                  .question-card {
+                    flex: 0 0 calc(100% - 40px);
+                    scroll-snap-align: start;
+                    background: var(--card-bg, #fff);
+                    border: 2px solid var(--border-color, #e5e7eb);
+                    border-radius: 12px;
+                    padding: 24px;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+                    transition: all 0.2s ease;
+                  }
+
+                  @media (min-width: 768px) {
+                    .question-card {
+                      flex: 0 0 calc(50% - 20px);
+                    }
+                  }
+
+                  @media (min-width: 1024px) {
+                    .question-card {
+                      flex: 0 0 calc(33.333% - 20px);
+                    }
+                  }
+
+                  .question-card:hover {
+                    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+                    transform: translateY(-2px);
+                  }
+
+                  .question-number {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 32px;
+                    height: 32px;
+                    background: linear-gradient(135deg, #3b82f6, #2563eb);
+                    color: white;
+                    border-radius: 8px;
+                    font-weight: 700;
+                    font-size: 14px;
+                    margin-bottom: 12px;
+                  }
+
+                  .question-text {
+                    font-size: 1rem;
+                    font-weight: 600;
+                    color: var(--text-color, #1e293b);
+                    margin-bottom: 16px;
+                    line-height: 1.5;
+                  }
+
+                  .answer-options {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                  }
+
+                  .answer-option {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    padding: 14px 16px;
+                    background: var(--card-bg, #fff);
+                    border: 2px solid var(--border-color, #e5e7eb);
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    user-select: none;
+                  }
+
+                  .answer-option:hover {
+                    border-color: #3b82f6;
+                    background: rgba(59, 130, 246, 0.05);
+                  }
+
+                  .answer-option.selected {
+                    border-color: #3b82f6;
+                    background: rgba(59, 130, 246, 0.1);
+                    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+                  }
+
+                  .answer-option.correct {
+                    border-color: #10b981;
+                    background: rgba(16, 185, 129, 0.1);
+                  }
+
+                  .answer-option.incorrect {
+                    border-color: #ef4444;
+                    background: rgba(239, 68, 68, 0.1);
+                  }
+
+                  .answer-radio {
+                    width: 20px;
+                    height: 20px;
+                    border: 2px solid #cbd5e1;
+                    border-radius: 50%;
+                    flex-shrink: 0;
+                    position: relative;
+                    transition: all 0.2s ease;
+                  }
+
+                  .answer-option.selected .answer-radio {
+                    border-color: #3b82f6;
+                    background: #3b82f6;
+                  }
+
+                  .answer-option.selected .answer-radio::after {
+                    content: '';
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    width: 8px;
+                    height: 8px;
+                    background: white;
+                    border-radius: 50%;
+                  }
+
+                  .answer-text {
+                    flex: 1;
+                    font-size: 0.95rem;
+                    color: var(--text-color, #334155);
+                  }
+
+                  .quiz-submit-section {
+                    padding: 24px;
+                    border-top: 2px solid var(--border-color, #e5e7eb);
+                    background: var(--card-bg, #f8fafc);
+                    display: flex;
+                    flex-direction: column;
+                    gap: 16px;
+                    align-items: center;
+                  }
+
+                  .quiz-progress-info {
+                    display: flex;
+                    align-items: center;
+                    gap: 16px;
+                    flex-wrap: wrap;
+                    justify-content: center;
+                  }
+
+                  .progress-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 8px 16px;
+                    background: #eef2ff;
+                    color: #3b82f6;
+                    border-radius: 999px;
+                    font-weight: 600;
+                    font-size: 14px;
+                  }
+
+                  body.dark-mode .progress-badge {
+                    background: #1e3a8a;
+                    color: #93c5fd;
+                  }
+
+                  .submit-button {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    padding: 14px 32px;
+                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-weight: 700;
+                    font-size: 16px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+                    min-width: 200px;
+                  }
+
+                  .submit-button:hover:not(:disabled) {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+                  }
+
+                  .submit-button:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                  }
+
+                  .save-exit-button {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    padding: 12px 24px;
+                    background: #fff;
+                    color: #64748b;
+                    border: 2px solid #cbd5e1;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    font-size: 14px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                  }
+
+                  .save-exit-button:hover {
+                    border-color: #94a3b8;
+                    background: #f8fafc;
+                  }
+
+                  .results-container {
+                    padding: 24px;
+                    background: var(--card-bg, #fff);
+                    border-radius: 12px;
+                    border: 2px solid var(--border-color, #e5e7eb);
+                    margin-top: 20px;
+                  }
+
+                  .results-header {
+                    text-align: center;
+                    margin-bottom: 24px;
+                  }
+
+                  .results-score {
+                    font-size: 3rem;
+                    font-weight: 800;
+                    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                  }
+
+                  .results-label {
+                    font-size: 1.25rem;
+                    color: var(--text-color, #64748b);
+                    margin-top: 8px;
+                  }
+
+                  .review-question {
+                    padding: 20px;
+                    background: var(--card-bg, #f8fafc);
+                    border-radius: 8px;
+                    margin-bottom: 16px;
+                    border: 1px solid var(--border-color, #e5e7eb);
+                  }
+
+                  .review-question-text {
+                    font-weight: 600;
+                    margin-bottom: 12px;
+                    color: var(--text-color, #1e293b);
+                  }
+
+                  .review-answer {
+                    padding: 10px 14px;
+                    border-radius: 6px;
+                    margin-bottom: 8px;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                  }
+
+                  .review-answer.correct {
+                    background: rgba(16, 185, 129, 0.1);
+                    border: 1px solid #10b981;
+                  }
+
+                  .review-answer.incorrect {
+                    background: rgba(239, 68, 68, 0.1);
+                    border: 1px solid #ef4444;
+                  }
+
+                  .review-answer.not-selected {
+                    background: var(--card-bg, #fff);
+                    border: 1px solid #e5e7eb;
+                  }
+
+                  .badge {
+                    display: inline-flex;
+                    padding: 4px 10px;
+                    border-radius: 999px;
+                    font-size: 12px;
+                    font-weight: 600;
+                  }
+
+                  .badge.correct {
+                    background: #10b981;
+                    color: white;
+                  }
+
+                  .badge.your-answer {
+                    background: #3b82f6;
+                    color: white;
+                  }
+
+                  .badge.incorrect {
+                    background: #ef4444;
+                    color: white;
+                  }
+
+                  .reattempt-button {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 12px 24px;
+                    background: #f59e0b;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    margin-top: 20px;
+                  }
+
+                  .reattempt-button:hover {
+                    background: #d97706;
+                    transform: translateY(-1px);
+                  }
+
+                  .lucide {
+                    width: 20px;
+                    height: 20px;
+                    stroke-width: 2;
+                  }
+
+                  .lucide-lg {
+                    width: 24px;
+                    height: 24px;
+                  }
+
+                  body.dark-mode .quiz-accordion {
+                    background: #1e293b;
+                    border-color: #334155;
+                  }
+
+                  body.dark-mode .question-card {
+                    background: #1e293b;
+                    border-color: #334155;
+                  }
+
+                  body.dark-mode .answer-option {
+                    background: #1e293b;
+                    border-color: #334155;
+                  }
+
+                  body.dark-mode .results-container {
+                    background: #1e293b;
+                    border-color: #334155;
+                  }
+
+                  body.dark-mode .review-question {
+                    background: #0f172a;
+                    border-color: #334155;
+                  }
+
+                  .no-quiz-message {
+                    text-align: center;
+                    padding: 60px 20px;
+                    color: var(--text-color, #64748b);
+                  }
+
+                  .no-quiz-icon {
+                    width: 64px;
+                    height: 64px;
+                    margin: 0 auto 16px;
+                    opacity: 0.5;
+                  }
+
+                  #confetti-canvas {
+                    position: fixed;
+                    inset: 0;
+                    pointer-events: none;
+                    z-index: 9999;
+                  }
+
+                  .loading-spinner {
+                    display: inline-block;
+                    width: 20px;
+                    height: 20px;
+                    border: 3px solid rgba(255, 255, 255, 0.3);
+                    border-radius: 50%;
+                    border-top-color: white;
+                    animation: spin 0.8s linear infinite;
+                  }
+
+                  @keyframes spin {
+                    to { transform: rotate(360deg); }
+                  }
+                </style>
+
+                <div class="quiz-accordion">
+                  <div class="quiz-accordion-header open" id="quiz-header-{{ module.module_id }}">
+                    <div class="quiz-accordion-title">
+                      <div style="width: 40px; height: 40px; background: #3b82f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <svg style="width: 20px; height: 20px; color: white;" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: 2px;">
+                        <span id="quiz-title-{{ module.module_id }}" style="font-size: 1.125rem; font-weight: 700; line-height: 1.4;">Module Knowledge Check</span>
+                        <span id="quiz-subtitle-{{ module.module_id }}" style="font-size: 0.875rem; font-weight: 400; opacity: 0.9;">Test your understanding • <span id="quiz-count-{{ module.module_id }}">0</span> Questions</span>
+                      </div>
+                    </div>
+                    <svg class="quiz-accordion-chevron lucide-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                  </div>
+
+                  <div class="quiz-accordion-body open" id="quiz-body-{{ module.module_id }}">
+                    <div class="quiz-accordion-content">
+                      <div id="no-quiz-{{ module.module_id }}" class="no-quiz-message" style="display: none;">
+                        <svg class="no-quiz-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <p>No quiz available for this module yet.</p>
+                      </div>
+
+                      <div id="quiz-container-{{ module.module_id }}">
+                        <div class="quiz-scroll-container" id="scroll-container-{{ module.module_id }}">
+                          <div class="questions-row" id="questions-row-{{ module.module_id }}">
+                          </div>
+                        </div>
+
+                        <div class="quiz-submit-section">
+                          <div class="quiz-progress-info">
+                            <div class="progress-badge">
+                              <svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                              </svg>
+                              <span id="progress-text-{{ module.module_id }}">0 / 0 answered</span>
+                            </div>
+                            <div class="progress-badge" id="status-badge-{{ module.module_id }}">
+                              <svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                              </svg>
+                              <span id="status-text-{{ module.module_id }}">In progress</span>
+                            </div>
+                          </div>
+
+                          <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
+                            <button id="btn-submit-{{ module.module_id }}" class="submit-button" disabled>
+                              <svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                              </svg>
+                              Submit Answers
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div id="results-container-{{ module.module_id }}" style="display: none;">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <canvas id="confetti-canvas"></canvas>
+
+                <script>
+                (function(){
+                  const moduleId = {{ module.module_id|tojson }};
+                  const isCompleted = {{ 'true' if user_module.is_completed else 'false' }};
+                  const quizHeader = document.getElementById('quiz-header-{{ module.module_id }}');
+                  const quizBody = document.getElementById('quiz-body-{{ module.module_id }}');
+                  const questionsRow = document.getElementById('questions-row-mv');
+                  const progressText = document.getElementById('progress-text-mv');
+                  const statusText = document.getElementById('status-text-mv');
+                  const btnSubmit = document.getElementById('btn-submit-mv');
+                  const noQuiz = document.getElementById('no-quiz-mv');
+                  const quizContainer = document.getElementById('quiz-container-mv');
+                  const resultsContainer = document.getElementById('results-container-mv');
+
+                  // Hide quiz accordion if module is completed
+                  if (isCompleted) {
+                    const accordion = document.querySelector('.quiz-accordion');
+                    if (accordion) accordion.style.display = 'none';
+                    return;
+                  }
+
+                  let quiz = [];
+                  let answers = {};
+                  let correctIndices = [];
+                  let isReattempt = false;
+
+                  let saveTimer = null;
+                  const SAVE_DEBOUNCE_MS = 1200;
+                  const PERIODIC_SAVE_MS = 15000;
+                  let saveInFlight = false;
+
+                  quizHeader.addEventListener('click', () => {
+                    const isOpen = quizHeader.classList.toggle('open');
+                    quizBody.classList.toggle('open', isOpen);
+                  });
+
+                  function setStatusSaving(){ statusText.textContent = 'Saving...'; }
+                  function setStatusSaved(){ statusText.textContent = 'Saved'; }
+                  function setStatusInProgress(){ statusText.textContent = 'In progress'; }
+
+                  async function autoSaveAnswers(){
+                    try{
+                      if (!moduleId) return;
+                      if (saveInFlight) return;
+                      const answerArray = quiz.map((q, idx) => answers[idx] !== undefined ? answers[idx] : null);
+                      const hasSelection = answerArray.some(a => a !== null && a !== undefined);
+                      if (!hasSelection) return;
+                      
+                      saveInFlight = true; setStatusSaving();
+                      const res = await fetch(`/api/save_quiz_answers/${moduleId}`, { 
+                        method:'POST', 
+                        headers:{'Content-Type':'application/json'}, 
+                        credentials:'same-origin', 
+                        body: JSON.stringify({answers: answerArray}) 
+                      });
+                      const data = await res.json().catch(()=>({}));
+                      if (res.ok && data && data.success){ setStatusSaved(); } 
+                      else { statusText.textContent = 'Save failed'; }
+                    }catch{ statusText.textContent = 'Save error'; }
+                    finally{ saveInFlight = false; }
+                  }
+
+                  function scheduleAutoSave(){ 
+                    clearTimeout(saveTimer); 
+                    saveTimer = setTimeout(()=>autoSaveAnswers(), SAVE_DEBOUNCE_MS); 
+                  }
+                  
+                  let periodicSave = setInterval(()=>autoSaveAnswers(), PERIODIC_SAVE_MS);
+
+                  function updateProgress(){
+                    const total = quiz.length || 0;
+                    const answered = Object.keys(answers).filter(k => answers[k] !== null && answers[k] !== undefined).length;
+                    progressText.textContent = `${answered} / ${total} answered`;
+                    btnSubmit.disabled = answered < total;
+                  }
+
+                  function escapeHtml(text) {
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                  }
+
+                  function renderQuestions(){
+                    if (!quiz || quiz.length === 0) return;
+                    
+                    let html = '';
+                    quiz.forEach((q, qIdx) => {
+                      const selectedAnswer = answers[qIdx];
+                      const questionText = q.text || q.question || q.question_text || '';
+                      
+                      html += `<div class="question-card">`;
+                      html += `<div class="question-number">Q${qIdx + 1}</div>`;
+                      html += `<div class="question-text">${escapeHtml(questionText)}</div>`;
+                      html += `<div class="answer-options">`;
+                      
+                      (q.answers || []).forEach((a, aIdx) => {
+                        const isSelected = selectedAnswer === aIdx;
+                        const answerText = a.text || a.answer || a.answer_text || String(a);
+                        
+                        html += `<div class="answer-option ${isSelected ? 'selected' : ''}" data-q="${qIdx}" data-a="${aIdx}">`;
+                        html += `<div class="answer-radio"></div>`;
+                        html += `<div class="answer-text">${escapeHtml(answerText)}</div>`;
+                        html += `</div>`;
+                      });
+                      
+                      html += `</div></div>`;
+                    });
+                    
+                    questionsRow.innerHTML = html;
+                    
+                    document.querySelectorAll('.answer-option').forEach(option => {
+                      option.addEventListener('click', () => {
+                        const qIdx = parseInt(option.dataset.q, 10);
+                        const aIdx = parseInt(option.dataset.a, 10);
+                        answers[qIdx] = aIdx;
+                        renderQuestions();
+                        updateProgress();
+                        scheduleAutoSave();
+                      });
+                    });
+                  }
+
+                  function confetti(){
+                    const canvas = document.getElementById('confetti-canvas');
+                    if (!canvas) return;
+                    const ctx = canvas.getContext('2d');
+                    const W = canvas.width = window.innerWidth;
+                    const H = canvas.height = window.innerHeight;
+                    const pieces = Array.from({length: 140}).map(()=>({ 
+                      x: Math.random()*W, 
+                      y: -20 - Math.random()*H, 
+                      r: 4+Math.random()*4, 
+                      c: `hsl(${Math.floor(Math.random()*360)},90%,60%)`, 
+                      vy: 2+Math.random()*3, 
+                      vx: -2+Math.random()*4, 
+                      a: Math.random()*Math.PI 
+                    }));
+                    let rafId;
+                    function draw(){ 
+                      ctx.clearRect(0,0,W,H); 
+                      pieces.forEach(p=>{ 
+                        p.x += p.vx; 
+                        p.y += p.vy; 
+                        p.a += 0.1; 
+                        ctx.save(); 
+                        ctx.translate(p.x, p.y); 
+                        ctx.rotate(Math.sin(p.a)); 
+                        ctx.fillStyle = p.c; 
+                        ctx.fillRect(-p.r/2, -p.r/2, p.r, p.r); 
+                        ctx.restore(); 
+                      }); 
+                      rafId = requestAnimationFrame(draw); 
+                    }
+                    draw(); 
+                    setTimeout(()=>{ 
+                      cancelAnimationFrame(rafId); 
+                      ctx.clearRect(0,0,W,H); 
+                    }, 1800);
+                  }
+
+                  async function submitQuiz(){
+                    const answerArray = quiz.map((q, idx) => answers[idx] !== undefined ? answers[idx] : null);
+                    const payload = {answers: answerArray, is_reattempt: isReattempt};
+                    
+                    btnSubmit.disabled = true; 
+                    btnSubmit.innerHTML = '<span class="loading-spinner"></span> Submitting...';
+                    
+                    try{
+                      const r = await fetch(`/api/submit_quiz/${moduleId}`, {
+                        method:'POST', 
+                        headers:{'Content-Type':'application/json'}, 
+                        credentials:'same-origin', 
+                        body: JSON.stringify(payload)
+                      });
+                      
+                      const ctype = (r.headers.get('content-type') || '').toLowerCase();
+                      if (!ctype.includes('application/json')){
+                        const text = await r.text();
+                        throw new Error(`Unexpected response (status ${r.status})`);
+                      }
+                      
+                      const data = await r.json();
+                      if(!data.success){
+                        alert(data.message || 'Submission failed');
+                        btnSubmit.disabled = false; 
+                        btnSubmit.innerHTML = '<svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Submit Answers';
+                        return;
+                      }
+                      
+                      if (Array.isArray(data.correct_indices)){
+                        correctIndices = data.correct_indices;
+                      }
+                      
+                      clearInterval(periodicSave);
+                      statusText.textContent = `Score: ${data.score}% | Grade: ${data.grade_letter}`;
+                      
+                      renderResults(data);
+                      confetti();
+                      
+                    }catch(err){
+                      alert('Error submitting quiz: '+err);
+                      btnSubmit.disabled = false; 
+                      btnSubmit.innerHTML = '<svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Submit Answers';
+                    }
+                  }
+
+                  function renderResults(data){
+                    quizContainer.style.display = 'none';
+                    
+                    let html = `<div class="results-container">`;
+                    html += `<div class="results-header">`;
+                    html += `<div class="results-score">${data.score}%</div>`;
+                    html += `<div class="results-label">Your Score</div>`;
+                    html += `<div style="margin-top: 16px;">`;
+                    html += `<span class="badge" style="background: #3b82f6; color: white; padding: 8px 16px; font-size: 14px;">Grade: ${data.grade_letter}</span>`;
+                    html += `<span class="badge" style="background: #64748b; color: white; padding: 8px 16px; font-size: 14px; margin-left: 8px;">Attempts: ${data.reattempt_count}</span>`;
+                    html += `</div></div>`;
+                    
+                    html += `<div style="margin-top: 32px;">`;
+                    html += `<h3 style="margin-bottom: 20px; color: var(--text-color);">Review Your Answers</h3>`;
+                    
+                    quiz.forEach((q, idx) => {
+                      const userAns = answers[idx];
+                      const correctIdx = correctIndices[idx] !== undefined ? correctIndices[idx] : -1;
+                      const questionText = q.text || q.question || q.question_text || '';
+                      
+                      html += `<div class="review-question">`;
+                      html += `<div class="review-question-text">Q${idx + 1}: ${escapeHtml(questionText)}</div>`;
+                      
+                      (q.answers || []).forEach((a, aIdx) => {
+                        const isCorrect = correctIdx === aIdx;
+                        const isUserAnswer = userAns === aIdx;
+                        let cls = 'review-answer not-selected';
+                        
+                        if (isCorrect && isUserAnswer) {
+                          cls = 'review-answer correct';
+                        } else if (isCorrect) {
+                          cls = 'review-answer correct';
+                        } else if (isUserAnswer) {
+                          cls = 'review-answer incorrect';
+                        }
+                        
+                        const answerText = a.text || a.answer || a.answer_text || String(a);
+                        
+                        html += `<div class="${cls}">`;
+                        html += `<div class="answer-text" style="flex: 1;">${escapeHtml(answerText)}</div>`;
+                        if (isCorrect) html += `<span class="badge correct">Correct</span>`;
+                        if (isUserAnswer) html += `<span class="badge your-answer">Your Answer</span>`;
+                        html += `</div>`;
+                      });
+                      
+                      html += `</div>`;
+                    });
+                    
+                    html += `</div>`;
+                    
+                    html += `<div style="text-align: center;">`;
+                    html += `<button class="reattempt-button" id="btn-reattempt-{{ module.module_id }}">`;
+                    html += `<svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>`;
+                    html += `Reattempt Quiz`;
+                    html += `</button>`;
+                    html += `</div>`;
+                    
+                    html += `</div>`;
+                    
+                    resultsContainer.innerHTML = html;
+                    resultsContainer.style.display = 'block';
+                    
+                    document.getElementById('btn-reattempt-mv')?.addEventListener('click', startReattempt);
+                  }
+
+                  function startReattempt(){
+                    const confirmed = confirm('Start a reattempt? Your previous score is kept but this will count as another attempt.');
+                    if(!confirmed) return;
+                    
+                    isReattempt = true;
+                    answers = {};
+                    resultsContainer.style.display = 'none';
+                    quizContainer.style.display = 'block';
+                    statusText.textContent = 'Reattempt in progress';
+                    renderQuestions();
+                    updateProgress();
+                  }
+
+                  btnSubmit.addEventListener('click', submitQuiz);
+
+                  window.addEventListener('beforeunload', function(){
+                    try{
+                      if (navigator.sendBeacon){
+                        const answerArray = quiz.map((q, idx) => answers[idx] !== undefined ? answers[idx] : null);
+                        const hasSelection = answerArray.some(a => a !== null && a !== undefined);
+                        if (hasSelection){
+                          const payload = JSON.stringify({answers: answerArray});
+                          navigator.sendBeacon(`/api/save_quiz_answers/${moduleId}`, new Blob([payload], {type:'application/json'}));
+                        }
+                      }
+                    }catch(ex){}
+                  });
+
+                  async function fetchQuiz(){
+                    if (!moduleId || moduleId === 0) {
+                      noQuiz.style.display = 'block';
+                      noQuiz.textContent = 'Invalid module ID. Please navigate back and try again.';
+                      quizContainer.style.display = 'none';
+                      return;
+                    }
+
+                    try{
+                      const response = await fetch(`/api/load_quiz/${moduleId}`, { credentials:'same-origin' });
+                      
+                      if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                      }
+
+                      const payload = await response.json();
+                      
+                      let data = [];
+                      if (Array.isArray(payload)) {
+                        data = payload;
+                      } else if (payload && typeof payload === 'object') {
+                        if (Array.isArray(payload.quiz)) {
+                          data = payload.quiz;
+                        } else if (payload.quiz && typeof payload.quiz === 'object' && Array.isArray(payload.quiz.questions)) {
+                          data = payload.quiz.questions;
+                        } else if (Array.isArray(payload.questions)) {
+                          data = payload.questions;
+                        }
+                      }
+
+                      if(!Array.isArray(data) || data.length === 0){
+                        noQuiz.style.display = 'block';
+                        quizContainer.style.display = 'none';
+                        return;
+                      }
+
+                      quiz = data;
+                      answers = {};
+
+                      // Update question count in header
+                      const quizCountEl = document.getElementById('quiz-count-{{ module.module_id }}');
+                      if (quizCountEl) quizCountEl.textContent = quiz.length;
+
+                      try{
+                        const resp = await fetch(`/api/user_quiz_answers/${moduleId}`, { credentials:'same-origin' });
+                        const saved = await resp.json().catch(()=>[]);
+                        
+                        if (Array.isArray(saved) && saved.length){
+                          saved.forEach((v, i) => {
+                            if (v !== null && v !== undefined) {
+                              const num = typeof v === 'number' ? v : (typeof v === 'string' ? Number(v) : null);
+                              if (Number.isInteger(num)) answers[i] = num;
+                            }
+                          });
+                          setStatusSaved();
+                        }
+                      }catch(e){ console.error('Error loading saved answers', e); }
+
+                      renderQuestions();
+                      updateProgress();
+                      setStatusInProgress();
+                      
+                    }catch(error){
+                      console.error('Error fetching quiz:', error);
         </div>
         {% endif %}
       </div>
