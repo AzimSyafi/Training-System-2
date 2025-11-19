@@ -615,7 +615,7 @@
                 {% set slide_url_gated = url_for('main.serve_uploaded_slide', filename=module.slide_url) %}
                 {% if module.slide_url.endswith('.pdf') %}
                   <div class="iframe-container" id="iframe-container-{{ module.module_id }}">
-                    <iframe class="deferred-iframe" data-src="{{ slide_url_gated }}" allowfullscreen></iframe>
+                    <iframe class="deferred-iframe" data-src="{{ slide_url_gated }}#toolbar=0&navpanes=0&scrollbar=0" allowfullscreen></iframe>
                   </div>
                   <button class="fullscreen-btn" onclick="toggleFullscreen('iframe-container-{{ module.module_id }}')">
                     <i class="fas fa-expand"></i> <span>View Fullscreen</span>
