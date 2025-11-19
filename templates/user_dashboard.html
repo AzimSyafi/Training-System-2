@@ -535,6 +535,118 @@
 
   {# Determine role early for conditional rendering #}
   {% set is_authority = (current_user.role | default('')) == 'authority' %}
+  
+  {% if is_authority %}
+  <!-- Pending Approvals Dashboard for Authority Users -->
+  <div class="bg-white rounded-xl shadow-lg p-6 mb-6" style="background: var(--card-bg); border-radius: 12px;">
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
+      <h3 class="mb-0" style="font-size: 20px; font-weight: 600;"><i class="fas fa-clipboard-check me-2"></i>Pending Approvals Dashboard</h3>
+      <a href="{{ url_for('authority.authority_portal') }}" class="btn btn-primary">
+        <i class="fas fa-external-link-alt me-1"></i>View Full Portal
+      </a>
+    </div>
+    
+    <div class="row g-3 mb-4">
+      <div class="col-md-4">
+        <div class="rounded-3 p-4 shadow-sm" style="background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 100%); border: 1px solid #fde68a;">
+          <div class="d-flex align-items-center justify-content-between">
+            <div>
+              <p class="mb-1 small fw-medium" style="color: #92400e;">Pending Certificates</p>
+              <p class="mb-0 display-6 fw-bold" style="color: #78350f;">{{ pending_count or 0 }}</p>
+            </div>
+            <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 56px; height: 56px; background: #fde68a;">
+              <i class="fas fa-hourglass-half fa-2x" style="color: #92400e;"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-4">
+        <div class="rounded-3 p-4 shadow-sm" style="background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); border: 1px solid #6ee7b7;">
+          <div class="d-flex align-items-center justify-content-between">
+            <div>
+              <p class="mb-1 small fw-medium" style="color: #065f46;">Approved Today</p>
+              <p class="mb-0 display-6 fw-bold" style="color: #064e3b;">{{ approved_today or 0 }}</p>
+            </div>
+            <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 56px; height: 56px; background: #6ee7b7;">
+              <i class="fas fa-check-circle fa-2x" style="color: #065f46;"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-4">
+        <div class="rounded-3 p-4 shadow-sm" style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border: 1px solid #93c5fd;">
+          <div class="d-flex align-items-center justify-content-between">
+            <div>
+              <p class="mb-1 small fw-medium" style="color: #1e3a8a;">Total Approved</p>
+              <p class="mb-0 display-6 fw-bold" style="color: #1e40af;">{{ total_approved or 0 }}</p>
+            </div>
+            <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 56px; height: 56px; background: #93c5fd;">
+              <i class="fas fa-award fa-2x" style="color: #1e3a8a;"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if pending_certificates and pending_certificates|length > 0 %}
+    <div class="table-responsive">
+      <h5 class="mb-3" style="font-size: 16px; font-weight: 600;">Recent Pending Certificates (Top 10)</h5>
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th class="small fw-semibold text-uppercase">Cert ID</th>
+            <th class="small fw-semibold text-uppercase">User</th>
+            <th class="small fw-semibold text-uppercase">Course</th>
+            <th class="small fw-semibold text-uppercase">Issue Date</th>
+            <th class="small fw-semibold text-uppercase">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cert in pending_certificates[:10] %}
+          <tr>
+            <td class="fw-medium">#{{ cert.certificate_id }}</td>
+            <td>
+              {% if cert.user %}
+                {{ cert.user.full_name }}
+                {% if cert.user.number_series %}
+                  <div class="small text-muted">{{ cert.user.number_series }}</div>
+                {% endif %}
+              {% else %}
+                User #{{ cert.user_id }}
+              {% endif %}
+            </td>
+            <td>
+              {% if cert.module and cert.module.course %}
+                {{ cert.module.course.name }}
+                {% if cert.module.course.code %}
+                  <span class="small text-muted">({{ cert.module.course.code }})</span>
+                {% endif %}
+              {% elif cert.module %}
+                {{ cert.module.module_name }}
+              {% else %}
+                Module #{{ cert.module_id }}
+              {% endif %}
+            </td>
+            <td class="text-muted">{{ cert.issue_date }}</td>
+            <td>
+              <span class="badge bg-warning text-dark">pending</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+      <i class="fas fa-check-circle text-success mb-3" style="font-size: 3rem;"></i>
+      <p class="text-muted mb-1" style="font-size: 18px;">No pending approvals at the moment</p>
+      <p class="text-muted small">All certificates have been processed!</p>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
 
   {# Course-level stats #}
   {% set total_courses = (courses_progress|length) if courses_progress else 0 %}
