@@ -526,6 +526,102 @@
       font-size: 15px;
     }
   }
+
+  /* Authority Approvals Dashboard Styles */
+  .authority-approvals-dashboard {
+    background: var(--card-bg, #ffffff);
+    color: var(--primary-text, #0f172a);
+  }
+
+  .authority-approvals-dashboard h3,
+  .authority-approvals-dashboard h5 {
+    color: var(--primary-text, #0f172a);
+  }
+
+  /* Table styling for both light and dark modes */
+  .authority-approvals-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .authority-approvals-table thead th {
+    background: rgba(0, 0, 0, 0.03);
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary, #64748b);
+    border-bottom: 2px solid rgba(0, 0, 0, 0.08);
+  }
+
+  .authority-approvals-table tbody td {
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    color: var(--primary-text, #0f172a);
+    font-size: 14px;
+  }
+
+  .authority-approvals-table tbody tr:hover {
+    background: rgba(59, 130, 246, 0.04);
+  }
+
+  /* Dark mode table styles */
+  body.dark-mode .authority-approvals-table thead th,
+  html.darkmode body .authority-approvals-table thead th {
+    background: rgba(255, 255, 255, 0.05);
+    color: #94a3b8;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  }
+
+  body.dark-mode .authority-approvals-table tbody td,
+  html.darkmode body .authority-approvals-table tbody td {
+    color: #e2e8f0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  body.dark-mode .authority-approvals-table tbody tr:hover,
+  html.darkmode body .authority-approvals-table tbody tr:hover {
+    background: rgba(59, 130, 246, 0.1);
+  }
+
+  body.dark-mode .authority-approvals-dashboard,
+  html.darkmode body .authority-approvals-dashboard {
+    color: #e2e8f0;
+  }
+
+  body.dark-mode .authority-approvals-dashboard h3,
+  body.dark-mode .authority-approvals-dashboard h5,
+  html.darkmode body .authority-approvals-dashboard h3,
+  html.darkmode body .authority-approvals-dashboard h5 {
+    color: #f1f5f9;
+  }
+
+  /* Mobile responsive table */
+  @media (max-width: 768px) {
+    .authority-approvals-table {
+      display: block;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .authority-approvals-table thead th,
+    .authority-approvals-table tbody td {
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+
+    .authority-approvals-table thead th {
+      font-size: 10px;
+    }
+  }
+
+  /* Stats cards in dark mode */
+  body.dark-mode .text-muted,
+  html.darkmode body .text-muted {
+    color: #94a3b8 !important;
+  }
 </style>
 {% endblock %}
 
@@ -538,9 +634,9 @@
   
   {% if is_authority %}
   <!-- Pending Approvals Dashboard for Authority Users -->
-  <div class="bg-white rounded-xl shadow-lg p-6 mb-6" style="background: var(--card-bg); border-radius: 12px;">
-    <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
-      <h3 class="mb-0" style="font-size: 20px; font-weight: 600;"><i class="fas fa-clipboard-check me-2"></i>Pending Approvals Dashboard</h3>
+  <div class="authority-approvals-dashboard rounded-xl shadow-lg p-6 mb-6" style="background: var(--card-bg); border-radius: 12px; padding: 24px;">
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-3" style="border-bottom: 1px solid rgba(0,0,0,0.1);">
+      <h3 class="mb-0" style="font-size: 20px; font-weight: 600; color: var(--primary-text);"><i class="fas fa-clipboard-check me-2"></i>Pending Approvals Dashboard</h3>
       <a href="{{ url_for('authority.authority_portal') }}" class="btn btn-primary">
         <i class="fas fa-external-link-alt me-1"></i>View Full Portal
       </a>
@@ -591,27 +687,27 @@
     </div>
 
     {% if pending_certificates and pending_certificates|length > 0 %}
-    <div class="table-responsive">
-      <h5 class="mb-3" style="font-size: 16px; font-weight: 600;">Recent Pending Certificates (Top 10)</h5>
-      <table class="table table-hover align-middle">
-        <thead class="table-light">
+    <div style="overflow-x: auto;">
+      <h5 class="mb-3" style="font-size: 16px; font-weight: 600; color: var(--primary-text);">Recent Pending Certificates (Top 10)</h5>
+      <table class="authority-approvals-table">
+        <thead>
           <tr>
-            <th class="small fw-semibold text-uppercase">Cert ID</th>
-            <th class="small fw-semibold text-uppercase">User</th>
-            <th class="small fw-semibold text-uppercase">Course</th>
-            <th class="small fw-semibold text-uppercase">Issue Date</th>
-            <th class="small fw-semibold text-uppercase">Status</th>
+            <th>Cert ID</th>
+            <th>User</th>
+            <th>Course</th>
+            <th>Issue Date</th>
+            <th>Status</th>
           </tr>
         </thead>
         <tbody>
           {% for cert in pending_certificates[:10] %}
           <tr>
-            <td class="fw-medium">#{{ cert.certificate_id }}</td>
+            <td style="font-weight: 600;">#{{ cert.certificate_id }}</td>
             <td>
               {% if cert.user %}
-                {{ cert.user.full_name }}
+                <div>{{ cert.user.full_name }}</div>
                 {% if cert.user.number_series %}
-                  <div class="small text-muted">{{ cert.user.number_series }}</div>
+                  <div style="font-size: 12px; opacity: 0.7;">{{ cert.user.number_series }}</div>
                 {% endif %}
               {% else %}
                 User #{{ cert.user_id }}
@@ -621,7 +717,7 @@
               {% if cert.module and cert.module.course %}
                 {{ cert.module.course.name }}
                 {% if cert.module.course.code %}
-                  <span class="small text-muted">({{ cert.module.course.code }})</span>
+                  <span style="font-size: 12px; opacity: 0.7;">({{ cert.module.course.code }})</span>
                 {% endif %}
               {% elif cert.module %}
                 {{ cert.module.module_name }}
@@ -629,9 +725,9 @@
                 Module #{{ cert.module_id }}
               {% endif %}
             </td>
-            <td class="text-muted">{{ cert.issue_date }}</td>
+            <td style="opacity: 0.8;">{{ cert.issue_date }}</td>
             <td>
-              <span class="badge bg-warning text-dark">pending</span>
+              <span class="badge bg-warning text-dark" style="font-size: 11px; padding: 4px 10px; border-radius: 12px;">pending</span>
             </td>
           </tr>
           {% endfor %}
