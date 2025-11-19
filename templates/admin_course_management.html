@@ -116,6 +116,7 @@
                       <input class="form-control" name="module_type" value="{{ course.code }}" required>
                     </div>
                     <div class="col-12 text-end">
+                      <button type="button" class="btn btn-secondary btn-sm cancel-add-module" data-target="#addModuleWrap-{{ course.course_id }}">Cancel</button>
                       <button class="btn btn-success btn-sm" type="submit">Create Module</button>
                     </div>
                   </form>
@@ -432,6 +433,18 @@
         } else {
             target.style.display = 'block';
         }
+      }
+    }
+    const cancelAdd = e.target.closest('.cancel-add-module');
+    if(cancelAdd){
+      e.preventDefault();
+      e.stopPropagation();
+      const targetId = cancelAdd.getAttribute('data-target');
+      const target = document.querySelector(targetId);
+      if(target){
+        target.style.display = 'none';
+        const form = target.querySelector('form');
+        if(form) form.reset();
       }
     }
   });
