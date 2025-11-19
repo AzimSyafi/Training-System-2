@@ -61,12 +61,13 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-19 (Latest)
-**Desktop Sidebar Fixes**:
-- **Fixed Unresponsive Hamburger Button**: Added CSS media query to hide hamburger button on desktop screens (>1024px) where it served no purpose
-- **Removed Desktop Overlay**: Overlay now only appears on mobile/tablet devices, not on desktop
+**Universal Sidebar Toggle - All Screen Sizes**:
+- **Fixed Hamburger Button**: Hamburger button now works on ALL screen sizes (desktop, tablet, mobile)
+- **Slide-Out Behavior**: Sidebar slides in/out from the left on all devices, controlled by hamburger button
+- **Overlay on All Screens**: Dark overlay appears when sidebar is open on any screen size
 - **Smaller Profile Picture**: Reduced sidebar profile avatar from 46px to 38px for a more compact appearance
-- **Proper Desktop UX**: Sidebar is now permanently visible on desktop without toggle controls, while maintaining slide-out functionality on mobile/tablet
-- **Breakpoint Fix**: Desktop behavior applies at min-width: 1025px, mobile/tablet behavior at max-width: 1024px
+- **Unified UX**: Consistent slide-out sidebar behavior across all devices - no separate desktop/mobile logic
+- **Hidden by Default**: Sidebar starts hidden off-screen; click hamburger to reveal it
 
 ### 2025-11-18
 **Admin User Creation - User & Authority Role Support**:
