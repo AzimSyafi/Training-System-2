@@ -1240,7 +1240,7 @@
                 <script>
                 (function(){
                   const moduleId = {{ module.module_id|tojson }};
-                  const isCompleted = {{ 'true' if user_module.is_completed else 'false' }};
+                  const isCompleted = {{ 'true' if user_module and user_module.is_completed else 'false' }};
                   const quizHeader = document.getElementById('quiz-header-{{ module.module_id }}');
                   const quizBody = document.getElementById('quiz-body-{{ module.module_id }}');
                   const questionsRow = document.getElementById('questions-row-{{ module.module_id }}');
@@ -1250,6 +1250,11 @@
                   const noQuiz = document.getElementById('no-quiz-{{ module.module_id }}');
                   const quizContainer = document.getElementById('quiz-container-{{ module.module_id }}');
                   const resultsContainer = document.getElementById('results-container-{{ module.module_id }}');
+
+                  // Check if quiz elements exist (they may not if we're on a different tab)
+                  if (!quizHeader || !quizBody || !questionsRow || !progressText || !statusText || !btnSubmit || !noQuiz || !quizContainer || !resultsContainer) {
+                    return;
+                  }
 
                   // Hide quiz accordion if module is completed
                   if (isCompleted) {
