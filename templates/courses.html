@@ -76,11 +76,11 @@
             <span class="font-semibold {% if course.overall_percentage < 50 %}text-red-600{% elif course.overall_percentage > 75 %}text-green-600{% else %}text-blue-600{% endif %}">{{ course.overall_percentage }}%</span>
           </p>
           {% endif %}
-          <div class="flex items-center gap-2 mb-4">
-            <div class="flex-1" style="background-color: #e5e7eb; border-radius: 9999px; height: 10px;">
+          <div class="flex items-center justify-between mb-4">
+            <div style="width: 66.66%; background-color: #e5e7eb; border-radius: 9999px; height: 10px;">
               <div style="background-color: #3b82f6; height: 100%; border-radius: 9999px; width: {{ 0 if course.locked else course.percent }}%; transition: width 0.5s;"></div>
             </div>
-            <div class="text-xs text-gray-600 whitespace-nowrap flex-shrink-0">{{ 0 if course.locked else course.percent }}% complete</div>
+            <div class="ml-2 text-xs text-gray-600 whitespace-nowrap">{{ 0 if course.locked else course.percent }}% complete</div>
           </div>
           {% if course.locked %}
             <div class="text-xs text-gray-600 mb-2">
