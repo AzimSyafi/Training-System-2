@@ -1,57 +1,5 @@
 {% extends 'base.html' %}
 {% block title %}Authority Portal{% endblock %}
-{% block styles %}
-<style>
-  /* Ensure table is visible on all screen sizes */
-  .authority-table-container {
-    width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .authority-table-container table {
-    width: 100%;
-    min-width: 700px; /* Minimum width to maintain readability */
-  }
-
-  /* Mobile specific adjustments */
-  @media (max-width: 768px) {
-    .authority-table-container {
-      margin: 0 -1rem; /* Extend to full width on mobile */
-    }
-
-    .authority-table-container table {
-      font-size: 13px;
-    }
-
-    .authority-table-container th,
-    .authority-table-container td {
-      padding: 0.5rem !important;
-      white-space: nowrap;
-    }
-
-    .authority-table-container th:first-child,
-    .authority-table-container td:first-child {
-      padding-left: 1rem !important;
-      position: sticky;
-      left: 0;
-      background: var(--card-bg, #fff);
-      z-index: 1;
-    }
-  }
-
-  /* Ensure table displays properly */
-  .authority-table-container table.table {
-    display: table !important;
-  }
-
-  /* Dark mode support */
-  body.dark-mode .authority-table-container td:first-child,
-  html.darkmode body .authority-table-container td:first-child {
-    background: var(--card-bg, #1e293b);
-  }
-</style>
-{% endblock %}
 {% block content %}
 {% set colspan = 8 if selected_status=='pending' else 7 %}
 <div class="container-fluid">
@@ -99,22 +47,22 @@
 
   <div class="card">
     <div class="card-body p-0">
-      <div class="authority-table-container px-4 pt-4 pb-2">
-        <table class="table table-striped align-middle" id="pendingTable" data-paginate="true" data-items-per-page="50">
+      <div class="table-responsive px-4 pt-4 pb-2">
+        <table class="table table-striped align-middle" id="pendingTable" data-paginate="true" data-items-per-page="50" data-responsive-table="true">
           <thead>
             <tr>
               {% if selected_status=='pending' %}
-              <th>
+              <th data-label="Select">
                 <input type="checkbox" id="select-all" aria-label="Select all certificates">
               </th>
               {% endif %}
-              <th>Cert ID</th>
-              <th>User</th>
-              <th>Course</th>
-              <th>Issue Date</th>
-              <th>Status</th>
-              <th>Approved At</th>
-              <th>Approved By</th>
+              <th data-label="Cert ID" data-primary="true">Cert ID</th>
+              <th data-label="User" data-secondary="true">User</th>
+              <th data-label="Course">Course</th>
+              <th data-label="Issue Date">Issue Date</th>
+              <th data-label="Status">Status</th>
+              <th data-label="Approved At">Approved At</th>
+              <th data-label="Approved By">Approved By</th>
             </tr>
           </thead>
           <tbody>
