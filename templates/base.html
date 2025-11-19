@@ -68,6 +68,7 @@
             --text-color: #111827;
             --card-bg: #ffffff;
             --border-color: #e2e8f0;
+            /* SIDEBAR COLORS (Light/Default) - These are the "Pic 1" colors */
             --sidebar-bg: #1e40af;
             --sidebar-link: #dbeafe;
             --sidebar-link-hover-bg: #3b82f6;
@@ -99,10 +100,13 @@
             --text-color: #ffffff;
             --card-bg: #1e3a5f;
             --border-color: #334155;
-            --sidebar-bg: #0f2749;
-            --sidebar-link: #93c5fd;
-            --sidebar-link-hover-bg: #1d4ed8;
-            --sidebar-link-active-border: #fbbf24;
+            
+            /* SIDEBAR COLORS FIXED: Forced to match Light Mode (Pic 1) style */
+            --sidebar-bg: #1e40af;           /* Was #0f2749 */
+            --sidebar-link: #dbeafe;         /* Was #93c5fd */
+            --sidebar-link-hover-bg: #3b82f6;/* Was #1d4ed8 */
+            --sidebar-link-active-border: #ffffff; /* Was #fbbf24 */
+            
             --link-color: #60a5fa;
             --link-hover-color: #bfdbfe;
             --input-bg: #1e3a5f;
@@ -115,7 +119,7 @@
             --nav-tabs-link-hover-bg: #1e3a5f;
             --nav-tabs-link-active-bg: #1e3a5f;
             --nav-tabs-link-active-color: #ffffff;
-            /* segmented sidebar colors (dark) */
+            /* segmented sidebar colors (dark) - Reset to match light mode */
             --sidebar-icon-color: #ffffff;
             --sidebar-text-color: var(--sidebar-link);
         }
@@ -123,7 +127,21 @@
         body.theme-transition { transition: background-color .3s, color .3s; }
         a { color: var(--link-color); }
         a:hover { color: var(--link-hover-color); }
-        .sidebar { background: var(--sidebar-bg); width: var(--sidebar-expanded); min-height: 100vh; position: fixed; top: 0; left: 0; z-index: 100; display: flex; flex-direction: column; max-height: 100vh; overflow-y: auto; transition: width .3s ease; }
+        .sidebar { 
+            background: var(--sidebar-bg); 
+            width: var(--sidebar-expanded); 
+            min-height: 100vh; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            /* Increased Z-Index to ensure it stays above overlay content on desktop */
+            z-index: 1040; 
+            display: flex; 
+            flex-direction: column; 
+            max-height: 100vh; 
+            overflow-y: auto; 
+            transition: width .3s ease; 
+        }
         .sidebar.collapsed { width: var(--sidebar-collapsed); overflow-y: hidden; }
         body.no-sidebar .sidebar { display: none; }
         .main-content { margin-left: var(--sidebar-expanded); padding: 2rem 1rem 1rem 1rem; transition: margin-left .3s ease; }
@@ -154,7 +172,26 @@
         }
         .sidebar.collapsed .nav-link .link-text { max-width: 0; opacity: 0; }
 
-        #sidebar-toggle { height: 60px; background: none; border: 0; color: #fff; font-size: var(--sidebar-font-size); width: 100%; display: flex; align-items: center; justify-content: center; padding: .65rem 1rem; cursor: pointer; text-align: left; overflow: hidden; }
+        #sidebar-toggle { 
+            height: 60px; 
+            background: none; 
+            border: 0; 
+            color: #fff; 
+            font-size: var(--sidebar-font-size); 
+            width: 100%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            padding: .65rem 1rem; 
+            /* Force pointer events to ensure it receives clicks */
+            cursor: pointer !important; 
+            pointer-events: auto !important;
+            text-align: left; 
+            overflow: hidden;
+            /* Fix for clickable area on desktop - High Z-Index */
+            position: relative;
+            z-index: 1050;
+        }
         #sidebar-toggle i { min-width: 20px; text-align: center; color: #fff; }
         #sidebar-toggle .toggle-text { display: none; } /* Hide any text, show only icon */
         #sidebar-toggle:hover { background: var(--sidebar-link-hover-bg); color: #fff; }
@@ -173,7 +210,7 @@
         .sidebar.collapsed .profile-text { max-width: 0; opacity: 0; }
 
         /* Floating profile menu (detached from sidebar) */
-        .profile-menu { position: fixed; top:0; left:0; opacity:0; visibility:hidden; transform:translateY(4px); transition:opacity .18s ease, transform .18s ease, visibility .18s; background: var(--card-bg); color: var(--text-color); border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.18); padding:.5rem 0; width:220px; list-style:none; margin:0; z-index:40; }
+        .profile-menu { position: fixed; top:0; left:0; opacity:0; visibility:hidden; transform:translateY(4px); transition:opacity .18s ease, transform .18s ease, visibility .18s; background: var(--card-bg); color: var(--text-color); border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.18); padding:.5rem 0; width:220px; list-style:none; margin:0; z-index:1060; }
         .profile-menu.open { opacity:1; visibility:visible; transform:translateY(0); }
         .profile-menu button, .profile-menu a { display:flex; align-items:center; gap:.65rem; width:100%; background:none; border:0; padding:.55rem 1rem; text-align:left; text-decoration:none; font-size:.9rem; color:inherit; cursor:pointer; }
         .profile-menu button:hover, .profile-menu a:hover { background: var(--nav-tabs-link-hover-bg, #f1f5f9); }
@@ -533,7 +570,6 @@
             const ALWAYS_LIGHT = {{ 'true' if always_light else 'false' }};
             const sidebar = document.getElementById('sidebar');
             const mainContent = document.getElementById('main-content');
-            const sidebarToggle = document.getElementById('sidebar-toggle');
             const darkToggleBtn = document.getElementById('darkmode-toggle');
             const darkToggleIcon = document.getElementById('darkmode-icon');
             const profileBlock = document.getElementById('profileBlock');
@@ -568,24 +604,47 @@
                 darkToggleBtn.classList.add('disabled');
             }
 
-            if (sidebar && mainContent && sidebarToggle) {
+            if (sidebar && mainContent) {
                 if (localStorage.getItem('sidebar-collapsed') === 'true') {
                     sidebar.classList.add('collapsed');
                     mainContent.classList.add('collapsed');
                 }
                 // Remove pre-paint helper class now that real classes are applied
                 document.documentElement.classList.remove('prefers-sidebar-collapsed');
-                function updateAria() { sidebarToggle.setAttribute('aria-expanded', !sidebar.classList.contains('collapsed')); }
-                updateAria();
-                sidebarToggle.addEventListener('click', () => {
-                    sidebar.classList.toggle('collapsed');
-                    mainContent.classList.toggle('collapsed');
-                    localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
-                    updateAria();
-                });
+                
+                const toggleBtn = document.getElementById('sidebar-toggle');
+                if(toggleBtn) toggleBtn.setAttribute('aria-expanded', !sidebar.classList.contains('collapsed'));
             } else {
                 // Ensure helper removed even if sidebar absent
                 document.documentElement.classList.remove('prefers-sidebar-collapsed');
+            }
+
+            // Aggressive Event handling for sidebar toggle
+            // Use capturing phase (true) to intercept click before bubbling up, 
+            // and stop propagation to prevent conflicting scripts (like responsive.js) from overriding.
+            const toggleBtnDirect = document.getElementById('sidebar-toggle');
+            if(toggleBtnDirect) {
+                toggleBtnDirect.addEventListener('click', function(event) {
+                    // Stop other scripts (like responsive.js) from interfering
+                    event.stopPropagation();
+                    // If external scripts use the same listener, try to prevent them
+                    // (Note: stopImmediatePropagation works if this listener is attached FIRST. 
+                    // Since this script runs before responsive.js, it should block responsive.js listeners if they are attached later.)
+                    if(event.stopImmediatePropagation) event.stopImmediatePropagation(); 
+
+                    const sidebar = document.getElementById('sidebar');
+                    const mainContent = document.getElementById('main-content');
+                    
+                    if (sidebar && mainContent) {
+                        sidebar.classList.toggle('collapsed');
+                        mainContent.classList.toggle('collapsed');
+                        
+                        // Force layout update logic
+                        const isCollapsed = sidebar.classList.contains('collapsed');
+                        localStorage.setItem('sidebar-collapsed', isCollapsed);
+                        this.setAttribute('aria-expanded', !isCollapsed);
+                    }
+                }, true); // Use capture phase
             }
 
             function closeMenu(){ if(profileMenu){ profileMenu.classList.remove('open'); if(profileTrigger) profileTrigger.setAttribute('aria-expanded','false'); } }

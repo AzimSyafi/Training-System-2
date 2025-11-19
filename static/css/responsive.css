@@ -1618,3 +1618,19 @@ body.sidebar-open .desktop-nav-toggle,
   }
 }
 
+
+/* ========================================
+   DESKTOP: HIDE HAMBURGER BUTTON AND OVERLAY
+   ======================================== */
+/* On desktop screens (wider than 1024px), the sidebar should be permanently visible
+   and the hamburger toggle button should be completely hidden since it serves no purpose.
+   The toggle only works on mobile/tablet where the sidebar slides in/out. */
+@media (min-width: 1025px) {
+  .desktop-nav-toggle {
+    display: none !important;
+  }
+  
+  .nav-overlay {
+    display: none !important;
+  }
+}
