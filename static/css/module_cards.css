@@ -52,17 +52,17 @@ body.dark-mode .module-inner-panel-blue, html.darkmode body .module-inner-panel-
     }
 
     .module-card-rounded > .card-header {
-        padding: 0.875rem;
-        font-size: 0.95rem;
+        padding: 1.25rem;
+        font-size: 1rem;
     }
 
     .module-card-rounded .card-body {
-        padding: 1rem;
+        padding: 1.5rem;
     }
 
     .module-inner-panel-blue {
-        padding: 0.875rem;
-        border-radius: 6px;
+        padding: 1.25rem;
+        border-radius: 8px;
     }
 
     /* Stack module card header content */
@@ -76,21 +76,22 @@ body.dark-mode .module-inner-panel-blue, html.darkmode body .module-inner-panel-
     .module-card-rounded .btn {
         width: 100%;
         margin-bottom: 0.5rem;
-        padding: 0.75rem;
-        min-height: 44px;
+        padding: 0.875rem;
+        min-height: 48px;
+        font-size: 0.95rem;
     }
 
     .module-card-rounded .btn:last-child {
         margin-bottom: 0;
     }
 
-    /* Responsive video/iframe container */
+    /* Responsive video/iframe container - LARGER on mobile */
     .module-inner-panel-blue iframe,
     .module-inner-panel-blue video {
         width: 100% !important;
         height: auto !important;
-        min-height: 200px;
-        max-height: 300px;
+        min-height: 250px;
+        max-height: 400px;
         aspect-ratio: 16/9;
     }
 
@@ -104,21 +105,21 @@ body.dark-mode .module-inner-panel-blue, html.darkmode body .module-inner-panel-
 
     .module-card-rounded .nav-tabs .nav-link {
         white-space: nowrap;
-        padding: 0.75rem 1rem;
-        font-size: 0.875rem;
+        padding: 0.875rem 1.125rem;
+        font-size: 0.9375rem;
     }
 
-    /* Reduce heading sizes in modules */
+    /* Slightly larger heading sizes on mobile for readability */
     .module-card-rounded h3 {
-        font-size: 1.15rem !important;
+        font-size: 1.25rem !important;
     }
 
     .module-card-rounded h4 {
-        font-size: 1.05rem !important;
+        font-size: 1.125rem !important;
     }
 
     .module-card-rounded h5 {
-        font-size: 0.95rem !important;
+        font-size: 1rem !important;
     }
 
     /* Better spacing for quiz elements */
@@ -127,9 +128,10 @@ body.dark-mode .module-inner-panel-blue, html.darkmode body .module-inner-panel-
     }
 
     .module-card-rounded .quiz-option {
-        padding: 0.875rem;
-        margin-bottom: 0.75rem;
+        padding: 1rem;
+        margin-bottom: 0.875rem;
         border-radius: 8px;
+        font-size: 0.9375rem;
     }
 }
 

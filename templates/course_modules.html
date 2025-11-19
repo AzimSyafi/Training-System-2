@@ -43,8 +43,9 @@
     .btn {
       width: 100%;
       justify-content: center;
-      padding: 14px 20px;
-      font-size: 15px;
+      padding: 0.875rem;
+      font-size: 0.95rem;
+      min-height: 48px;
     }
   }
 
@@ -102,8 +103,9 @@
 
   @media (max-width: 768px) {
     .module-card-rounded > .card-header {
-      padding: 14px 12px;
+      padding: 1.25rem;
       min-height: 64px;
+      font-size: 1rem;
     }
   }
 
@@ -188,7 +190,7 @@
   .module-card-rounded .card-body {
     background-color: #ffffff;
     color: var(--text-color);
-    padding: 16px;
+    padding: 1.5rem;
   }
 
   @media (min-width: 768px) {
@@ -311,7 +313,7 @@
   /* Content Panels - Mobile Optimized */
   .module-inner-panel-blue {
     background-color: rgba(30, 64, 175, 0.04);
-    padding: 16px;
+    padding: 1.25rem;
     border-radius: 10px;
     margin-bottom: 16px;
   }
@@ -1089,6 +1091,60 @@
                     height: 64px;
                     margin: 0 auto 16px;
                     opacity: 0.5;
+                  }
+
+                  /* Mobile-specific quiz styles for better readability */
+                  @media (max-width: 768px) {
+                    .quiz-accordion-header {
+                      padding: 18px 20px;
+                    }
+
+                    .quiz-accordion-title h3 {
+                      font-size: 1.125rem;
+                    }
+
+                    .quiz-accordion-subtitle {
+                      font-size: 0.9375rem;
+                    }
+
+                    .quiz-accordion-content {
+                      padding: 20px;
+                    }
+
+                    .question-card {
+                      padding: 20px;
+                    }
+
+                    .question-number {
+                      width: 36px;
+                      height: 36px;
+                      font-size: 15px;
+                    }
+
+                    .question-text {
+                      font-size: 1.0625rem;
+                      margin-bottom: 18px;
+                    }
+
+                    .answer-option {
+                      padding: 16px 18px;
+                      font-size: 1rem;
+                    }
+
+                    .answer-radio {
+                      width: 22px;
+                      height: 22px;
+                    }
+
+                    .submit-button {
+                      padding: 14px 28px;
+                      font-size: 1rem;
+                      min-height: 50px;
+                    }
+
+                    .progress-bar-text {
+                      font-size: 0.9375rem;
+                    }
                   }
 
                   #confetti-canvas {

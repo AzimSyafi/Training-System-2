@@ -61,6 +61,25 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-19 (Latest)
+**Quiz System Redesign - Embedded Vertical Accordion**:
+- **Removed Separate Quiz Page**: Eliminated standalone quiz player page and "Open Quiz Player" button
+- **Embedded Quiz Component**: Quiz accordion now appears directly below video content in same page
+- **Vertical Layout**: Questions stack vertically (one per row) instead of horizontal scrolling for better readability
+- **Modern Accordion UI**: Collapsible dropdown with blue play button icon, "Module Knowledge Check" header, and dynamic question count
+- **Fixed Element IDs**: All quiz elements now use unique module-specific IDs (e.g., `quiz-header-{{ module.module_id }}`) to support multiple modules per page
+- **Dual Template Support**: Quiz component embedded in both `module_view.html` and `course_modules.html`
+- **Complete JavaScript**: Fixed incomplete quiz initialization code, added proper error handling and closing tags
+
+**Mobile View Enhancements - Larger Content Cards**:
+- **Increased Card Padding**: Module card body padding increased from 16px to 1.5rem (24px) on mobile
+- **Larger Headers**: Card header padding increased from 14px to 1.25rem (20px), font size to 1rem
+- **Bigger Content Panels**: Module inner panel padding increased from 16px to 1.25rem (20px)
+- **Expanded Video Player**: Mobile video height range increased from 200-300px to 250-400px (25-33% larger)
+- **Enhanced Quiz Cards**: Quiz questions padding 20px, question text 1.0625rem font, answer options 16px padding with 1rem font
+- **Improved Touch Targets**: Buttons increased to 48-50px minimum height with larger padding (0.875rem)
+- **Better Typography**: All heading sizes increased (h3: 1.25rem, h4: 1.125rem, h5: 1rem) for mobile readability
+- **CSS Conflict Resolution**: Aligned inline template styles with global `module_cards.css` to ensure mobile improvements apply correctly
+
 **Universal Sidebar Toggle - All Screen Sizes**:
 - **Fixed Hamburger Button**: Hamburger button now works on ALL screen sizes (desktop, tablet, mobile)
 - **Slide-Out Behavior**: Sidebar slides in/out from the left on all devices, controlled by hamburger button
