@@ -294,15 +294,13 @@ body.sidebar-open .desktop-nav-toggle,
   display: none !important;
 }
 
-/* Main content - only adjust on mobile/tablet */
-@media (max-width: 1024px) {
-  .main-content {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    padding: calc(var(--desktop-hamburger-size) + 25px) 1.5rem 1.5rem 1.5rem !important;
-    width: 100% !important;
-    transition: none !important;
-  }
+/* Main content - adjust on all screen sizes for slide-out sidebar */
+.main-content {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding: calc(var(--desktop-hamburger-size) + 25px) 1.5rem 1.5rem 1.5rem !important;
+  width: 100% !important;
+  transition: none !important;
 }
 
 /* Ensure sidebar nav links show full text when menu is open */
