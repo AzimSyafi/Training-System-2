@@ -544,7 +544,7 @@
                 </style>
 
                 <div class="quiz-accordion">
-                  <div class="quiz-accordion-header open" id="quiz-header-mv">
+                  <div class="quiz-accordion-header open" id="quiz-header-{{ module.module_id }}">
                     <div class="quiz-accordion-title">
                       <div style="width: 40px; height: 40px; background: #3b82f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                         <svg style="width: 20px; height: 20px; color: white;" fill="currentColor" viewBox="0 0 24 24">
@@ -552,8 +552,8 @@
                         </svg>
                       </div>
                       <div style="display: flex; flex-direction: column; gap: 2px;">
-                        <span id="quiz-title-mv" style="font-size: 1.125rem; font-weight: 700; line-height: 1.4;">Module Knowledge Check</span>
-                        <span id="quiz-subtitle-mv" style="font-size: 0.875rem; font-weight: 400; opacity: 0.9;">Test your understanding • <span id="quiz-count-mv">0</span> Questions</span>
+                        <span id="quiz-title-{{ module.module_id }}" style="font-size: 1.125rem; font-weight: 700; line-height: 1.4;">Module Knowledge Check</span>
+                        <span id="quiz-subtitle-{{ module.module_id }}" style="font-size: 0.875rem; font-weight: 400; opacity: 0.9;">Test your understanding • <span id="quiz-count-{{ module.module_id }}">0</span> Questions</span>
                       </div>
                     </div>
                     <svg class="quiz-accordion-chevron lucide-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -561,18 +561,18 @@
                     </svg>
                   </div>
 
-                  <div class="quiz-accordion-body open" id="quiz-body-mv">
+                  <div class="quiz-accordion-body open" id="quiz-body-{{ module.module_id }}">
                     <div class="quiz-accordion-content">
-                      <div id="no-quiz-mv" class="no-quiz-message" style="display: none;">
+                      <div id="no-quiz-{{ module.module_id }}" class="no-quiz-message" style="display: none;">
                         <svg class="no-quiz-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                         <p>No quiz available for this module yet.</p>
                       </div>
 
-                      <div id="quiz-container-mv">
-                        <div class="quiz-scroll-container" id="scroll-container-mv">
-                          <div class="questions-row" id="questions-row-mv">
+                      <div id="quiz-container-{{ module.module_id }}">
+                        <div class="quiz-scroll-container" id="scroll-container-{{ module.module_id }}">
+                          <div class="questions-row" id="questions-row-{{ module.module_id }}">
                           </div>
                         </div>
 
@@ -582,18 +582,18 @@
                               <svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                               </svg>
-                              <span id="progress-text-mv">0 / 0 answered</span>
+                              <span id="progress-text-{{ module.module_id }}">0 / 0 answered</span>
                             </div>
-                            <div class="progress-badge" id="status-badge-mv">
+                            <div class="progress-badge" id="status-badge-{{ module.module_id }}">
                               <svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                               </svg>
-                              <span id="status-text-mv">In progress</span>
+                              <span id="status-text-{{ module.module_id }}">In progress</span>
                             </div>
                           </div>
 
                           <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
-                            <button id="btn-submit-mv" class="submit-button" disabled>
+                            <button id="btn-submit-{{ module.module_id }}" class="submit-button" disabled>
                               <svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                               </svg>
@@ -603,7 +603,7 @@
                         </div>
                       </div>
 
-                      <div id="results-container-mv" style="display: none;">
+                      <div id="results-container-{{ module.module_id }}" style="display: none;">
                       </div>
                     </div>
                   </div>
@@ -615,15 +615,15 @@
                 (function(){
                   const moduleId = {{ module.module_id|tojson }};
                   const isCompleted = {{ 'true' if user_module.is_completed else 'false' }};
-                  const quizHeader = document.getElementById('quiz-header-mv');
-                  const quizBody = document.getElementById('quiz-body-mv');
-                  const questionsRow = document.getElementById('questions-row-mv');
-                  const progressText = document.getElementById('progress-text-mv');
-                  const statusText = document.getElementById('status-text-mv');
-                  const btnSubmit = document.getElementById('btn-submit-mv');
-                  const noQuiz = document.getElementById('no-quiz-mv');
-                  const quizContainer = document.getElementById('quiz-container-mv');
-                  const resultsContainer = document.getElementById('results-container-mv');
+                  const quizHeader = document.getElementById('quiz-header-{{ module.module_id }}');
+                  const quizBody = document.getElementById('quiz-body-{{ module.module_id }}');
+                  const questionsRow = document.getElementById('questions-row-{{ module.module_id }}');
+                  const progressText = document.getElementById('progress-text-{{ module.module_id }}');
+                  const statusText = document.getElementById('status-text-{{ module.module_id }}');
+                  const btnSubmit = document.getElementById('btn-submit-{{ module.module_id }}');
+                  const noQuiz = document.getElementById('no-quiz-{{ module.module_id }}');
+                  const quizContainer = document.getElementById('quiz-container-{{ module.module_id }}');
+                  const resultsContainer = document.getElementById('results-container-{{ module.module_id }}');
 
                   // Hide quiz accordion if module is completed
                   if (isCompleted) {
@@ -867,7 +867,7 @@
                     html += `</div>`;
                     
                     html += `<div style="text-align: center;">`;
-                    html += `<button class="reattempt-button" id="btn-reattempt-mv">`;
+                    html += `<button class="reattempt-button" id="btn-reattempt-{{ module.module_id }}">`;
                     html += `<svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>`;
                     html += `Reattempt Quiz`;
                     html += `</button>`;
@@ -878,7 +878,7 @@
                     resultsContainer.innerHTML = html;
                     resultsContainer.style.display = 'block';
                     
-                    document.getElementById('btn-reattempt-mv')?.addEventListener('click', startReattempt);
+                    document.getElementById('btn-reattempt-{{ module.module_id }}')?.addEventListener('click', startReattempt);
                   }
 
                   function startReattempt(){
@@ -949,7 +949,7 @@
                       answers = {};
 
                       // Update question count in header
-                      const quizCountEl = document.getElementById('quiz-count-mv');
+                      const quizCountEl = document.getElementById('quiz-count-{{ module.module_id }}');
                       if (quizCountEl) quizCountEl.textContent = quiz.length;
 
                       try{

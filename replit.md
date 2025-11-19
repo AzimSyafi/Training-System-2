@@ -68,6 +68,13 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-19 (Latest)
+**Quiz Dropdown Fix - Dynamic Element IDs in module_view.html**:
+- **Fixed Critical Bug**: Replaced all hardcoded `-mv` element IDs with dynamic module-specific IDs using `{{ module.module_id }}`
+- **Elements Fixed**: quiz-header, quiz-body, quiz-container, quiz-title, quiz-subtitle, quiz-count, progress-text, status-text, status-badge, btn-submit, btn-reattempt, results-container, no-quiz, questions-row, scroll-container
+- **JavaScript Updated**: All getElementById() calls now use dynamic IDs matching the HTML elements
+- **Impact**: Quiz accordion now renders and toggles correctly for each module instance in module view
+- **Applied To**: templates/module_view.html (matches fix already applied to course_modules.html)
+
 **Profile Edit Form - IC Number Field Protection**:
 - **Greyed Out for Foreigners**: IC Number field is now disabled and greyed out for users with user_category = 'foreigner'
 - **Visual Feedback**: Field displays with light grey background, reduced opacity (60%), and 'not-allowed' cursor
