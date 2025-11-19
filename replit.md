@@ -64,3 +64,13 @@ Not specified.
 ### Node.js Packages
 -   Tailwind CSS (styling framework)
 -   Chart.js (for data visualization)
+
+## Recent Changes
+
+### 2025-11-19 (Latest)
+**Profile Edit Form - IC Number Field Protection**:
+- **Greyed Out for Foreigners**: IC Number field is now disabled and greyed out for users with user_category = 'foreigner'
+- **Visual Feedback**: Field displays with light grey background, reduced opacity (60%), and 'not-allowed' cursor
+- **Prevents Editing**: Foreigner users cannot modify the IC Number field in their profile
+- **Citizens Unaffected**: IC Number field remains fully editable for citizen users
+- **Applied To**: templates/profile.html edit profile form
