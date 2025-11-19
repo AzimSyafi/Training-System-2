@@ -105,61 +105,24 @@
 
                   .quiz-scroll-container {
                     position: relative;
-                    overflow-x: auto;
-                    overflow-y: hidden;
-                    scroll-behavior: smooth;
-                    -webkit-overflow-scrolling: touch;
-                    scrollbar-width: thin;
-                    scrollbar-color: #cbd5e1 #f1f5f9;
                     margin-bottom: 24px;
-                  }
-
-                  .quiz-scroll-container::-webkit-scrollbar {
-                    height: 8px;
-                  }
-
-                  .quiz-scroll-container::-webkit-scrollbar-track {
-                    background: #f1f5f9;
-                    border-radius: 4px;
-                  }
-
-                  .quiz-scroll-container::-webkit-scrollbar-thumb {
-                    background: #cbd5e1;
-                    border-radius: 4px;
-                  }
-
-                  .quiz-scroll-container::-webkit-scrollbar-thumb:hover {
-                    background: #94a3b8;
                   }
 
                   .questions-row {
                     display: flex;
+                    flex-direction: column;
                     gap: 20px;
                     padding: 10px 5px;
-                    scroll-snap-type: x mandatory;
                   }
 
                   .question-card {
-                    flex: 0 0 calc(100% - 40px);
-                    scroll-snap-align: start;
+                    width: 100%;
                     background: var(--card-bg, #fff);
                     border: 2px solid var(--border-color, #e5e7eb);
                     border-radius: 12px;
                     padding: 24px;
                     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
                     transition: all 0.2s ease;
-                  }
-
-                  @media (min-width: 768px) {
-                    .question-card {
-                      flex: 0 0 calc(50% - 20px);
-                    }
-                  }
-
-                  @media (min-width: 1024px) {
-                    .question-card {
-                      flex: 0 0 calc(33.333% - 20px);
-                    }
                   }
 
                   .question-card:hover {
