@@ -233,31 +233,29 @@ body.sidebar-open .desktop-nav-toggle,
   }
 }
 
-/* Sidebar slide-out behavior - ONLY ON MOBILE AND TABLET (<=1024px) */
-@media (max-width: 1024px) {
-  .sidebar {
-    position: fixed !important;
-    top: 0;
-    left: -280px !important; /* Hidden off-screen to the left */
-    right: auto !important;
-    width: 280px !important;
-    height: 100vh;
-    z-index: 9999; /* Below hamburger button */
-    transition: left 0.3s ease-in-out !important;
-    overflow-y: auto;
-    box-shadow: 2px 0 15px rgba(0,0,0,0.15); /* Shadow on right side */
-    padding-top: 0;
-  }
+/* Sidebar slide-out behavior - WORKS ON ALL SCREEN SIZES */
+.sidebar {
+  position: fixed !important;
+  top: 0;
+  left: -280px !important; /* Hidden off-screen to the left by default */
+  right: auto !important;
+  width: 280px !important;
+  height: 100vh;
+  z-index: 9999; /* Below hamburger button */
+  transition: left 0.3s ease-in-out !important;
+  overflow-y: auto;
+  box-shadow: 2px 0 15px rgba(0,0,0,0.15); /* Shadow on right side */
+  padding-top: 0;
+}
 
-  /* When menu is open, sidebar slides in from left to position 0 */
-  .sidebar.menu-open {
-    left: 0 !important; /* Sidebar comes in from left, sits at left edge */
-  }
+/* When menu is open, sidebar slides in from left to position 0 */
+.sidebar.menu-open {
+  left: 0 !important; /* Sidebar comes in from left, sits at left edge */
+}
 
-  /* Add top margin to first nav element to avoid overlap */
-  .sidebar nav {
-    margin-top: 20px;
-  }
+/* Add top margin to first nav element to avoid overlap */
+.sidebar nav {
+  margin-top: 20px;
 }
 
 /* Overlay when menu is open (all screens) */
