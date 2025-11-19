@@ -76,8 +76,8 @@
             <span class="font-semibold {% if course.overall_percentage < 50 %}text-red-600{% elif course.overall_percentage > 75 %}text-green-600{% else %}text-blue-600{% endif %}">{{ course.overall_percentage }}%</span>
           </p>
           {% endif %}
-          <div class="flex items-center gap-2 mb-4">
-            <div class="flex-1 bg-gray-200 rounded-full h-[10px]">
+          <div class="flex items-center gap-2 mb-4 w-full">
+            <div class="flex-1 min-w-0" style="background-color: #e5e7eb; border-radius: 9999px; height: 10px;">
               <div style="background-color: #3b82f6; height: 100%; border-radius: 9999px; width: {{ 0 if course.locked else course.percent }}%; transition: width 0.5s;"></div>
             </div>
             <div class="text-xs text-gray-600 whitespace-nowrap flex-shrink-0">{{ 0 if course.locked else course.percent }}% complete</div>
