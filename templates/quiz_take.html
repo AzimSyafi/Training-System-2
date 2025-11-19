@@ -4,25 +4,15 @@
 
 {% block styles %}
 <style>
-  /* Mobile-First Quiz Layout */
-  .quiz-topbar {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-bottom: 16px;
-    padding: 12px;
+  /* Modern Quiz Container with Collapsible Accordion */
+  .quiz-page-wrapper {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
   }
 
-  @media (min-width: 768px) {
-    .quiz-topbar {
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-    }
-  }
-
-  /* Back Button - Properly Shaped */
-  .breadcrumbs a {
+  /* Back Button */
+  .back-button {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -35,354 +25,610 @@
     font-size: 14px;
     transition: all 0.2s ease;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
   }
 
-  .breadcrumbs a:hover {
+  .back-button:hover {
     background: #2563eb;
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    color: #fff;
   }
 
-  @media (max-width: 767px) {
-    .breadcrumbs a {
-      width: 100%;
-      justify-content: center;
-      padding: 12px 20px;
-      font-size: 15px;
-    }
-  }
-
-  /* Quiz Title */
-  .quiz-title {
-    font-weight: 700;
-    font-size: 1.1rem;
-    color: var(--primary-text, #1e3a8a);
-    text-align: center;
-  }
-
-  @media (min-width: 768px) {
-    .quiz-title {
-      font-size: 1.25rem;
-      text-align: left;
-    }
-  }
-
-  /* Pills Container - Mobile Horizontal */
-  .quiz-topbar > .d-flex {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: center;
-  }
-
-  @media (min-width: 768px) {
-    .quiz-topbar > .d-flex {
-      justify-content: flex-end;
-    }
-  }
-
-  .pill {
-    background: #eef2ff;
-    color: #1e3a8a;
-    border-radius: 999px;
-    padding: 8px 14px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 14px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  .pill.small {
-    font-size: 0.85rem;
-    padding: 6px 12px;
-  }
-
-  body.dark-mode .pill {
-    background: #1f2a44;
-    color: #dbeafe;
-  }
-
-  /* Quiz Body */
-  .quiz-body {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 12px;
-  }
-
-  @media (min-width: 768px) {
-    .quiz-body {
-      padding: 16px;
-    }
-  }
-
-  /* Quiz Card */
-  .quiz-card {
-    background: var(--card-bg);
-    color: var(--text-color);
-    border: 1px solid var(--border-color);
+  /* Collapsible Accordion Container */
+  .quiz-accordion {
+    background: var(--card-bg, #fff);
+    border: 2px solid var(--border-color, #e5e7eb);
     border-radius: 12px;
-    padding: 16px;
-    box-shadow: 0 4px 10px rgba(0,0,0,.06);
-    max-width: 100%;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    margin-bottom: 20px;
+  }
+
+  /* Accordion Header */
+  .quiz-accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    cursor: pointer;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    transition: all 0.2s ease;
+    user-select: none;
+  }
+
+  .quiz-accordion-header:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  }
+
+  .quiz-accordion-header.collapsed {
+    background: var(--card-bg, #fff);
+    color: var(--text-color, #1e293b);
+    border-bottom: 2px solid var(--border-color, #e5e7eb);
+  }
+
+  .quiz-accordion-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+
+  .quiz-accordion-chevron {
+    width: 24px;
+    height: 24px;
+    transition: transform 0.3s ease;
+  }
+
+  .quiz-accordion-header.open .quiz-accordion-chevron {
+    transform: rotate(180deg);
+  }
+
+  /* Accordion Body */
+  .quiz-accordion-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+
+  .quiz-accordion-body.open {
+    max-height: 2000px;
+  }
+
+  .quiz-accordion-content {
+    padding: 24px;
+  }
+
+  /* Horizontal Scroll Container */
+  .quiz-scroll-container {
+    position: relative;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+    margin-bottom: 24px;
+  }
+
+  .quiz-scroll-container::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .quiz-scroll-container::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+
+  .quiz-scroll-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+
+  .quiz-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  /* Horizontal Questions Row */
+  .questions-row {
+    display: flex;
+    gap: 20px;
+    padding: 10px 5px;
+    scroll-snap-type: x mandatory;
+  }
+
+  /* Individual Question Card */
+  .question-card {
+    flex: 0 0 calc(100% - 40px);
+    scroll-snap-align: start;
+    background: var(--card-bg, #fff);
+    border: 2px solid var(--border-color, #e5e7eb);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
   }
 
   @media (min-width: 768px) {
-    .quiz-card {
-      padding: 24px;
+    .question-card {
+      flex: 0 0 calc(50% - 20px);
     }
   }
 
-  /* Question Progress - Horizontal on Mobile */
-  .question-progress-header {
+  @media (min-width: 1024px) {
+    .question-card {
+      flex: 0 0 calc(33.333% - 20px);
+    }
+  }
+
+  .question-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+
+  .question-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+
+  .question-text {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-color, #1e293b);
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+
+  /* Answer Options */
+  .answer-options {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin-bottom: 16px;
   }
 
-  @media (min-width: 640px) {
-    .question-progress-header {
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-    }
-  }
-
-  .question-counter {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-align: center;
-  }
-
-  @media (min-width: 640px) {
-    .question-counter {
-      text-align: left;
-    }
-  }
-
-  /* Progress Wrap - Horizontal Layout */
-  .progress-wrap {
+  .answer-option {
     display: flex;
     align-items: center;
     gap: 12px;
-    width: 100%;
-  }
-
-  @media (min-width: 640px) {
-    .progress-wrap {
-      width: auto;
-      min-width: 220px;
-      max-width: 300px;
-    }
-  }
-
-  .progress-sm {
-    height: 10px;
-    background: #e5e7eb;
-    border-radius: 6px;
-    overflow: hidden;
-    flex: 1;
-  }
-
-  .progress-sm .bar {
-    height: 100%;
-    background: linear-gradient(90deg, #2563eb, #1d4ed8);
-    width: 0%;
-    transition: width .3s ease;
-  }
-
-  body.dark-mode .progress-sm {
-    background: #334155;
-  }
-
-  /* Answers Grid */
-  .answers-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-    margin-top: 16px;
-  }
-
-  @media (min-width: 640px) {
-    .answers-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-  }
-
-  /* Answer Tiles */
-  .answer-tile {
-    border-radius: 10px;
-    border: 2px solid var(--border-color);
-    background: var(--card-bg);
-    color: var(--text-color);
-    padding: 14px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    transition: transform .12s ease, box-shadow .12s ease;
+    padding: 14px 16px;
+    background: var(--card-bg, #fff);
+    border: 2px solid var(--border-color, #e5e7eb);
+    border-radius: 8px;
     cursor: pointer;
-    min-height: 56px;
+    transition: all 0.2s ease;
+    user-select: none;
   }
 
-  .answer-tile:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 8px 16px rgba(0,0,0,.08);
+  .answer-option:hover {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.05);
   }
 
-  .answer-tile .shape {
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
+  .answer-option.selected {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  }
+
+  .answer-option.correct {
+    border-color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+  }
+
+  .answer-option.incorrect {
+    border-color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+  }
+
+  .answer-radio {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #cbd5e1;
+    border-radius: 50%;
+    flex-shrink: 0;
+    position: relative;
+    transition: all 0.2s ease;
+  }
+
+  .answer-option.selected .answer-radio {
+    border-color: #3b82f6;
+    background: #3b82f6;
+  }
+
+  .answer-option.selected .answer-radio::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    background: white;
+    border-radius: 50%;
+  }
+
+  .answer-text {
+    flex: 1;
+    font-size: 0.95rem;
+    color: var(--text-color, #334155);
+  }
+
+  /* Submit Section */
+  .quiz-submit-section {
+    padding: 24px;
+    border-top: 2px solid var(--border-color, #e5e7eb);
+    background: var(--card-bg, #f8fafc);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .quiz-progress-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .progress-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: #eef2ff;
+    color: #3b82f6;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  body.dark-mode .progress-badge {
+    background: #1e3a8a;
+    color: #93c5fd;
+  }
+
+  .submit-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: #0b1020;
-    font-weight: 800;
-    background: #93c5fd;
-    flex-shrink: 0;
+    gap: 8px;
+    padding: 14px 32px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    min-width: 200px;
   }
 
-  .answer-tile.active {
-    outline: 3px solid #2563eb;
-    background: rgba(37,99,235,.06);
-    border-color: #2563eb;
+  .submit-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
   }
 
-  .shape.c0 { background: #f87171; }
-  .shape.c1 { background: #34d399; }
-  .shape.c2 { background: #fbbf24; }
-  .shape.c3 { background: #38bdf8; }
-  .shape.c4 { background: #a78bfa; }
-  .shape.c5 { background: #f97316; }
+  .submit-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 
-  /* Actions - Mobile Responsive */
-  .actions {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+  .save-exit-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: #fff;
+    color: #64748b;
+    border: 2px solid #cbd5e1;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .save-exit-button:hover {
+    border-color: #94a3b8;
+    background: #f8fafc;
+  }
+
+  /* Results Section */
+  .results-container {
+    padding: 24px;
+    background: var(--card-bg, #fff);
+    border-radius: 12px;
+    border: 2px solid var(--border-color, #e5e7eb);
     margin-top: 20px;
   }
 
-  @media (min-width: 640px) {
-    .actions {
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-    }
+  .results-header {
+    text-align: center;
+    margin-bottom: 24px;
   }
 
-  .actions > div {
-    display: flex;
-    gap: 8px;
-    width: 100%;
+  .results-score {
+    font-size: 3rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
-  @media (min-width: 640px) {
-    .actions > div {
-      width: auto;
-    }
+  .results-label {
+    font-size: 1.25rem;
+    color: var(--text-color, #64748b);
+    margin-top: 8px;
   }
 
-  /* Buttons - Touch Friendly */
-  .btn {
-    padding: 12px 20px;
-    font-size: 14px;
-    font-weight: 600;
+  .review-question {
+    padding: 20px;
+    background: var(--card-bg, #f8fafc);
     border-radius: 8px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border-color, #e5e7eb);
+  }
+
+  .review-question-text {
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-color, #1e293b);
+  }
+
+  .review-answer {
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .review-answer.correct {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid #10b981;
+  }
+
+  .review-answer.incorrect {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid #ef4444;
+  }
+
+  .review-answer.not-selected {
+    background: var(--card-bg, #fff);
+    border: 1px solid #e5e7eb;
+  }
+
+  .badge {
+    display: inline-flex;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .badge.correct {
+    background: #10b981;
+    color: white;
+  }
+
+  .badge.your-answer {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .badge.incorrect {
+    background: #ef4444;
+    color: white;
+  }
+
+  .reattempt-button {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
+    gap: 8px;
+    padding: 12px 24px;
+    background: #f59e0b;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
     transition: all 0.2s ease;
-    white-space: nowrap;
-    min-height: 44px;
+    margin-top: 20px;
   }
 
-  @media (max-width: 639px) {
-    .btn {
-      flex: 1;
-      min-height: 48px;
-      font-size: 15px;
-    }
+  .reattempt-button:hover {
+    background: #d97706;
+    transform: translateY(-1px);
   }
 
-  .countdown {
-    min-width: 42px;
+  /* Lucide Icons */
+  .lucide {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2;
+  }
+
+  .lucide-lg {
+    width: 24px;
+    height: 24px;
+  }
+
+  /* Dark mode support */
+  body.dark-mode .quiz-accordion {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  body.dark-mode .question-card {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  body.dark-mode .answer-option {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  body.dark-mode .results-container {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  body.dark-mode .review-question {
+    background: #0f172a;
+    border-color: #334155;
+  }
+
+  /* No quiz message */
+  .no-quiz-message {
     text-align: center;
+    padding: 60px 20px;
+    color: var(--text-color, #64748b);
   }
 
+  .no-quiz-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px;
+    opacity: 0.5;
+  }
+
+  /* Confetti canvas */
   #confetti-canvas {
     position: fixed;
     inset: 0;
     pointer-events: none;
+    z-index: 9999;
   }
 
-  /* Hide the timer display */
-  .countdown {
-    display: none;
+  /* Loading state */
+  .loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 </style>
 {% endblock %}
 
 {% block content %}
-<div id="quiz-root"
-     data-module-id="{{ module.module_id if module else 0 }}"
-     data-module-name="{{ module.module_name|e if module else '' }}"
-     data-course-code="{{ course.code if course else '' }}"
-     data-is-completed="{{ '1' if (user_module and user_module.is_completed) else '0' }}"
-     data-back-url="{% if course %}{{ url_for('main.course_modules', course_code=course.code) }}{% else %}{{ url_for('main.user_dashboard') }}{% endif %}">
-  <div class="quiz-topbar">
-    <div class="breadcrumbs">
-      <a href="{% if course %}{{ url_for('main.course_modules', course_code=course.code) }}{% else %}{{ url_for('main.user_dashboard') }}{% endif %}"><i class="fas fa-arrow-left me-2"></i>Back</a>
-    </div>
-    <div class="quiz-title">Quiz: {{ module.module_name if module else '' }}</div>
-    <div class="d-flex align-items-center gap-2">
-      <div class="pill"><i class="fas fa-list-ol"></i> <span id="progress-text">0 / 0</span></div>
-      <div class="countdown pill" id="countdown">--</div>
-      <div class="pill small" id="quiz-status-label"></div>
-    </div>
-  </div>
+<div class="quiz-page-wrapper">
+  <a href="{% if course %}{{ url_for('main.course_modules', course_code=course.code) }}{% else %}{{ url_for('main.user_dashboard') }}{% endif %}" class="back-button">
+    <svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+    </svg>
+    Back to Modules
+  </a>
 
-  <div class="quiz-body">
-    <div class="quiz-card w-100">
-      <div class="question-progress-header">
-        <div class="question-counter">Question <b id="q-position">1</b> of <b id="q-total">0</b></div>
-        <div class="progress-wrap">
-          <div class="progress-sm flex-grow-1"><div class="bar" id="progress-bar"></div></div>
+  <div id="quiz-root"
+       data-module-id="{{ module.module_id if module else 0 }}"
+       data-module-name="{{ module.module_name|e if module else '' }}"
+       data-course-code="{{ course.code if course else '' }}"
+       data-is-completed="{{ '1' if (user_module and user_module.is_completed) else '0' }}"
+       data-back-url="{% if course %}{{ url_for('main.course_modules', course_code=course.code) }}{% else %}{{ url_for('main.user_dashboard') }}{% endif %}">
+    
+    <!-- Collapsible Quiz Accordion -->
+    <div class="quiz-accordion">
+      <div class="quiz-accordion-header open" id="quiz-header">
+        <div class="quiz-accordion-title">
+          <svg class="lucide-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <span id="quiz-title">{{ module.module_name if module else 'Knowledge Check' }}</span>
         </div>
+        <svg class="quiz-accordion-chevron lucide-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+        </svg>
       </div>
 
-      <div id="no-quiz" class="alert alert-info d-none">No quiz available for this module yet.</div>
-
-      <div id="quiz-container">
-        <div id="question-wrapper" class="mb-3">
-          <!-- Question and answers rendered here -->
-        </div>
-        <div class="actions">
-          <div class="d-flex gap-2">
-            <button id="btn-prev" class="btn btn-outline-secondary" disabled><i class="fas fa-chevron-left me-1"></i>Previous</button>
-            <button id="btn-next" class="btn btn-primary">Next<i class="fas fa-chevron-right ms-1"></i></button>
+      <div class="quiz-accordion-body open" id="quiz-body">
+        <div class="quiz-accordion-content">
+          <!-- No Quiz Message -->
+          <div id="no-quiz" class="no-quiz-message" style="display: none;">
+            <svg class="no-quiz-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p>No quiz available for this module yet.</p>
           </div>
-          <div class="d-flex gap-2">
-            <button id="btn-save-exit" class="btn btn-outline-warning" title="Save current answers and return later">Save & Exit</button>
-            <button id="btn-submit" class="btn btn-success d-none"><i class="fas fa-check me-1"></i>Submit</button>
+
+          <!-- Quiz Container -->
+          <div id="quiz-container">
+            <!-- Horizontal Scroll Container -->
+            <div class="quiz-scroll-container" id="scroll-container">
+              <div class="questions-row" id="questions-row">
+                <!-- Questions will be rendered here -->
+              </div>
+            </div>
+
+            <!-- Submit Section -->
+            <div class="quiz-submit-section">
+              <div class="quiz-progress-info">
+                <div class="progress-badge">
+                  <svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                  </svg>
+                  <span id="progress-text">0 / 0 answered</span>
+                </div>
+                <div class="progress-badge" id="status-badge">
+                  <svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  <span id="status-text">In progress</span>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
+                <button id="btn-save-exit" class="save-exit-button" title="Save current answers and return later">
+                  <svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
+                  </svg>
+                  Save & Exit
+                </button>
+                <button id="btn-submit" class="submit-button" disabled>
+                  <svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  Submit Answers
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Results Container -->
+          <div id="results-container" style="display: none;">
+            <!-- Results will be rendered here -->
           </div>
         </div>
-      </div>
-
-      <div id="result-container" class="mt-3 d-none"></div>
-      <div id="review-container" class="mt-3 d-none"></div>
-
-      <div id="reattempt-box" class="mt-3 d-none text-end">
-        <button id="btn-reattempt" class="btn btn-warning"><i class="fas fa-redo me-1"></i>Reattempt Quiz</button>
       </div>
     </div>
   </div>
 </div>
+
 <canvas id="confetti-canvas"></canvas>
 {% endblock %}
 
@@ -392,33 +638,19 @@
   const root = document.getElementById('quiz-root');
   const moduleId = parseInt(root?.dataset.moduleId || '0', 10);
   const isCompleted = (root?.dataset.isCompleted === '1');
-  const questionWrapper = document.getElementById('question-wrapper');
-  const progressBar = document.getElementById('progress-bar');
+  const quizHeader = document.getElementById('quiz-header');
+  const quizBody = document.getElementById('quiz-body');
+  const questionsRow = document.getElementById('questions-row');
   const progressText = document.getElementById('progress-text');
-  const qPosition = document.getElementById('q-position');
-  const qTotal = document.getElementById('q-total');
-  const btnPrev = document.getElementById('btn-prev');
-  const btnNext = document.getElementById('btn-next');
+  const statusText = document.getElementById('status-text');
   const btnSubmit = document.getElementById('btn-submit');
-  const btnReattemptBox = document.getElementById('reattempt-box');
-  const btnReattempt = document.getElementById('btn-reattempt');
-  const resultContainer = document.getElementById('result-container');
-  const reviewContainer = document.getElementById('review-container');
-  const noQuiz = document.getElementById('no-quiz');
-  const statusLabel = document.getElementById('quiz-status-label');
-  const countdownEl = document.getElementById('countdown');
   const btnSaveExit = document.getElementById('btn-save-exit');
-  // Added: reference to the progress bar wrapper for show/hide
-  const progressWrap = document.querySelector('.progress-wrap');
-
-  const CONFETTI_MS = 1800;
-  const QUESTION_TIME = 30; // seconds per question
-  let timerHandle = null;
-  let timeLeft = QUESTION_TIME;
+  const noQuiz = document.getElementById('no-quiz');
+  const quizContainer = document.getElementById('quiz-container');
+  const resultsContainer = document.getElementById('results-container');
 
   let quiz = [];
-  let currentIndex = 0;
-  let answers = [];
+  let answers = {};
   let correctIndices = [];
   let isReattempt = false;
 
@@ -428,89 +660,101 @@
   const PERIODIC_SAVE_MS = 15000;
   let saveInFlight = false;
 
-  function setStatusSaving(){ statusLabel.textContent = 'Saving...'; }
-  function setStatusSaved(){ statusLabel.textContent = 'Saved'; }
+  // Accordion toggle
+  quizHeader.addEventListener('click', () => {
+    const isOpen = quizHeader.classList.toggle('open');
+    quizBody.classList.toggle('open', isOpen);
+  });
+
+  function setStatusSaving(){ statusText.textContent = 'Saving...'; }
+  function setStatusSaved(){ statusText.textContent = 'Saved'; }
+  function setStatusInProgress(){ statusText.textContent = 'In progress'; }
 
   async function autoSaveAnswers(){
     try{
       if (!moduleId) return;
       if (saveInFlight) return;
-      if (!Array.isArray(answers) || answers.length === 0) return;
-      // Don't autosave if there are no meaningful answers (all null/undefined)
-      const hasSelection = answers.some(a => a !== null && a !== undefined);
+      const answerArray = quiz.map((q, idx) => answers[idx] !== undefined ? answers[idx] : null);
+      const hasSelection = answerArray.some(a => a !== null && a !== undefined);
       if (!hasSelection) return;
+      
       saveInFlight = true; setStatusSaving();
-      const res = await fetch(`/api/save_quiz_answers/${moduleId}`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify({answers}) });
+      const res = await fetch(`/api/save_quiz_answers/${moduleId}`, { 
+        method:'POST', 
+        headers:{'Content-Type':'application/json'}, 
+        credentials:'same-origin', 
+        body: JSON.stringify({answers: answerArray}) 
+      });
       const data = await res.json().catch(()=>({}));
-      if (res.ok && data && data.success){ setStatusSaved(); } else { statusLabel.textContent = 'Save failed'; }
-    }catch{ statusLabel.textContent = 'Save error'; }
+      if (res.ok && data && data.success){ setStatusSaved(); } 
+      else { statusText.textContent = 'Save failed'; }
+    }catch{ statusText.textContent = 'Save error'; }
     finally{ saveInFlight = false; }
   }
-  function scheduleAutoSave(){ clearTimeout(saveTimer); saveTimer = setTimeout(()=>autoSaveAnswers(), SAVE_DEBOUNCE_MS); }
+
+  function scheduleAutoSave(){ 
+    clearTimeout(saveTimer); 
+    saveTimer = setTimeout(()=>autoSaveAnswers(), SAVE_DEBOUNCE_MS); 
+  }
+  
   let periodicSave = setInterval(()=>autoSaveAnswers(), PERIODIC_SAVE_MS);
 
   function updateProgress(){
     const total = quiz.length || 0;
-    const pos = (currentIndex+1);
-    qPosition.textContent = pos; qTotal.textContent = total;
-    progressText.textContent = pos + ' / ' + total;
-    const pct = (total? (pos/total)*100 : 0);
-    progressBar.style.width = pct + '%';
+    const answered = Object.keys(answers).filter(k => answers[k] !== null && answers[k] !== undefined).length;
+    progressText.textContent = `${answered} / ${total} answered`;
+    btnSubmit.disabled = answered < total;
   }
 
-  function choiceShape(index){
-    const labels = ['A','B','C','D','E','F','G'];
-    const cls = 'c'+(index%6);
-    return `<span class="shape ${cls}">${labels[index]||''}</span>`;
+  // HTML escape function to prevent XSS
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
-  function renderQuestion(){
-    const q = quiz[currentIndex];
-    if(!q) return;
-    const chosen = answers[currentIndex];
+  function renderQuestions(){
+    if (!quiz || quiz.length === 0) return;
+    
     let html = '';
-    html += `<div class='question-text mb-3'>${q.text}</div>`;
-    html += `<div class='answers-grid'>`;
-    (q.answers||[]).forEach((a, idx)=>{
-      const active = (chosen === idx) ? ' active' : '';
-      html += `<button type='button' class='answer-tile${active}' data-ans='${idx}' aria-label='Answer ${idx+1}'>`+
-              `${choiceShape(idx)}<div class='flex-1 text-start'>${a.text}</div>`+
-              `</button>`;
+    quiz.forEach((q, qIdx) => {
+      const selectedAnswer = answers[qIdx];
+      
+      // Normalize question text - support multiple field names for backward compatibility
+      const questionText = q.text || q.question || q.question_text || '';
+      
+      html += `<div class="question-card">`;
+      html += `<div class="question-number">Q${qIdx + 1}</div>`;
+      html += `<div class="question-text">${escapeHtml(questionText)}</div>`;
+      html += `<div class="answer-options">`;
+      
+      (q.answers || []).forEach((a, aIdx) => {
+        const isSelected = selectedAnswer === aIdx;
+        // Normalize answer text - support multiple field names for backward compatibility
+        const answerText = a.text || a.answer || a.answer_text || String(a);
+        
+        html += `<div class="answer-option ${isSelected ? 'selected' : ''}" data-q="${qIdx}" data-a="${aIdx}">`;
+        html += `<div class="answer-radio"></div>`;
+        html += `<div class="answer-text">${escapeHtml(answerText)}</div>`;
+        html += `</div>`;
+      });
+      
+      html += `</div></div>`;
     });
-    html += `</div>`;
-    questionWrapper.innerHTML = html;
-    questionWrapper.querySelectorAll('[data-ans]').forEach(btn=>{
-      btn.addEventListener('click',()=>{
-        const val = parseInt(btn.dataset.ans,10);
-        answers[currentIndex] = val;
-        renderQuestion(); // reflect selected
-        evaluateControls();
+    
+    questionsRow.innerHTML = html;
+    
+    // Attach click handlers
+    document.querySelectorAll('.answer-option').forEach(option => {
+      option.addEventListener('click', () => {
+        const qIdx = parseInt(option.dataset.q, 10);
+        const aIdx = parseInt(option.dataset.a, 10);
+        answers[qIdx] = aIdx;
+        renderQuestions();
+        updateProgress();
         scheduleAutoSave();
       });
     });
-  }
-
-  function evaluateControls(){
-    btnPrev.disabled = currentIndex === 0;
-    const allAnswered = answers.every(a=>a !== null);
-    if(currentIndex === quiz.length - 1){
-      btnNext.classList.add('d-none');
-      btnSubmit.classList.remove('d-none');
-      btnSubmit.disabled = !allAnswered;
-    } else {
-      btnNext.classList.remove('d-none');
-      btnSubmit.classList.add('d-none');
-    }
-  }
-
-  function updateUI(){ updateProgress(); renderQuestion(); evaluateControls(); restartTimer(); }
-  function nextQuestion(){ if(currentIndex < quiz.length - 1){ currentIndex++; updateUI(); } }
-  function prevQuestion(){ if(currentIndex > 0){ currentIndex--; updateUI(); } }
-
-  // Timer handling (removed)
-  function restartTimer(){
-    clearInterval(timerHandle);
-    countdownEl.textContent = '--';
   }
 
   function confetti(){
@@ -518,175 +762,183 @@
     const ctx = canvas.getContext('2d');
     const W = canvas.width = window.innerWidth;
     const H = canvas.height = window.innerHeight;
-    const pieces = Array.from({length: 140}).map(()=>({ x: Math.random()*W, y: -20 - Math.random()*H, r: 4+Math.random()*4, c: `hsl(${Math.floor(Math.random()*360)},90%,60%)`, vy: 2+Math.random()*3, vx: -2+Math.random()*4, a: Math.random()*Math.PI }));
+    const pieces = Array.from({length: 140}).map(()=>({ 
+      x: Math.random()*W, 
+      y: -20 - Math.random()*H, 
+      r: 4+Math.random()*4, 
+      c: `hsl(${Math.floor(Math.random()*360)},90%,60%)`, 
+      vy: 2+Math.random()*3, 
+      vx: -2+Math.random()*4, 
+      a: Math.random()*Math.PI 
+    }));
     let rafId;
-    function draw(){ ctx.clearRect(0,0,W,H); pieces.forEach(p=>{ p.x += p.vx; p.y += p.vy; p.a += 0.1; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.sin(p.a)); ctx.fillStyle = p.c; ctx.fillRect(-p.r/2, -p.r/2, p.r, p.r); ctx.restore(); }); rafId = requestAnimationFrame(draw); }
-    draw(); setTimeout(()=>{ cancelAnimationFrame(rafId); ctx.clearRect(0,0,W,H); }, CONFETTI_MS);
-    window.addEventListener('resize', ()=>{ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }, { once:true });
+    function draw(){ 
+      ctx.clearRect(0,0,W,H); 
+      pieces.forEach(p=>{ 
+        p.x += p.vx; 
+        p.y += p.vy; 
+        p.a += 0.1; 
+        ctx.save(); 
+        ctx.translate(p.x, p.y); 
+        ctx.rotate(Math.sin(p.a)); 
+        ctx.fillStyle = p.c; 
+        ctx.fillRect(-p.r/2, -p.r/2, p.r, p.r); 
+        ctx.restore(); 
+      }); 
+      rafId = requestAnimationFrame(draw); 
+    }
+    draw(); 
+    setTimeout(()=>{ 
+      cancelAnimationFrame(rafId); 
+      ctx.clearRect(0,0,W,H); 
+    }, 1800);
   }
 
   async function submitQuiz(){
-    const payload = {answers: answers, is_reattempt: isReattempt};
-    btnSubmit.disabled = true; btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Submitting...';
+    const answerArray = quiz.map((q, idx) => answers[idx] !== undefined ? answers[idx] : null);
+    const payload = {answers: answerArray, is_reattempt: isReattempt};
+    
+    btnSubmit.disabled = true; 
+    btnSubmit.innerHTML = '<span class="loading-spinner"></span> Submitting...';
+    
     try{
-      const r = await fetch(`/api/submit_quiz/${moduleId}`, {method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify(payload)});
+      const r = await fetch(`/api/submit_quiz/${moduleId}`, {
+        method:'POST', 
+        headers:{'Content-Type':'application/json'}, 
+        credentials:'same-origin', 
+        body: JSON.stringify(payload)
+      });
+      
       const ctype = (r.headers.get('content-type') || '').toLowerCase();
       if (!ctype.includes('application/json')){
         const text = await r.text();
-        throw new Error(`Unexpected response (status ${r.status}). First bytes: ${text.slice(0,120)}`);
+        throw new Error(`Unexpected response (status ${r.status})`);
       }
+      
       const data = await r.json();
       if(!data.success){
-        await customAlert(data.message || 'Submission failed', 'Submission Error', {type: 'danger'});
-        btnSubmit.disabled = false; btnSubmit.innerHTML = '<i class="fas fa-check me-1"></i>Submit'; return;
+        alert(data.message || 'Submission failed');
+        btnSubmit.disabled = false; 
+        btnSubmit.innerHTML = '<svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Submit Answers';
+        return;
       }
-      // Use backend-provided normalized answers for review if available
-      if (Array.isArray(data.answers)){
-        try { answers = data.answers.map(v => (typeof v === 'number' ? v : parseInt(v, 10))); } catch(_) {}
-      }
+      
       if (Array.isArray(data.correct_indices)){
         correctIndices = data.correct_indices;
       }
-      clearInterval(timerHandle); clearInterval(periodicSave);
-      statusLabel.textContent = `Score: ${data.score}% | Grade: ${data.grade_letter} | Attempts: ${data.reattempt_count}`;
-      resultContainer.classList.remove('d-none');
-      resultContainer.innerHTML = `<div class='card'><div class='card-body d-flex align-items-center justify-content-between'>`+
-        `<div><strong>Submitted!</strong> Score: ${data.score}% <span class='badge bg-info text-dark ms-2'>Grade ${data.grade_letter}</span></div>`+
-        `<div class='opacity-75 small'>Attempts: ${data.reattempt_count}</div>`+
-      `</div></div>`;
-      renderReview();
-      btnReattemptBox.classList.remove('d-none');
-      document.getElementById('quiz-container').classList.add('d-none');
+      
+      clearInterval(periodicSave);
+      statusText.textContent = `Score: ${data.score}% | Grade: ${data.grade_letter}`;
+      
+      renderResults(data);
       confetti();
+      
     }catch(err){
-      await customAlert('Error submitting quiz: '+err, 'Error', {type: 'danger'});
-      btnSubmit.disabled = false; btnSubmit.innerHTML = '<i class="fas fa-check me-1"></i>Submit';
+      alert('Error submitting quiz: '+err);
+      btnSubmit.disabled = false; 
+      btnSubmit.innerHTML = '<svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Submit Answers';
     }
   }
 
-  function renderReview() {
-    if (!Array.isArray(quiz) || quiz.length === 0) return;
-    // Hide progress bar during review
-    if (progressWrap) progressWrap.classList.add('d-none');
-    reviewContainer.innerHTML = '';
-    let html = `<div class='card'><div class='card-header bg-light fw-semibold'>Review Answers</div><div class='card-body'>`;
-    quiz.forEach((q, idx) => {
-        // Normalize user's saved answer to a number when possible
-        const rawUserAns = (Array.isArray(answers) ? answers[idx] : undefined);
-        let userAns = null;
-        if (typeof rawUserAns === 'number' && Number.isFinite(rawUserAns)) userAns = rawUserAns;
-        else if (typeof rawUserAns === 'string' && rawUserAns !== '' && !Number.isNaN(Number(rawUserAns))) userAns = Number(rawUserAns);
-        else userAns = null;
-
-        // Get correct index from the correctIndices array if available
-        let correctIdx = -1;
-        if (Array.isArray(correctIndices) && correctIndices.length > idx) {
-            correctIdx = correctIndices[idx];
-        } else if (q && typeof q === 'object') {
-            if (typeof q.correctIndex === 'number') {
-                correctIdx = q.correctIndex;
-            } else if (typeof q.correct === 'number') {
-                correctIdx = q.correct;
-            } else if (typeof q.correct === 'string' && !isNaN(Number(q.correct))) {
-                correctIdx = Number(q.correct);
-            }
-            // Inspect answers for isCorrect
-            if (Array.isArray(q.answers)) {
-                for (let i = 0; i < q.answers.length; i++) {
-                    const a = q.answers[i];
-                    if (a && typeof a === 'object' && (a.isCorrect || a.is_correct || a.correct === true || a.isAnswer || a.answer_is_correct)) {
-                        correctIdx = i;
-                        break;
-                    }
-                }
-            }
-        }
-
-        html += `<div class='mb-3'><div class='fw-semibold mb-1'>Q${idx + 1}: ${q.text}</div><ul class='list-unstyled mb-0'>`;
-
-        (q.answers || []).forEach((a, aIdx) => {
-            const correct = (correctIdx === aIdx);
-            const isUser = (userAns === aIdx);
-            let cls = 'px-2 py-1 rounded mb-1';
-            if (correct && isUser) cls += ' bg-success text-white';
-            else if (correct) cls += ' bg-info text-dark';
-            else if (isUser && !correct) cls += ' bg-danger text-white';
-            else cls += ' bg-light';
-
-            html += `<li class='${cls}'><div class='d-flex justify-content-between align-items-center'><div><span>${a.text}</span>`;
-            if (correct) html += ` <span class='badge bg-success ms-1'>Correct</span>`;
-            html += `</div>`;
-            if (isUser) {
-                html += `<div class='badge bg-warning text-dark ms-2'>Your Answer</div>`;
-            }
-            html += `</div></li>`;
-        });
-
-        html += `</ul>`;
-
-        // Explicitly show user's selected answer text and the correct answer text
-        const correctText = (correctIdx !== -1 && q.answers && q.answers[correctIdx]) ? q.answers[correctIdx].text : '<em>Not set</em>';
-        if (userAns === null || userAns === undefined) {
-            html += `<div class='mt-2 small text-muted'>Your answer: <em>Not answered</em></div>`;
-            if (correctIdx !== -1) html += `<div class='small text-muted'>Correct answer: <strong>${correctText}</strong></div>`;
-        } else {
-            const userText = (q.answers && q.answers[userAns]) ? q.answers[userAns].text : '<em>Unknown</em>';
-            html += `<div class='mt-2 small text-muted'>Your answer: <strong>${userText}</strong></div>`;
-            html += `<div class='small text-muted'>Correct answer: <strong>${correctText}</strong></div>`;
-        }
-
-        html += `</div>`;
-    });
+  function renderResults(data){
+    quizContainer.style.display = 'none';
+    
+    let html = `<div class="results-container">`;
+    html += `<div class="results-header">`;
+    html += `<div class="results-score">${data.score}%</div>`;
+    html += `<div class="results-label">Your Score</div>`;
+    html += `<div style="margin-top: 16px;">`;
+    html += `<span class="badge" style="background: #3b82f6; color: white; padding: 8px 16px; font-size: 14px;">Grade: ${data.grade_letter}</span>`;
+    html += `<span class="badge" style="background: #64748b; color: white; padding: 8px 16px; font-size: 14px; margin-left: 8px;">Attempts: ${data.reattempt_count}</span>`;
     html += `</div></div>`;
-    reviewContainer.innerHTML = html;
-    reviewContainer.classList.remove('d-none');
-    document.getElementById('quiz-container').classList.add('d-none');
-}
+    
+    // Review section
+    html += `<div style="margin-top: 32px;">`;
+    html += `<h3 style="margin-bottom: 20px; color: var(--text-color);">Review Your Answers</h3>`;
+    
+    quiz.forEach((q, idx) => {
+      const userAns = answers[idx];
+      const correctIdx = correctIndices[idx] !== undefined ? correctIndices[idx] : -1;
+      
+      // Normalize question text
+      const questionText = q.text || q.question || q.question_text || '';
+      
+      html += `<div class="review-question">`;
+      html += `<div class="review-question-text">Q${idx + 1}: ${escapeHtml(questionText)}</div>`;
+      
+      (q.answers || []).forEach((a, aIdx) => {
+        const isCorrect = correctIdx === aIdx;
+        const isUserAnswer = userAns === aIdx;
+        let cls = 'review-answer not-selected';
+        
+        if (isCorrect && isUserAnswer) {
+          cls = 'review-answer correct';
+        } else if (isCorrect) {
+          cls = 'review-answer correct';
+        } else if (isUserAnswer) {
+          cls = 'review-answer incorrect';
+        }
+        
+        // Normalize answer text
+        const answerText = a.text || a.answer || a.answer_text || String(a);
+        
+        html += `<div class="${cls}">`;
+        html += `<div class="answer-text" style="flex: 1;">${escapeHtml(answerText)}</div>`;
+        if (isCorrect) html += `<span class="badge correct">Correct</span>`;
+        if (isUserAnswer) html += `<span class="badge your-answer">Your Answer</span>`;
+        html += `</div>`;
+      });
+      
+      html += `</div>`;
+    });
+    
+    html += `</div>`;
+    
+    // Reattempt button
+    html += `<div style="text-align: center;">`;
+    html += `<button class="reattempt-button" id="btn-reattempt">`;
+    html += `<svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>`;
+    html += `Reattempt Quiz`;
+    html += `</button>`;
+    html += `</div>`;
+    
+    html += `</div>`;
+    
+    resultsContainer.innerHTML = html;
+    resultsContainer.style.display = 'block';
+    
+    // Attach reattempt handler
+    document.getElementById('btn-reattempt')?.addEventListener('click', startReattempt);
+  }
 
   function startReattempt(){
-    isReattempt = true; currentIndex = 0; answers = new Array(quiz.length).fill(null);
-    resultContainer.classList.add('d-none'); reviewContainer.classList.add('d-none');
-    document.getElementById('quiz-container').classList.remove('d-none');
-    btnReattemptBox.classList.add('d-none'); statusLabel.textContent = 'Reattempt in progress'; updateUI();
-    // Show progress bar again when reattempting
-    if (progressWrap) progressWrap.classList.remove('d-none');
+    const confirmed = confirm('Start a reattempt? Your previous score is kept but this will count as another attempt.');
+    if(!confirmed) return;
+    
+    isReattempt = true;
+    answers = {};
+    resultsContainer.style.display = 'none';
+    quizContainer.style.display = 'block';
+    statusText.textContent = 'Reattempt in progress';
+    renderQuestions();
+    updateProgress();
   }
 
-  // Keyboard shortcuts
-  window.addEventListener('keydown', (e)=>{
-    const k = e.key;
-    if(k === 'ArrowRight'){ e.preventDefault(); if(!btnNext.classList.contains('d-none')) nextQuestion(); }
-    if(k === 'ArrowLeft'){ e.preventDefault(); prevQuestion(); }
-    const num = parseInt(k,10);
-    if(!isNaN(num)){
-      const idx = num - 1;
-      const q = quiz[currentIndex];
-      if (q && q.answers && idx >=0 && idx < q.answers.length){ answers[currentIndex] = idx; renderQuestion(); evaluateControls(); scheduleAutoSave(); }
-    }
-  });
-
   // Events
-  btnPrev.addEventListener('click', ()=>{ prevQuestion(); scheduleAutoSave(); });
-  btnNext.addEventListener('click', ()=>{ nextQuestion(); scheduleAutoSave(); });
   btnSubmit.addEventListener('click', submitQuiz);
-  btnSaveExit.addEventListener('click', async ()=>{ await autoSaveAnswers(); window.location.href = root.dataset.backUrl; });
-  btnReattempt?.addEventListener('click', async ()=>{
-    const confirmed = await customConfirm('Start a reattempt? Your previous score is kept but this will count as another attempt.', 'Confirm Reattempt', {type: 'warning', confirmText: 'Start Reattempt'});
-    if(confirmed) startReattempt();
+  btnSaveExit.addEventListener('click', async ()=>{ 
+    await autoSaveAnswers(); 
+    window.location.href = root.dataset.backUrl; 
   });
 
-  // Save on navigation
-  btnPrev.addEventListener('click', scheduleAutoSave);
-  btnNext.addEventListener('click', scheduleAutoSave);
-
-  // Save before unload (best-effort)
+  // Save before unload
   window.addEventListener('beforeunload', function(){
     try{
       if (navigator.sendBeacon){
-        // Only send when there is at least one non-null selection to avoid overwriting with all-null array
-        const hasSelection = Array.isArray(answers) && answers.some(a => a !== null && a !== undefined);
+        const answerArray = quiz.map((q, idx) => answers[idx] !== undefined ? answers[idx] : null);
+        const hasSelection = answerArray.some(a => a !== null && a !== undefined);
         if (hasSelection){
-          const payload = JSON.stringify({answers: answers});
+          const payload = JSON.stringify({answers: answerArray});
           navigator.sendBeacon(`/api/save_quiz_answers/${moduleId}`, new Blob([payload], {type:'application/json'}));
         }
       }
@@ -694,190 +946,111 @@
   });
 
   async function fetchQuiz(){
-    console.log('Fetching quiz for module:', moduleId); // Debug log
-
-    // Check if moduleId is valid
     if (!moduleId || moduleId === 0) {
-      console.error('Invalid module ID:', moduleId);
-      noQuiz.classList.remove('d-none');
-      noQuiz.innerHTML = '<div class="alert alert-warning">Invalid module ID. Please navigate back and try again.</div>';
-      document.getElementById('quiz-container').classList.add('d-none');
-      countdownEl.textContent='--';
+      noQuiz.style.display = 'block';
+      noQuiz.textContent = 'Invalid module ID. Please navigate back and try again.';
+      quizContainer.style.display = 'none';
       return;
     }
 
     try{
       const response = await fetch(`/api/load_quiz/${moduleId}`, { credentials:'same-origin' });
-      console.log('Quiz API response status:', response.status); // Debug log
-
+      
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const payload = await response.json();
-      const data = Array.isArray(payload) ? payload : (Array.isArray(payload.quiz) ? payload.quiz : []);
-      console.log('Quiz data received:', data); // Debug log
+      
+      // Normalize payload - support multiple formats
+      let data = [];
+      if (Array.isArray(payload)) {
+        // Direct array format
+        data = payload;
+      } else if (payload && typeof payload === 'object') {
+        // Try common keys: quiz, questions
+        if (Array.isArray(payload.quiz)) {
+          // {quiz: [...]}
+          data = payload.quiz;
+        } else if (payload.quiz && typeof payload.quiz === 'object' && Array.isArray(payload.quiz.questions)) {
+          // {quiz: {questions: [...]}}
+          data = payload.quiz.questions;
+        } else if (Array.isArray(payload.questions)) {
+          // {questions: [...]}
+          data = payload.questions;
+        }
+      }
 
       if(!Array.isArray(data) || data.length === 0){
-        console.log('No quiz data found, showing no-quiz message'); // Debug log
-        noQuiz.classList.remove('d-none');
-        noQuiz.innerHTML = '<div class="alert alert-info">No quiz questions are available for this module yet. Please check back later or contact your administrator.</div>';
-        document.getElementById('quiz-container').classList.add('d-none');
-        countdownEl.textContent='--';
+        noQuiz.style.display = 'block';
+        quizContainer.style.display = 'none';
         return;
       }
 
-      console.log('Quiz loaded successfully, questions:', data.length); // Debug log
       quiz = data;
-      answers = new Array(quiz.length).fill(null);
+      answers = {};
 
-      try{ // Load saved answers
-        console.log('Fetching saved answers for module:', moduleId);
+      // Load saved answers
+      try{
         const resp = await fetch(`/api/user_quiz_answers/${moduleId}`, { credentials:'same-origin' });
         const saved = await resp.json().catch(()=>[]);
-        const rawHeader = resp.headers.get('X-Quiz-Raw');
-        const candidateHeader = resp.headers.get('X-Quiz-Candidate');
-        const allNullHeader = resp.headers.get('X-Quiz-AllNull');
-        console.log('Saved answers payload:', saved, 'X-Quiz-Raw:', rawHeader, 'X-Quiz-Candidate:', candidateHeader, 'X-Quiz-AllNull:', allNullHeader);
-
-        let finalSaved = Array.isArray(saved) ? saved : [];
-
-        // Fallback: if API returned empty array but headers contain data, try to reconstruct
-        if ((!Array.isArray(finalSaved) || finalSaved.length === 0) && (rawHeader || candidateHeader || allNullHeader)){
-          // Try parsing rawHeader first
-          let parsedFromHeader = null;
-          try{
-            if(rawHeader){
-              parsedFromHeader = JSON.parse(rawHeader);
+        
+        if (Array.isArray(saved) && saved.length){
+          saved.forEach((v, i) => {
+            if (v !== null && v !== undefined) {
+              const num = typeof v === 'number' ? v : (typeof v === 'string' ? Number(v) : null);
+              if (Number.isInteger(num)) answers[i] = num;
             }
-          }catch(e){
-            // not JSON — try candidate header
-            try{ if(candidateHeader){ parsedFromHeader = JSON.parse(candidateHeader); } }catch(e){}
-          }
-          // If still not an array, try simple bracket/split parsing of rawHeader (e.g. [null,null] or ['0','1'])
-          if(!Array.isArray(parsedFromHeader) && typeof rawHeader === 'string'){
-            const s = rawHeader.trim();
-            if(s.startsWith('[') && s.endsWith(']')){
-              const inner = s.slice(1,-1).trim();
-              if(inner === '') parsedFromHeader = [];
-              else {
-                // split on commas but keep 'null' tokens
-                parsedFromHeader = inner.split(',').map(p=>{
-                  const t = p.trim();
-                  if(t === 'null' || t === 'None' || t === 'none') return null;
-                  // strip quotes
-                  if((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))){
-                    return t.slice(1,-1);
-                  }
-                  // numeric
-                  if(!Number.isNaN(Number(t))) return Number(t);
-                  return t;
-                });
-              }
-            }
-          }
-
-          // If header indicates all-null and we have quiz length, build array of nulls
-          if((!Array.isArray(parsedFromHeader) || parsedFromHeader.length === 0) && allNullHeader && quiz && quiz.length){
-            parsedFromHeader = new Array(quiz.length).fill(null);
-          }
-
-          if(Array.isArray(parsedFromHeader) && parsedFromHeader.length){
-            finalSaved = parsedFromHeader;
-            console.log('Reconstructed saved answers from headers:', finalSaved);
-          }
-        }
-
-        if (Array.isArray(finalSaved) && finalSaved.length){
-          for(let i=0;i<Math.min(finalSaved.length, answers.length);i++){
-            const v = finalSaved[i];
-            // coerce numeric strings to numbers and accept numbers; keep null otherwise
-            let num = null;
-            if (typeof v === 'number') num = v;
-            else if (typeof v === 'string' && v !== '' && !Number.isNaN(Number(v))) num = Number(v);
-            if (Number.isInteger(num)) answers[i] = num;
-            else if (v === null) answers[i] = null; // explicit null preserved
-          }
-          console.log('Normalized saved answers into answers[]:', answers);
+          });
           setStatusSaved();
-        } else {
-          console.log('No saved answers array returned or empty for module:', moduleId, 'rawHeader:', rawHeader);
         }
       }catch(e){ console.error('Error loading saved answers', e); }
 
-      updateUI();
+      renderQuestions();
+      updateProgress();
 
       if(isCompleted){
-        // Show review mode
+        // Show review mode for completed quiz
         const a = await fetch(`/api/user_quiz_answers/${moduleId}`, { credentials:'same-origin' }).then(r=>r.json()).catch(()=>[]);
         if(Array.isArray(a)){
-          // coerce entries to integers where possible
-          answers = new Array(quiz.length).fill(null);
-          for(let i=0;i<Math.min(a.length, answers.length); i++){
-            const v = a[i];
-            let num = null;
-            if (typeof v === 'number') num = v;
-            else if (typeof v === 'string' && v !== '' && !Number.isNaN(Number(v))) num = Number(v);
-            if (Number.isInteger(num)) answers[i] = num;
-          }
-
-          // Show the result container with score when loading completed quiz
-          resultContainer.classList.remove('d-none');
-          const scorePercent = quiz.length > 0 ? Math.round((answers.filter((ans, idx) => {
-            const q = quiz[idx];
-            if (!q || !q.answers) return false;
-            // Compute correct index
-            let correctIdx = -1;
-            if (q && typeof q === 'object') {
-              if (typeof q.correctIndex === 'number') {
-                correctIdx = q.correctIndex;
-              } else if (typeof q.correct === 'number') {
-                correctIdx = q.correct;
-              } else if (typeof q.correct === 'string' && !isNaN(Number(q.correct))) {
-                correctIdx = Number(q.correct);
-              }
-              if (Array.isArray(q.answers)) {
-                for (let i = 0; i < q.answers.length; i++) {
-                  const a = q.answers[i];
-                  if (a && typeof a === 'object' && (a.isCorrect || a.is_correct || a.correct === true || a.isAnswer || a.answer_is_correct)) {
-                    correctIdx = i;
-                    break;
-                  }
-                }
-              }
+          a.forEach((v, i) => {
+            if (v !== null && v !== undefined) {
+              const num = typeof v === 'number' ? v : Number(v);
+              if (Number.isInteger(num)) answers[i] = num;
             }
-            return ans === correctIdx;
-          }).length / quiz.length) * 100) : 0;
-
-          resultContainer.innerHTML = `<div class='card'><div class='card-body d-flex align-items-center justify-content-between'>`+
-            `<div><strong>Completed!</strong> Score: ${scorePercent}%</div>`+
-            `<div class='opacity-75 small'>Review your answers below</div>`+
-          `</div></div>`;
-
-          renderReview();
-          btnReattemptBox.classList.remove('d-none');
-          document.getElementById('quiz-container').classList.add('d-none');
-          countdownEl.textContent='--';
+          });
+          
+          // Calculate score
+          let correct = 0;
+          quiz.forEach((q, idx) => {
+            const correctIdx = q.correctIndex !== undefined ? q.correctIndex : 
+                              (Array.isArray(q.answers) ? q.answers.findIndex(a => a.isCorrect) : -1);
+            if (correctIdx !== -1) {
+              correctIndices[idx] = correctIdx;
+              if (answers[idx] === correctIdx) correct++;
+            }
+          });
+          
+          const score = quiz.length > 0 ? Math.round((correct / quiz.length) * 100) : 0;
+          
+          renderResults({
+            score: score,
+            grade_letter: 'Review',
+            reattempt_count: 0
+          });
         }
       } else {
-        statusLabel.textContent = 'In progress';
-        // Ensure progress bar visible during active quiz
-        if (progressWrap) progressWrap.classList.remove('d-none');
+        setStatusInProgress();
       }
     }catch(error){
-      console.error('Error fetching quiz:', error); // Debug log
-      noQuiz.classList.remove('d-none');
-      noQuiz.innerHTML = `<div class="alert alert-danger">Could not load quiz at this time. Error: ${error.message}<br><small>Check the browser console for more details.</small></div>`;
-      document.getElementById('quiz-container').classList.add('d-none');
-      countdownEl.textContent='--';
+      console.error('Error fetching quiz:', error);
+      noQuiz.style.display = 'block';
+      noQuiz.textContent = `Could not load quiz at this time. Error: ${error.message}`;
+      quizContainer.style.display = 'none';
     }
   }
 
   // Init
-  if(isCompleted){
-    statusLabel.textContent = 'Completed - loading review...';
-    if (progressWrap) progressWrap.classList.add('d-none');
-  }
   fetchQuiz();
 })();
 </script>
