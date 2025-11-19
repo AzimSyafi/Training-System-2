@@ -1431,7 +1431,7 @@
                       }
                       
                       clearInterval(periodicSave);
-                      statusText.textContent = `Score: ${data.score}% | Grade: ${data.grade_letter}`;
+                      statusText.textContent = `Score: ${data.score}%`;
                       
                       renderResults(data);
                       confetti();
@@ -1451,8 +1451,7 @@
                     html += `<div class="results-score">${data.score}%</div>`;
                     html += `<div class="results-label">Your Score</div>`;
                     html += `<div style="margin-top: 16px;">`;
-                    html += `<span class="badge" style="background: #3b82f6; color: white; padding: 8px 16px; font-size: 14px;">Grade: ${data.grade_letter}</span>`;
-                    html += `<span class="badge" style="background: #64748b; color: white; padding: 8px 16px; font-size: 14px; margin-left: 8px;">Attempts: ${data.reattempt_count}</span>`;
+                    html += `<span class="badge" style="background: #64748b; color: white; padding: 8px 16px; font-size: 14px;">Attempts: ${data.reattempt_count}</span>`;
                     html += `</div></div>`;
                     
                     html += `<div style="margin-top: 32px;">`;
