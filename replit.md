@@ -60,7 +60,15 @@ Not specified.
 
 ## Recent Changes
 
-### 2025-11-18 (Latest)
+### 2025-11-19 (Latest)
+**Desktop Sidebar Fixes**:
+- **Fixed Unresponsive Hamburger Button**: Added CSS media query to hide hamburger button on desktop screens (>1024px) where it served no purpose
+- **Removed Desktop Overlay**: Overlay now only appears on mobile/tablet devices, not on desktop
+- **Smaller Profile Picture**: Reduced sidebar profile avatar from 46px to 38px for a more compact appearance
+- **Proper Desktop UX**: Sidebar is now permanently visible on desktop without toggle controls, while maintaining slide-out functionality on mobile/tablet
+- **Breakpoint Fix**: Desktop behavior applies at min-width: 1025px, mobile/tablet behavior at max-width: 1024px
+
+### 2025-11-18
 **Admin User Creation - User & Authority Role Support**:
 - **Fixed "Invalid role selected" Error**: Backend now properly handles 'user' and 'authority' roles in create account modal
 - **Fixed "agency_id" Error**: Added agency selector that appears when creating User accounts
