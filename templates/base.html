@@ -498,6 +498,20 @@
         <button id="sidebar-toggle" aria-expanded="true" aria-controls="sidebar" type="button">
             <i class="fas fa-bars"></i><span class="link-text"></span>
         </button>
+        {% if current_user.is_authenticated %}
+        <div class="profile-block" id="profileBlock">
+            <button class="profile-trigger" id="profileTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="profileMenu">
+                <span class="profile-avatar">
+                    {% if current_user.profile_pic %}
+                        <img src="{{ current_user.profile_pic_url }}" alt="User avatar">
+                    {% else %}
+                        {{ current_user.username[0]|upper }}
+                    {% endif %}
+                </span>
+                <span class="profile-text"><span class="user-name link-text">{{ current_user.username }}</span></span>
+            </button>
+        </div>
+        {% endif %}
         <nav class="nav flex-column" aria-label="Primary Navigation">
             {% if current_user.is_authenticated and current_user.__class__.__name__ == 'Trainer' %}
                 <a class="nav-link {% if request.endpoint=='main.trainer_portal' and request.view_args.get('section') == 'dashboard' %}active{% endif %}" href="{{ url_for('main.trainer_portal', section='dashboard') }}"><i class="fas fa-gauge"></i><span class="link-text">Dashboard</span></a>
@@ -533,20 +547,6 @@
             {% endif %}
         </nav>
         <div class="sidebar__spacer"></div>
-        {% if current_user.is_authenticated %}
-        <div class="profile-block" id="profileBlock">
-            <button class="profile-trigger" id="profileTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="profileMenu">
-                <span class="profile-avatar">
-                    {% if current_user.profile_pic %}
-                        <img src="{{ current_user.profile_pic_url }}" alt="User avatar">
-                    {% else %}
-                        {{ current_user.username[0]|upper }}
-                    {% endif %}
-                </span>
-                <span class="profile-text"><span class="user-name link-text">{{ current_user.username }}</span></span>
-            </button>
-        </div>
-        {% endif %}
     </div>
     {% endif %}
     <!-- Floating profile menu placed once at root -->
