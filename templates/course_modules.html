@@ -732,6 +732,31 @@
                   .quiz-scroll-container {
                     position: relative;
                     margin-bottom: 24px;
+                    max-height: 600px;
+                    overflow-y: auto;
+                    overflow-x: hidden;
+                    border: 1px solid var(--border-color, #e5e7eb);
+                    border-radius: 8px;
+                    background: var(--bg-secondary, #f9fafb);
+                    padding: 12px;
+                  }
+
+                  .quiz-scroll-container::-webkit-scrollbar {
+                    width: 8px;
+                  }
+
+                  .quiz-scroll-container::-webkit-scrollbar-track {
+                    background: #f1f1f1;
+                    border-radius: 4px;
+                  }
+
+                  .quiz-scroll-container::-webkit-scrollbar-thumb {
+                    background: #888;
+                    border-radius: 4px;
+                  }
+
+                  .quiz-scroll-container::-webkit-scrollbar-thumb:hover {
+                    background: #555;
                   }
 
                   .questions-row {
@@ -1178,7 +1203,7 @@
                         </svg>
                       </div>
                       <div style="display: flex; flex-direction: column; gap: 2px;">
-                        <span id="quiz-title-{{ module.module_id }}" style="font-size: 1.125rem; font-weight: 700; line-height: 1.4;">Module Knowledge Check</span>
+                        <span id="quiz-title-{{ module.module_id }}" style="font-size: 1.125rem; font-weight: 700; line-height: 1.4;">Quiz</span>
                         <span id="quiz-subtitle-{{ module.module_id }}" style="font-size: 0.875rem; font-weight: 400; opacity: 0.9;">Test your understanding • <span id="quiz-count-{{ module.module_id }}">0</span> Questions</span>
                       </div>
                     </div>
