@@ -285,16 +285,26 @@
                     align-items: center;
                     gap: 8px;
                     padding: 8px 16px;
-                    background: #eef2ff;
-                    color: #3b82f6;
+                    background: #eef2ff !important;
+                    color: #3b82f6 !important;
                     border-radius: 999px;
                     font-weight: 600;
                     font-size: 14px;
                   }
+                  
+                  .progress-badge svg {
+                    color: #3b82f6 !important;
+                    stroke: #3b82f6 !important;
+                  }
 
                   body.dark-mode .progress-badge {
-                    background: #1e3a8a;
-                    color: #93c5fd;
+                    background: #1e3a8a !important;
+                    color: #93c5fd !important;
+                  }
+                  
+                  body.dark-mode .progress-badge svg {
+                    color: #93c5fd !important;
+                    stroke: #93c5fd !important;
                   }
 
                   .submit-button {
@@ -303,8 +313,8 @@
                     justify-content: center;
                     gap: 8px;
                     padding: 14px 32px;
-                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-                    color: white;
+                    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+                    color: white !important;
                     border: none;
                     border-radius: 8px;
                     font-weight: 700;
@@ -323,6 +333,11 @@
                   .submit-button:disabled {
                     opacity: 0.5;
                     cursor: not-allowed;
+                  }
+                  
+                  .submit-button svg {
+                    color: white !important;
+                    stroke: white !important;
                   }
 
                   .save-exit-button {
@@ -440,8 +455,8 @@
                     align-items: center;
                     gap: 8px;
                     padding: 12px 24px;
-                    background: #f59e0b;
-                    color: white;
+                    background: #f59e0b !important;
+                    color: white !important;
                     border: none;
                     border-radius: 8px;
                     font-weight: 600;
@@ -451,8 +466,13 @@
                   }
 
                   .reattempt-button:hover {
-                    background: #d97706;
+                    background: #d97706 !important;
                     transform: translateY(-1px);
+                  }
+                  
+                  .reattempt-button svg {
+                    color: white !important;
+                    stroke: white !important;
                   }
 
                   .lucide {
