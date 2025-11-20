@@ -2978,8 +2978,10 @@ Security Personnel Training System"""
             
             if sendgrid_api_key:
                 try:
+                    # Use environment variable for sender email, fallback to default
+                    sender_email = os.environ.get('SENDGRID_SENDER_EMAIL', 'noreply@shapadusecurity.com')
                     message = SGMail(
-                        from_email='noreply@shapadusecurity.com',
+                        from_email=sender_email,
                         to_emails=email,
                         subject=subject,
                         plain_text_content=body
@@ -2989,7 +2991,8 @@ Security Personnel Training System"""
                     logging.info(f'[FORGOT PASSWORD] SendGrid email sent successfully to {email}. Status: {response.status_code}')
                     email_sent = True
                 except Exception as e:
-                    logging.exception('[FORGOT PASSWORD] SendGrid send failed')
+                    logging.error(f'[FORGOT PASSWORD] SendGrid send failed: {str(e)}')
+                    logging.exception('[FORGOT PASSWORD] SendGrid full error details')
                     email_sent = False
             
             # Fallback: Try Flask-Mail if available
