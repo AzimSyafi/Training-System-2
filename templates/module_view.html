@@ -97,8 +97,12 @@
                     color: #1e293b !important;
                   }
                   
-                  .quiz-accordion * {
+                  .quiz-accordion .quiz-accordion-body * {
                     color: #1e293b !important;
+                  }
+                  
+                  .quiz-accordion-header * {
+                    color: white !important;
                   }
                   
                   .quiz-accordion .question-card {
@@ -586,10 +590,10 @@
                       </div>
                       <div style="display: flex; flex-direction: column; gap: 2px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
-                          <span id="quiz-title-{{ module.module_id }}" style="font-size: 1.125rem; font-weight: 700; line-height: 1.4;">Quiz</span>
-                          <span id="quiz-status-badge-{{ module.module_id }}" style="display: none; padding: 4px 12px; background: rgba(255,255,255,0.2); border-radius: 12px; font-size: 0.75rem; font-weight: 600;">Completed</span>
+                          <span id="quiz-title-{{ module.module_id }}" style="font-size: 1.125rem; font-weight: 700; line-height: 1.4; color: white !important;">Quiz</span>
+                          <span id="quiz-status-badge-{{ module.module_id }}" style="display: none; padding: 4px 12px; background: rgba(255,255,255,0.2); border-radius: 12px; font-size: 0.75rem; font-weight: 600; color: white !important;">Completed</span>
                         </div>
-                        <span id="quiz-subtitle-{{ module.module_id }}" style="font-size: 0.875rem; font-weight: 400; opacity: 0.9;">Test your understanding • <span id="quiz-count-{{ module.module_id }}">0</span> Questions</span>
+                        <span id="quiz-subtitle-{{ module.module_id }}" style="font-size: 0.875rem; font-weight: 400; opacity: 0.9; color: white !important;">Test your understanding • <span id="quiz-count-{{ module.module_id }}">0</span> Questions</span>
                       </div>
                     </div>
                     <svg class="quiz-accordion-chevron lucide-lg" fill="none" stroke="white" viewBox="0 0 24 24" style="color: white !important;">
@@ -670,6 +674,13 @@
                   // If completed, load review mode
                   if (isCompleted) {
                     reviewMode = true;
+                    
+                    // Enable accordion toggle in review mode
+                    quizHeader.addEventListener('click', () => {
+                      const isOpen = quizHeader.classList.toggle('open');
+                      quizBody.classList.toggle('open', isOpen);
+                    });
+                    
                     loadReviewMode();
                     return;
                   }
