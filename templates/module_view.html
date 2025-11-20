@@ -568,7 +568,7 @@
                   }
                 </style>
 
-                <div class="quiz-accordion">
+                <div class="quiz-accordion" id="quiz-accordion-{{ module.module_id }}">
                   <div class="quiz-accordion-header open" id="quiz-header-{{ module.module_id }}">
                     <div class="quiz-accordion-title">
                       <div style="width: 40px; height: 40px; background: #3b82f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -650,12 +650,12 @@
                   const quizContainer = document.getElementById('quiz-container-{{ module.module_id }}');
                   const resultsContainer = document.getElementById('results-container-{{ module.module_id }}');
 
-                  // Hide quiz accordion if module is completed
-                  if (isCompleted) {
-                    const accordion = document.querySelector('.quiz-accordion');
-                    if (accordion) accordion.style.display = 'none';
-                    return;
-                  }
+                  // Don't hide quiz for completed modules - allow users to review/retake
+                  // if (isCompleted) {
+                  //   const accordion = document.getElementById('quiz-accordion-{{ module.module_id }}');
+                  //   if (accordion) accordion.style.display = 'none';
+                  //   return;
+                  // }
 
                   let quiz = [];
                   let answers = {};
