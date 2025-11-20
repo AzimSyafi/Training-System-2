@@ -17,6 +17,8 @@ from flask_mail import Message
 import smtplib
 from email.mime.text import MIMEText
 import re
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail as SGMail
 
 main_bp = Blueprint('main', __name__)
 
@@ -2955,45 +2957,75 @@ def forgot_password():
             token = serializer.dumps(email, salt='password-reset-salt')
             reset_link = url_for('main.reset_password', token=token, _external=True)
 
-            subject = 'Password reset for Security Training System'
-            body = f"""Hello,\n\nWe received a request to reset the password for the account associated with this email.\n\nIf this was you, click the link below to reset your password (link expires in 1 hour):\n\n{reset_link}\n\nIf you did not request this, please ignore this message.\n\n-- Security Training System"""
+            subject = 'Password Reset - SHAPADU Security Training'
+            body = f"""Hello,
 
-            # Try to use Flask-Mail if available
-            mail_ext = current_app.extensions.get('mail') if hasattr(current_app, 'extensions') else None
-            if mail_ext:
+We received a request to reset the password for your SHAPADU Security Training account.
+
+If this was you, click the link below to reset your password (link expires in 1 hour):
+
+{reset_link}
+
+If you did not request this, please ignore this message and your password will remain unchanged.
+
+Best regards,
+SHAPADU SECURITY SDN BHD
+Security Personnel Training System"""
+
+            # Try SendGrid first
+            sendgrid_api_key = os.environ.get('SENDGRID_API_KEY')
+            email_sent = False
+            
+            if sendgrid_api_key:
                 try:
-                    msg = Message(subject=subject, recipients=[email], body=body)
-                    mail_ext.send(msg)
-                except Exception:
-                    # Fall back to direct SMTP send below
-                    logging.exception('[FORGOT PASSWORD] Flask-Mail send failed, falling back to SMTP')
-                    mail_ext = None
+                    message = SGMail(
+                        from_email='noreply@shapadusecurity.com',
+                        to_emails=email,
+                        subject=subject,
+                        plain_text_content=body
+                    )
+                    sg = SendGridAPIClient(sendgrid_api_key)
+                    response = sg.send(message)
+                    logging.info(f'[FORGOT PASSWORD] SendGrid email sent successfully to {email}. Status: {response.status_code}')
+                    email_sent = True
+                except Exception as e:
+                    logging.exception('[FORGOT PASSWORD] SendGrid send failed')
+                    email_sent = False
+            
+            # Fallback: Try Flask-Mail if available
+            if not email_sent:
+                mail_ext = current_app.extensions.get('mail') if hasattr(current_app, 'extensions') else None
+                if mail_ext:
+                    try:
+                        msg = Message(subject=subject, recipients=[email], body=body)
+                        mail_ext.send(msg)
+                        email_sent = True
+                    except Exception:
+                        logging.exception('[FORGOT PASSWORD] Flask-Mail send failed')
+                        email_sent = False
 
-            if not mail_ext:
-                # Fallback: send via localhost SMTP (MailHog/Dev SMTP)
+            # Final fallback: localhost SMTP or log link in development
+            if not email_sent:
                 try:
                     smtp_host = current_app.config.get('MAIL_SERVER', 'localhost')
                     smtp_port = current_app.config.get('MAIL_PORT', 1025)
-                    from_addr = current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@example.com')
+                    from_addr = current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@shapadusecurity.com')
                     with smtplib.SMTP(smtp_host, smtp_port) as smtp:
                         msg = MIMEText(body)
                         msg['Subject'] = subject
                         msg['From'] = from_addr
                         msg['To'] = email
                         smtp.sendmail(from_addr, [email], msg.as_string())
+                        email_sent = True
                 except Exception:
-                    logging.exception('[FORGOT PASSWORD] SMTP send failed')
-                    # In development/debug mode, surface the reset link in the server logs so developers can copy it
-                    try:
-                        if current_app.debug or str(current_app.config.get('ENV','')).lower() == 'development':
-                            logging.info('[FORGOT PASSWORD] Reset link (dev): %s', reset_link)
-                            flash('Development: password reset link has been logged to the server console.', 'info')
-                            return redirect(url_for('main.login'))
-                    except Exception:
-                        # ignore any failure while trying to log or flash
-                        pass
-                    # Don't reveal technical details in production; show generic message
-                    flash('Failed to send reset email. Please contact support.', 'danger')
+                    logging.exception('[FORGOT PASSWORD] All email methods failed')
+                    # In development/debug mode, surface the reset link in the server logs
+                    if current_app.debug or str(current_app.config.get('ENV','')).lower() == 'development':
+                        logging.info('[FORGOT PASSWORD] Reset link (dev): %s', reset_link)
+                        flash('Development mode: Password reset link has been logged to the server console.', 'info')
+                        return redirect(url_for('main.login'))
+                    # Production: show error
+                    flash('Unable to send reset email. Please contact support.', 'danger')
                     return redirect(url_for('main.login'))
 
             # Always show a neutral message so attackers cannot confirm account existence
