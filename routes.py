@@ -2973,35 +2973,56 @@ Best regards,
 SHAPADU SECURITY SDN BHD
 Security Personnel Training System"""
 
-            # Try SMTP2GO first (preferred method)
-            smtp2go_api_key = os.environ.get('SMTP2GO_API_KEY')
+            # Try Gmail SMTP first (preferred method)
+            gmail_user = os.environ.get('GMAIL_USER')
+            gmail_password = os.environ.get('GMAIL_APP_PASSWORD')
             email_sent = False
             
-            if smtp2go_api_key:
+            if gmail_user and gmail_password:
                 try:
-                    sender_email = os.environ.get('SMTP2GO_SENDER_EMAIL', 'noreply@shapadusecurity.com')
-                    smtp2go_url = 'https://api.smtp2go.com/v3/email/send'
-                    payload = {
-                        'api_key': smtp2go_api_key,
-                        'to': [email],
-                        'sender': sender_email,
-                        'subject': subject,
-                        'text_body': body
-                    }
-                    response = requests.post(smtp2go_url, json=payload, timeout=10)
-                    response_data = response.json()
-                    
-                    if response.status_code == 200 and response_data.get('data', {}).get('succeeded', 0) > 0:
-                        logging.info(f'[FORGOT PASSWORD] SMTP2GO email sent successfully to {email}')
+                    with smtplib.SMTP('smtp.gmail.com', 587) as smtp:
+                        smtp.starttls()
+                        smtp.login(gmail_user, gmail_password)
+                        msg = MIMEText(body)
+                        msg['Subject'] = subject
+                        msg['From'] = gmail_user
+                        msg['To'] = email
+                        smtp.sendmail(gmail_user, [email], msg.as_string())
+                        logging.info(f'[FORGOT PASSWORD] Gmail email sent successfully to {email}')
                         email_sent = True
-                    else:
-                        error_msg = response_data.get('data', {}).get('error', 'Unknown error')
-                        logging.error(f'[FORGOT PASSWORD] SMTP2GO send failed: {error_msg}')
-                        email_sent = False
                 except Exception as e:
-                    logging.error(f'[FORGOT PASSWORD] SMTP2GO send failed: {str(e)}')
-                    logging.exception('[FORGOT PASSWORD] SMTP2GO full error details')
+                    logging.error(f'[FORGOT PASSWORD] Gmail send failed: {str(e)}')
+                    logging.exception('[FORGOT PASSWORD] Gmail full error details')
                     email_sent = False
+            
+            # Fallback: Try SMTP2GO
+            if not email_sent:
+                smtp2go_api_key = os.environ.get('SMTP2GO_API_KEY')
+                if smtp2go_api_key:
+                    try:
+                        sender_email = os.environ.get('SMTP2GO_SENDER_EMAIL', 'noreply@shapadusecurity.com')
+                        smtp2go_url = 'https://api.smtp2go.com/v3/email/send'
+                        payload = {
+                            'api_key': smtp2go_api_key,
+                            'to': [email],
+                            'sender': sender_email,
+                            'subject': subject,
+                            'text_body': body
+                        }
+                        response = requests.post(smtp2go_url, json=payload, timeout=10)
+                        response_data = response.json()
+                        
+                        if response.status_code == 200 and response_data.get('data', {}).get('succeeded', 0) > 0:
+                            logging.info(f'[FORGOT PASSWORD] SMTP2GO email sent successfully to {email}')
+                            email_sent = True
+                        else:
+                            error_msg = response_data.get('data', {}).get('error', 'Unknown error')
+                            logging.error(f'[FORGOT PASSWORD] SMTP2GO send failed: {error_msg}')
+                            email_sent = False
+                    except Exception as e:
+                        logging.error(f'[FORGOT PASSWORD] SMTP2GO send failed: {str(e)}')
+                        logging.exception('[FORGOT PASSWORD] SMTP2GO full error details')
+                        email_sent = False
             
             # Fallback: Try SendGrid
             if not email_sent:
