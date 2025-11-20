@@ -582,25 +582,12 @@
       elem.addEventListener("change", toggleIdField);
   });
 
-  window.addEventListener('DOMContentLoaded', toggleIdField);
-
-  // Force light mode on signup page
-  (function() {
+  window.addEventListener('DOMContentLoaded', function() {
+    toggleIdField();
+    
+    // Force light mode on signup page
     document.documentElement.classList.remove('dark-mode', 'darkmode');
     document.body.classList.remove('dark-mode', 'darkmode');
-    
-    // Disable dark mode toggle
-    const observer = new MutationObserver(function(mutations) {
-      mutations.forEach(function(mutation) {
-        if (mutation.attributeName === 'class') {
-          document.documentElement.classList.remove('dark-mode', 'darkmode');
-          document.body.classList.remove('dark-mode', 'darkmode');
-        }
-      });
-    });
-    
-    observer.observe(document.documentElement, { attributes: true });
-    observer.observe(document.body, { attributes: true });
-  })();
+  });
 </script>
 {% endblock %}
