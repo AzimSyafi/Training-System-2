@@ -650,17 +650,18 @@
                   const quizContainer = document.getElementById('quiz-container-{{ module.module_id }}');
                   const resultsContainer = document.getElementById('results-container-{{ module.module_id }}');
 
-                  // Don't hide quiz for completed modules - allow users to review/retake
-                  // if (isCompleted) {
-                  //   const accordion = document.getElementById('quiz-accordion-{{ module.module_id }}');
-                  //   if (accordion) accordion.style.display = 'none';
-                  //   return;
-                  // }
-
                   let quiz = [];
                   let answers = {};
                   let correctIndices = [];
                   let isReattempt = false;
+                  let reviewMode = false;
+
+                  // If completed, load review mode
+                  if (isCompleted) {
+                    reviewMode = true;
+                    loadReviewMode();
+                    return;
+                  }
 
                   let saveTimer = null;
                   const SAVE_DEBOUNCE_MS = 1200;
@@ -917,6 +918,88 @@
                     statusText.textContent = 'Reattempt in progress';
                     renderQuestions();
                     updateProgress();
+                  }
+
+                  async function loadReviewMode(){
+                    try{
+                      const response = await fetch(`/api/review_quiz/${moduleId}`, { credentials:'same-origin' });
+                      
+                      if (!response.ok) {
+                        throw new Error(`Failed to load review: ${response.statusText}`);
+                      }
+
+                      const data = await response.json();
+                      
+                      if (!data.success || !data.questions) {
+                        noQuiz.style.display = 'block';
+                        noQuiz.textContent = 'Unable to load quiz review.';
+                        quizContainer.style.display = 'none';
+                        return;
+                      }
+
+                      quiz = data.questions;
+                      const userAnswers = data.userAnswers || [];
+                      const correctAnswers = data.correctAnswers || [];
+                      
+                      // Update quiz header
+                      const quizTitle = document.getElementById('quiz-title-{{ module.module_id }}');
+                      if (quizTitle) quizTitle.textContent = 'Quiz Review';
+                      
+                      const quizSubtitle = document.getElementById('quiz-subtitle-{{ module.module_id }}');
+                      if (quizSubtitle) quizSubtitle.innerHTML = `Your Score: ${Math.round(data.score || 0)}% • <span id="quiz-count-{{ module.module_id }}">${quiz.length}</span> Questions`;
+
+                      // Render review
+                      let html = '';
+                      quiz.forEach((q, idx) => {
+                        const userAns = userAnswers[idx];
+                        const correctAns = correctAnswers[idx];
+                        const isCorrect = userAns === correctAns;
+                        
+                        html += `<div class="question-card" style="border-left: 4px solid ${isCorrect ? '#10b981' : '#ef4444'};">`;
+                        html += `<div class="question-number">${idx + 1}</div>`;
+                        html += `<div class="question-text">${q.text || q.question || 'Question'}</div>`;
+                        
+                        html += `<div class="answer-options">`;
+                        const qAnswers = q.answers || [];
+                        qAnswers.forEach((ans, aIdx) => {
+                          const ansText = typeof ans === 'string' ? ans : (ans.text || ans.answer || '');
+                          const isUserAnswer = aIdx === userAns;
+                          const isCorrectAnswer = aIdx === correctAns;
+                          
+                          let bgColor = '';
+                          let icon = '';
+                          if (isCorrectAnswer) {
+                            bgColor = 'background: #d1fae5; border-color: #10b981;';
+                            icon = '<svg style="width:20px;height:20px;color:#10b981;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+                          } else if (isUserAnswer && !isCorrect) {
+                            bgColor = 'background: #fee2e2; border-color: #ef4444;';
+                            icon = '<svg style="width:20px;height:20px;color:#ef4444;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+                          }
+                          
+                          html += `<div class="answer-option" style="${bgColor} pointer-events: none;">`;
+                          if (icon) html += icon;
+                          html += `<span>${ansText}</span>`;
+                          html += `</div>`;
+                        });
+                        html += `</div>`;
+                        html += `</div>`;
+                      });
+                      
+                      questionsRow.innerHTML = html;
+                      quizContainer.style.display = 'block';
+                      noQuiz.style.display = 'none';
+                      
+                      // Hide submit button and progress for review mode
+                      btnSubmit.style.display = 'none';
+                      progressText.textContent = `Review Mode`;
+                      statusText.textContent = `Completed`;
+                      
+                    }catch(error){
+                      console.error('Error loading review:', error);
+                      noQuiz.style.display = 'block';
+                      noQuiz.textContent = `Could not load review. Error: ${error.message}`;
+                      quizContainer.style.display = 'none';
+                    }
                   }
 
                   btnSubmit.addEventListener('click', submitQuiz);

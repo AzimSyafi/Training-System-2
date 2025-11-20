@@ -3411,6 +3411,86 @@ def api_debug_quiz_raw(module_id):
         logging.exception('[API] debug_quiz_raw')
         return jsonify({'success': False, 'message': 'Server error'}), 500
 
+@main_bp.route('/api/review_quiz/<int:module_id>', methods=['GET'])
+@login_required
+def api_review_quiz(module_id):
+    """Return quiz questions with user's answers and correct answers for review."""
+    try:
+        uid = None
+        try:
+            uid = resolve_uid()
+        except Exception:
+            uid = getattr(current_user, 'User_id', None)
+        if not uid:
+            try:
+                uid = int(session.get('user_id'))
+            except Exception:
+                uid = None
+        if not uid:
+            return jsonify({'success': False, 'message': 'User not identified'}), 400
+
+        mod = db.session.get(Module, module_id)
+        if not mod:
+            return jsonify({'success': False, 'message': 'Module not found'}), 404
+
+        um = UserModule.query.filter_by(user_id=uid, module_id=module_id).first()
+        if not um or not um.is_completed:
+            return jsonify({'success': False, 'message': 'Quiz not completed yet'}), 400
+
+        import json
+        # Load quiz questions
+        try:
+            parsed = json.loads(mod.quiz_json) if mod.quiz_json else []
+        except Exception:
+            parsed = []
+
+        questions = []
+        if isinstance(parsed, list):
+            questions = parsed
+        elif isinstance(parsed, dict):
+            if 'questions' in parsed and isinstance(parsed['questions'], list):
+                questions = parsed['questions']
+            elif 'quiz' in parsed and isinstance(parsed['quiz'], list):
+                questions = parsed['quiz']
+
+        # Load user's answers
+        user_answers = []
+        try:
+            user_answers = json.loads(um.quiz_answers) if um.quiz_answers else []
+        except Exception:
+            user_answers = []
+
+        # Extract correct indices
+        correct_indices = []
+        for q in questions:
+            raw_answers = q.get('answers') if isinstance(q, dict) else []
+            correct_idx = -1
+            if isinstance(q, dict):
+                if isinstance(q.get('correctIndex'), int):
+                    correct_idx = q.get('correctIndex')
+                elif isinstance(q.get('correct'), int):
+                    correct_idx = q.get('correct')
+            if isinstance(raw_answers, list):
+                for i, a in enumerate(raw_answers):
+                    if isinstance(a, dict):
+                        if a.get('isCorrect') or a.get('is_correct') or a.get('correct') is True:
+                            correct_idx = i
+                            break
+            correct_indices.append(correct_idx)
+
+        return jsonify({
+            'success': True,
+            'questions': questions,
+            'userAnswers': user_answers,
+            'correctAnswers': correct_indices,
+            'score': um.score,
+            'completionDate': um.completion_date.isoformat() if um.completion_date else None
+        })
+    except Exception:
+        logging.exception('[API] review_quiz')
+        return jsonify({'success': False, 'message': 'Server error'}), 500
+
+
 @main_bp.route('/api/submit_quiz/<int:module_id>', methods=['POST'])
 @login_required
 def api_submit_quiz(module_id):
