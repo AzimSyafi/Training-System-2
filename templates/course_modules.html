@@ -673,28 +673,14 @@
                     justify-content: space-between;
                     padding: 20px 24px;
                     cursor: pointer;
-                    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-                    color: white;
+                    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+                    color: white !important;
                     transition: all 0.2s ease;
                     user-select: none;
                   }
 
                   .quiz-accordion-header:hover {
-                    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-                  }
-
-                  .quiz-accordion-header.collapsed {
-                    background: var(--card-bg, #fff);
-                    color: var(--text-color, #1e293b);
-                  }
-                  
-                  .quiz-accordion-header:not(.open) {
-                    background: var(--card-bg, #fff);
-                    color: var(--text-color, #1e293b);
-                  }
-                  
-                  .quiz-accordion-header:not(.open) .quiz-accordion-title > div:first-child {
-                    background: #3b82f6;
+                    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
                   }
 
                   .quiz-accordion-title {
@@ -727,6 +713,28 @@
 
                   .quiz-accordion-content {
                     padding: 24px;
+                    background: white !important;
+                    color: #1e293b !important;
+                  }
+                  
+                  /* Force light mode for all quiz content */
+                  .quiz-accordion {
+                    background: white !important;
+                    color: #1e293b !important;
+                  }
+                  
+                  .quiz-accordion * {
+                    color: #1e293b !important;
+                  }
+                  
+                  .quiz-accordion .question-card {
+                    background: #fff !important;
+                    color: #1e293b !important;
+                  }
+                  
+                  .quiz-accordion .answer-option {
+                    background: #fff !important;
+                    color: #1e293b !important;
                   }
 
                   .quiz-scroll-container {
@@ -1194,8 +1202,8 @@
                   }
                 </style>
 
-                <div class="quiz-accordion" id="quiz-accordion-{{ module.module_id }}">
-                  <div class="quiz-accordion-header open" id="quiz-header-{{ module.module_id }}">
+                <div class="quiz-accordion" id="quiz-accordion-{{ module.module_id }}" style="background: white; color: #1e293b;">
+                  <div class="quiz-accordion-header open" id="quiz-header-{{ module.module_id }}" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important; color: white !important;">
                     <div class="quiz-accordion-title">
                       <div style="width: 40px; height: 40px; background: #3b82f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                         <svg style="width: 20px; height: 20px; color: white;" fill="currentColor" viewBox="0 0 24 24">
@@ -1203,11 +1211,14 @@
                         </svg>
                       </div>
                       <div style="display: flex; flex-direction: column; gap: 2px;">
-                        <span id="quiz-title-{{ module.module_id }}" style="font-size: 1.125rem; font-weight: 700; line-height: 1.4;">Quiz</span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <span id="quiz-title-{{ module.module_id }}" style="font-size: 1.125rem; font-weight: 700; line-height: 1.4;">Quiz</span>
+                          <span id="quiz-status-badge-{{ module.module_id }}" style="display: none; padding: 4px 12px; background: rgba(255,255,255,0.2); border-radius: 12px; font-size: 0.75rem; font-weight: 600;">Completed</span>
+                        </div>
                         <span id="quiz-subtitle-{{ module.module_id }}" style="font-size: 0.875rem; font-weight: 400; opacity: 0.9;">Test your understanding • <span id="quiz-count-{{ module.module_id }}">0</span> Questions</span>
                       </div>
                     </div>
-                    <svg class="quiz-accordion-chevron lucide-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="quiz-accordion-chevron lucide-lg" fill="none" stroke="white" viewBox="0 0 24 24" style="color: white !important;">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
                     </svg>
                   </div>
@@ -1590,6 +1601,12 @@
                       // Update quiz header
                       const quizTitle = document.getElementById('quiz-title-{{ module.module_id }}');
                       if (quizTitle) quizTitle.textContent = 'Quiz Review';
+                      
+                      const quizStatusBadge = document.getElementById('quiz-status-badge-{{ module.module_id }}');
+                      if (quizStatusBadge) {
+                        quizStatusBadge.style.display = 'inline-block';
+                        quizStatusBadge.textContent = '✓ Completed';
+                      }
                       
                       const quizSubtitle = document.getElementById('quiz-subtitle-{{ module.module_id }}');
                       if (quizSubtitle) quizSubtitle.innerHTML = `Your Score: ${Math.round(data.score || 0)}% • <span id="quiz-count-{{ module.module_id }}">${quiz.length}</span> Questions`;
