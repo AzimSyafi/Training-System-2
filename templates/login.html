@@ -333,6 +333,24 @@
 </div>
 
 <script>
+  // Force light mode on login page
+  (function() {
+    document.documentElement.classList.remove('dark-mode', 'darkmode');
+    document.body.classList.remove('dark-mode', 'darkmode');
+    
+    // Disable dark mode toggle
+    const observer = new MutationObserver(function(mutations) {
+      mutations.forEach(function(mutation) {
+        if (mutation.attributeName === 'class') {
+          document.documentElement.classList.remove('dark-mode', 'darkmode');
+          document.body.classList.remove('dark-mode', 'darkmode');
+        }
+      });
+    });
+    
+    observer.observe(document.documentElement, { attributes: true });
+    observer.observe(document.body, { attributes: true });
+  })();
 
   document.addEventListener('DOMContentLoaded', function() {
     const togglePassword = document.getElementById('togglePassword');
