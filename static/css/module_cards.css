@@ -49,6 +49,8 @@ body.dark-mode .module-inner-panel-blue, html.darkmode body .module-inner-panel-
     .module-card-rounded {
         border-radius: 12px;
         margin-bottom: 1.5rem;
+        background: transparent !important;
+        border: none !important;
     }
 
     .module-card-rounded > .card-header {
@@ -57,7 +59,9 @@ body.dark-mode .module-inner-panel-blue, html.darkmode body .module-inner-panel-
     }
 
     .module-card-rounded .card-body {
-        padding: 1.5rem;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
 
     .module-inner-panel-blue {
