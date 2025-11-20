@@ -19,6 +19,7 @@ from email.mime.text import MIMEText
 import re
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail as SGMail
+import requests
 
 main_bp = Blueprint('main', __name__)
 
@@ -2972,28 +2973,56 @@ Best regards,
 SHAPADU SECURITY SDN BHD
 Security Personnel Training System"""
 
-            # Try SendGrid first
-            sendgrid_api_key = os.environ.get('SENDGRID_API_KEY')
+            # Try SMTP2GO first (preferred method)
+            smtp2go_api_key = os.environ.get('SMTP2GO_API_KEY')
             email_sent = False
             
-            if sendgrid_api_key:
+            if smtp2go_api_key:
                 try:
-                    # Use environment variable for sender email, fallback to default
-                    sender_email = os.environ.get('SENDGRID_SENDER_EMAIL', 'noreply@shapadusecurity.com')
-                    message = SGMail(
-                        from_email=sender_email,
-                        to_emails=email,
-                        subject=subject,
-                        plain_text_content=body
-                    )
-                    sg = SendGridAPIClient(sendgrid_api_key)
-                    response = sg.send(message)
-                    logging.info(f'[FORGOT PASSWORD] SendGrid email sent successfully to {email}. Status: {response.status_code}')
-                    email_sent = True
+                    sender_email = os.environ.get('SMTP2GO_SENDER_EMAIL', 'noreply@shapadusecurity.com')
+                    smtp2go_url = 'https://api.smtp2go.com/v3/email/send'
+                    payload = {
+                        'api_key': smtp2go_api_key,
+                        'to': [email],
+                        'sender': sender_email,
+                        'subject': subject,
+                        'text_body': body
+                    }
+                    response = requests.post(smtp2go_url, json=payload, timeout=10)
+                    response_data = response.json()
+                    
+                    if response.status_code == 200 and response_data.get('data', {}).get('succeeded', 0) > 0:
+                        logging.info(f'[FORGOT PASSWORD] SMTP2GO email sent successfully to {email}')
+                        email_sent = True
+                    else:
+                        error_msg = response_data.get('data', {}).get('error', 'Unknown error')
+                        logging.error(f'[FORGOT PASSWORD] SMTP2GO send failed: {error_msg}')
+                        email_sent = False
                 except Exception as e:
-                    logging.error(f'[FORGOT PASSWORD] SendGrid send failed: {str(e)}')
-                    logging.exception('[FORGOT PASSWORD] SendGrid full error details')
+                    logging.error(f'[FORGOT PASSWORD] SMTP2GO send failed: {str(e)}')
+                    logging.exception('[FORGOT PASSWORD] SMTP2GO full error details')
                     email_sent = False
+            
+            # Fallback: Try SendGrid
+            if not email_sent:
+                sendgrid_api_key = os.environ.get('SENDGRID_API_KEY')
+                if sendgrid_api_key:
+                    try:
+                        sender_email = os.environ.get('SENDGRID_SENDER_EMAIL', 'noreply@shapadusecurity.com')
+                        message = SGMail(
+                            from_email=sender_email,
+                            to_emails=email,
+                            subject=subject,
+                            plain_text_content=body
+                        )
+                        sg = SendGridAPIClient(sendgrid_api_key)
+                        response = sg.send(message)
+                        logging.info(f'[FORGOT PASSWORD] SendGrid email sent successfully to {email}. Status: {response.status_code}')
+                        email_sent = True
+                    except Exception as e:
+                        logging.error(f'[FORGOT PASSWORD] SendGrid send failed: {str(e)}')
+                        logging.exception('[FORGOT PASSWORD] SendGrid full error details')
+                        email_sent = False
             
             # Fallback: Try Flask-Mail if available
             if not email_sent:
