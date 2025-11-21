@@ -3,6 +3,13 @@
 {% block title %}Sign Up - Training System{% endblock %}
 
 {% block content %}
+<script>
+  // Force light mode on signup page
+  (function() {
+    document.documentElement.classList.remove('darkmode', 'dark-mode');
+    document.body.classList.remove('darkmode', 'dark-mode');
+  })();
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
 
