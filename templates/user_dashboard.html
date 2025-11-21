@@ -795,6 +795,8 @@
     </div>
   {% endif %}
 
+  {# Profile card; hide for authority users #}
+  {% if not is_authority %}
   <div class="profile-card">
     <div class="profile-header">
       <img src="{{ user.profile_pic_url or url_for('static', filename='default_avatar.png') }}"
@@ -822,6 +824,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
   {# Profile info cards; hide certain cards for authority users #}
   {% if not is_authority %}
