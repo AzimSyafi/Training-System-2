@@ -69,6 +69,14 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-21 (Latest)
+**Force Light Mode on Public Pages**:
+- **Login Page**: Added inline script to remove dark mode classes on page load
+- **Signup Page**: Added inline script to remove dark mode classes on page load
+- **Landing Page**: Added inline script immediately after body tag to remove dark mode classes
+- **Issue Fixed**: White text appearing after logout from dark mode account
+- **Implementation**: Synchronous scripts execute before styles apply to prevent flash of dark mode
+- **Files Modified**: templates/login.html, templates/signup.html, templates/index.html
+
 **Enhanced Admin Password Change Feature**:
 - **New Endpoint**: Added `/admin_change_user_password` route with role-based permissions
 - **Access Control**: Only admins and superadmins can access the password change feature
