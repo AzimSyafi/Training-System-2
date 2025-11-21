@@ -240,6 +240,25 @@
     color: var(--primary-color) !important;
   }
 
+  /* Force light styling on "Back to Home" button */
+  .login-form-panel .btn-light,
+  body.dark-mode .login-form-panel .btn-light,
+  html.darkmode .login-form-panel .btn-light,
+  html.darkmode body .login-form-panel .btn-light {
+    background-color: #f8f9fa !important;
+    color: #212529 !important;
+    border-color: #dee2e6 !important;
+  }
+
+  .login-form-panel .btn-light:hover,
+  body.dark-mode .login-form-panel .btn-light:hover,
+  html.darkmode .login-form-panel .btn-light:hover,
+  html.darkmode body .login-form-panel .btn-light:hover {
+    background-color: #e2e6ea !important;
+    color: #212529 !important;
+    border-color: #dae0e5 !important;
+  }
+
   .login-footer-note {
     position: absolute;
     bottom: 1.5rem;
