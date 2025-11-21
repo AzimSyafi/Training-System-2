@@ -69,6 +69,19 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-21 (Latest)
+**Fixed Dark Mode Cross-Account Bug**:
+- **Issue**: Dark mode preference was stored in browser localStorage, affecting all users on the same browser
+- **Root Cause**: localStorage is browser-wide, not user-specific
+- **Solution**: Added `dark_mode_enabled` column to all user tables (admin, user, trainer, agency_account)
+- **Implementation**:
+  - Created database migration to add dark_mode_enabled column
+  - Updated all model classes with new field
+  - Added `/api/save_theme_preference` endpoint to save preference to database
+  - Modified theme application in base.html to use database preference instead of just localStorage
+  - Theme toggle now saves to both localStorage (instant feedback) and database (persistence across devices)
+- **Result**: Each user now has their own dark mode preference that persists across sessions and doesn't affect other users
+- **Files Modified**: models.py, routes.py, templates/base.html, migrations/add_dark_mode_preference.py
+
 **Fixed Mobile Table Display - User Dashboard Pending Certificates**:
 - **Issue**: Table not displaying data on mobile view (only headers visible)
 - **Root Cause**: Table missing required attributes for responsive table system

@@ -30,12 +30,17 @@
         // Early theme application (skip dark for always-light endpoints)
         (function() {
             var ALWAYS_LIGHT = {{ 'true' if always_light else 'false' }};
+            // Use database preference for logged-in users
+            var USER_DARK_MODE = {{ 'true' if current_user.is_authenticated and current_user.dark_mode_enabled else 'false' }};
             try {
                 if (!ALWAYS_LIGHT) {
-                    const saved = localStorage.getItem('theme-preference');
-                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                    if ((saved === 'dark') || (!saved && prefersDark)) {
+                    if (USER_DARK_MODE) {
                         document.documentElement.classList.add('darkmode');
+                        // Sync localStorage with database preference
+                        localStorage.setItem('theme-preference', 'dark');
+                    } else {
+                        // Clear localStorage if user preference is light
+                        localStorage.setItem('theme-preference', 'light');
                     }
                 } else {
                     // Ensure any stale dark class removed
@@ -618,6 +623,17 @@
                     applyTheme(newTheme);
                     localStorage.setItem('theme-preference', newTheme);
                     if (newTheme === 'dark') document.documentElement.classList.add('darkmode'); else document.documentElement.classList.remove('darkmode');
+                    
+                    // Save to database
+                    fetch('{{ url_for("main.api_save_theme_preference") }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            dark_mode: newTheme === 'dark'
+                        })
+                    }).catch(err => console.error('Failed to save theme preference:', err));
                 });
             } else if (darkToggleBtn && ALWAYS_LIGHT) {
                 darkToggleBtn.disabled = true;

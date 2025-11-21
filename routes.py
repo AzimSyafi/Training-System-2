@@ -3863,6 +3863,24 @@ def api_complete_course():
         db.session.rollback()
         return jsonify({'success': False, 'message': f'Server error: {str(e)}'}), 500
 
+@main_bp.route('/api/save_theme_preference', methods=['POST'])
+@login_required
+def api_save_theme_preference():
+    """Save user's dark mode preference to database"""
+    try:
+        payload = request.get_json() or {}
+        dark_mode = payload.get('dark_mode', False)
+        
+        # Update the current user's preference
+        current_user.dark_mode_enabled = dark_mode
+        db.session.commit()
+        
+        return jsonify({'success': True, 'dark_mode': dark_mode}), 200
+    except Exception as e:
+        logging.exception('[API] save_theme_preference error')
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 @main_bp.route('/admin_debug_quiz/<int:module_id>')
 @login_required
 def admin_debug_quiz(module_id):

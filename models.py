@@ -17,6 +17,7 @@ class Admin(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(50), nullable=False, default='admin')
     is_superadmin = db.Column(db.Boolean, nullable=False, default=False)
+    dark_mode_enabled = db.Column(db.Boolean, nullable=False, default=False)
 
     def get_id(self):
         return str(self.admin_id)
@@ -113,6 +114,7 @@ class AgencyAccount(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(50), nullable=False, default='agency')
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))  # timezone-aware
+    dark_mode_enabled = db.Column(db.Boolean, nullable=False, default=False)
 
     def get_id(self):
         return str(self.account_id)
@@ -176,6 +178,7 @@ class User(UserMixin, db.Model):
     module_disclaimer_agreements = db.Column(db.Text, default='{}')
     # New: role field for authority approvals (default agency)
     role = db.Column(db.String(50), nullable=False, default='agency')
+    dark_mode_enabled = db.Column(db.Boolean, nullable=False, default=False)
 
     # Relationship
     certificates = db.relationship(
@@ -480,6 +483,7 @@ class Trainer(UserMixin, db.Model):
     module_id = db.Column(db.Integer, db.ForeignKey('module.module_id'))
     # New prefixed series for trainers: TRYYYYNNNN
     number_series = db.Column(db.String(10), unique=True)
+    dark_mode_enabled = db.Column(db.Boolean, nullable=False, default=False)
 
     def get_id(self):
         return self.number_series or str(self.trainer_id)
