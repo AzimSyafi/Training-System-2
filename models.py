@@ -16,6 +16,7 @@ class Admin(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(50), nullable=False, default='admin')
+    is_superadmin = db.Column(db.Boolean, nullable=False, default=False)
 
     def get_id(self):
         return str(self.admin_id)

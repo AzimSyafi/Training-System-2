@@ -1319,21 +1319,32 @@ def create_user():
             return redirect(url_for('main.admin_users'))
         
         if role == 'admin':
+            # Only superadmins can create admin accounts
+            from utils import is_superadmin
+            if not is_superadmin():
+                flash('Access denied. Only superadmins can create admin accounts.', 'danger')
+                return redirect(url_for('main.admin_users'))
+            
             existing = Admin.query.filter_by(email=email).first()
             if existing:
                 flash(f'Admin with email {email} already exists', 'warning')
                 return redirect(url_for('main.admin_users'))
             
+            # Check if superadmin checkbox is set (for creating superadmins)
+            is_superadmin_create = request.form.get('is_superadmin') == 'on'
+            
             new_admin = Admin(
                 username=full_name.lower().replace(' ', '_'),
                 email=email,
-                role='admin'
+                role='admin',
+                is_superadmin=is_superadmin_create
             )
             new_admin.set_password(password)
             db.session.add(new_admin)
             db.session.commit()
-            flash(f'Admin "{full_name}" created successfully', 'success')
-            logging.info(f'[CREATE USER] Admin created: {email}')
+            admin_type = 'Superadmin' if is_superadmin_create else 'Admin'
+            flash(f'{admin_type} "{full_name}" created successfully', 'success')
+            logging.info(f'[CREATE USER] {admin_type} created: {email}')
             
         elif role == 'trainer':
             existing = Trainer.query.filter_by(email=email).first()
@@ -1800,6 +1811,37 @@ def delete_trainer():
         db.session.rollback()
         logging.exception(f'[DELETE TRAINER] Failed to delete trainer {request.form.get("trainer_id", "unknown")}')
         return jsonify({'success': False, 'message': f'Error deleting trainer: {str(e)}'}), 500
+
+@main_bp.route('/delete_admin', methods=['POST'])
+@login_required
+def delete_admin():
+    # Only superadmins can delete admin accounts
+    from utils import is_superadmin
+    if not is_superadmin():
+        return jsonify({'success': False, 'message': 'Access denied. Only superadmins can delete admin accounts.'}), 403
+
+    try:
+        admin_id = request.form.get('admin_id')
+        if not admin_id:
+            return jsonify({'success': False, 'message': 'Admin ID is required'}), 400
+
+        admin = db.session.get(Admin, int(admin_id))
+        if not admin:
+            return jsonify({'success': False, 'message': 'Admin not found'}), 404
+        
+        # Prevent deleting yourself
+        if admin.admin_id == current_user.admin_id:
+            return jsonify({'success': False, 'message': 'You cannot delete your own account'}), 400
+
+        db.session.delete(admin)
+        db.session.commit()
+
+        logging.info(f'[DELETE ADMIN] Admin {admin_id} deleted by {current_user.username}')
+        return jsonify({'success': True, 'message': 'Admin deleted successfully'})
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f'[DELETE ADMIN] Failed to delete admin {request.form.get("admin_id", "unknown")}')
+        return jsonify({'success': False, 'message': f'Error deleting admin: {str(e)}'}), 500
 
 @main_bp.route('/assign_trainer_course', methods=['POST'])
 @login_required

@@ -6,8 +6,10 @@ from typing import Optional, Any
 import os
 import re
 import urllib.parse
-from flask import url_for
+from flask import url_for, redirect, flash
+from flask_login import current_user
 from werkzeug.routing import BuildError
+from functools import wraps
 
 
 def safe_url_for(endpoint: str, **values) -> str:
@@ -92,6 +94,73 @@ def allowed_slide_file(filename: str) -> bool:
     return is_slide_file(filename)
 
 
+def is_superadmin(user=None) -> bool:
+    """Check if the current user or provided user is a superadmin.
+    
+    Returns True if the user is an Admin with is_superadmin=True.
+    """
+    if user is None:
+        user = current_user
+    
+    if not user or not user.is_authenticated:
+        return False
+    
+    # Import here to avoid circular imports
+    from models import Admin
+    
+    if isinstance(user, Admin):
+        return getattr(user, 'is_superadmin', False) == True
+    
+    return False
+
+
+def superadmin_required(f):
+    """Decorator to require superadmin access for a route.
+    
+    Usage:
+        @superadmin_required
+        def my_protected_route():
+            ...
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            flash('Please log in to access this page.', 'warning')
+            return redirect(url_for('main.login'))
+        
+        if not is_superadmin():
+            flash('Access denied. Superadmin privileges required.', 'danger')
+            return redirect(url_for('main.admin_dashboard'))
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def admin_or_superadmin_required(f):
+    """Decorator to require admin or superadmin access for a route.
+    
+    Usage:
+        @admin_or_superadmin_required
+        def my_protected_route():
+            ...
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            flash('Please log in to access this page.', 'warning')
+            return redirect(url_for('main.login'))
+        
+        # Import here to avoid circular imports
+        from models import Admin
+        
+        if not isinstance(current_user, Admin):
+            flash('Access denied. Admin privileges required.', 'danger')
+            return redirect(url_for('main.login'))
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 def register_jinja_filters(app) -> None:
     """Register common Jinja filters and globals on the provided Flask app.
 
@@ -102,6 +171,7 @@ def register_jinja_filters(app) -> None:
     app.jinja_env.filters['is_slide'] = is_slide_file
     app.jinja_env.filters['url_encode'] = lambda s: urllib.parse.quote(str(s), safe='')
     app.jinja_env.globals['safe_url_for'] = safe_url_for
+    app.jinja_env.globals['is_superadmin'] = is_superadmin
 
     @app.context_processor
     def _inject_tailwind_flag():

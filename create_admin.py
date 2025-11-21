@@ -13,7 +13,7 @@ if str(app_dir) not in sys.path:
 from app import app, db
 from models import Admin
 
-def create_admin(username, email, password):
+def create_admin(username, email, password, is_superadmin=False):
     """Create a new admin account"""
     with app.app_context():
         existing_admin = Admin.query.filter(
@@ -27,17 +27,20 @@ def create_admin(username, email, password):
         admin = Admin(
             username=username,
             email=email,
-            role='admin'
+            role='admin',
+            is_superadmin=is_superadmin
         )
         admin.set_password(password)
         
         db.session.add(admin)
         db.session.commit()
         
-        print(f"✅ Admin account created successfully!")
+        admin_type = "Superadmin" if is_superadmin else "Admin"
+        print(f"✅ {admin_type} account created successfully!")
         print(f"   Username: {username}")
         print(f"   Email: {email}")
         print(f"   Admin ID: {admin.admin_id}")
+        print(f"   Is Superadmin: {is_superadmin}")
         return True
 
 if __name__ == '__main__':
@@ -48,6 +51,7 @@ if __name__ == '__main__':
     username = input("Enter username (default: admin): ").strip() or "admin"
     email = input("Enter email (default: admin@example.com): ").strip() or "admin@example.com"
     password = input("Enter password (default: admin123): ").strip() or "admin123"
+    is_superadmin = input("Create as superadmin? (yes/no, default: no): ").strip().lower() == 'yes'
     
     print()
-    create_admin(username, email, password)
+    create_admin(username, email, password, is_superadmin)
