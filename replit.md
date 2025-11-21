@@ -69,6 +69,15 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-21 (Latest)
+**Admin Password Change Feature**:
+- **New Endpoint**: Added `/admin_change_user_password` route for admins to change user/trainer passwords
+- **Access Control**: Only admins and superadmins can access the password change feature
+- **Role Restrictions**: Can only change passwords for users and trainers (not admins, authorities, or agencies)
+- **UI Updates**: Added "Change Password" button in user management action dropdown for users and trainers
+- **Modal Form**: Password change modal with password confirmation and client-side validation
+- **Security**: Server-side validation ensures only allowed roles can have passwords changed
+- **Files Modified**: routes.py, templates/admin_users.html
+
 **Superadmin Role Implementation**:
 - **Database Schema**: Added `is_superadmin` BOOLEAN column to admin table
 - **Access Control**: Created `@superadmin_required` decorator and `is_superadmin()` helper function
