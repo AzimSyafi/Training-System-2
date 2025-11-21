@@ -47,11 +47,12 @@ Not specified.
 - Unified sidebar toggle functionality across all screen sizes.
 
 ### User Roles
-1.  **Admin**: Full system access, user and course management.
-2.  **User**: Standard learners.
-3.  **Trainer**: Manage content and monitor learners.
-4.  **Agency**: Monitor employee progress.
-5.  **Authority**: Approve certificates and manage compliance.
+1.  **Superadmin**: Elevated admin privileges, exclusive rights to create/edit/delete admin accounts.
+2.  **Admin**: Full system access, user and course management (except admin management).
+3.  **User**: Standard learners.
+4.  **Trainer**: Manage content and monitor learners.
+5.  **Agency**: Monitor employee progress.
+6.  **Authority**: Approve certificates and manage compliance.
 
 ## External Dependencies
 
@@ -67,7 +68,20 @@ Not specified.
 
 ## Recent Changes
 
-### 2025-11-19 (Latest)
+### 2025-11-21 (Latest)
+**Superadmin Role Implementation**:
+- **Database Schema**: Added `is_superadmin` BOOLEAN column to admin table
+- **Access Control**: Created `@superadmin_required` decorator and `is_superadmin()` helper function
+- **Admin Management**: Only superadmins can create, edit, or delete admin accounts
+- **Self-Deletion Protection**: Superadmins cannot delete their own account
+- **UI Updates**: Added gold "SUPERADMIN" badge in sidebar for superadmin users
+- **Migration Script**: Created `migrations/add_superadmin_column.py` (idempotent, safe to run multiple times)
+- **Admin Creation**: Updated `create_admin.py` to support creating superadmin accounts
+- **Security**: All admin management operations verify superadmin status server-side
+- **Documentation**: Created SUPERADMIN_IMPLEMENTATION.md with comprehensive guide
+- **Files Modified**: models.py, utils.py, routes.py, templates/base.html, create_admin.py
+
+### 2025-11-19
 **Quiz Dropdown Fix - Dynamic Element IDs in module_view.html**:
 - **Fixed Critical Bug**: Replaced all hardcoded `-mv` element IDs with dynamic module-specific IDs using `{{ module.module_id }}`
 - **Elements Fixed**: quiz-header, quiz-body, quiz-container, quiz-title, quiz-subtitle, quiz-count, progress-text, status-text, status-badge, btn-submit, btn-reattempt, results-container, no-quiz, questions-row, scroll-container
