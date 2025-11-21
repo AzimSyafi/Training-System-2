@@ -70,11 +70,15 @@ Not specified.
 
 ### 2025-11-21 (Latest)
 **Force Light Mode on Public Pages**:
-- **Login Page**: Added inline script to remove dark mode classes on page load
-- **Signup Page**: Added inline script to remove dark mode classes on page load
+- **Login Page**: Added inline script to remove dark mode classes + comprehensive CSS overrides for all text elements
+- **Signup Page**: Added inline script to remove dark mode classes + comprehensive CSS overrides for all text elements
 - **Landing Page**: Added inline script immediately after body tag to remove dark mode classes
 - **Issue Fixed**: White text appearing after logout from dark mode account
-- **Implementation**: Synchronous scripts execute before styles apply to prevent flash of dark mode
+- **Implementation**: 
+  - Synchronous JavaScript removes dark mode classes before rendering
+  - CSS overrides explicitly target `body.dark-mode` and `html.darkmode` selectors
+  - All text elements (.text-muted, h1, p, form-label, form-check-label) forced to dark colors
+  - Overrides prevent base.html dark mode styles from affecting public pages
 - **Files Modified**: templates/login.html, templates/signup.html, templates/index.html
 
 **Enhanced Admin Password Change Feature**:

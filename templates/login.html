@@ -214,16 +214,30 @@
     line-height: 1;
   }
 
-  .login-form-panel .text-muted {
+  /* Force dark text on all text elements in login panel, overriding any dark mode styles */
+  .login-form-panel .text-muted,
+  body.dark-mode .login-form-panel .text-muted,
+  html.darkmode .login-form-panel .text-muted,
+  html.darkmode body .login-form-panel .text-muted {
     color: #111827 !important; /* Made this text much darker */
   }
 
-  .login-form-panel h1 {
-    color: #111827;
+  .login-form-panel h1,
+  body.dark-mode .login-form-panel h1,
+  html.darkmode .login-form-panel h1,
+  html.darkmode body .login-form-panel h1 {
+    color: #111827 !important;
+  }
+
+  .login-form-panel p,
+  body.dark-mode .login-form-panel p,
+  html.darkmode .login-form-panel p,
+  html.darkmode body .login-form-panel p {
+    color: #111827 !important;
   }
 
   .login-form-panel a {
-    color: var(--primary-color);
+    color: var(--primary-color) !important;
   }
 
   .login-footer-note {

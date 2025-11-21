@@ -142,37 +142,71 @@
     background: transparent;
   }
 
-  .auth-card .card-title {
+  /* Force dark text on all text elements in signup panel, overriding any dark mode styles */
+  .auth-card .card-title,
+  body.dark-mode .auth-card .card-title,
+  html.darkmode .auth-card .card-title,
+  html.darkmode body .auth-card .card-title {
     font-size: 1.35rem;
     font-weight: 600;
     color: #111827 !important; /* CHANGED */
     margin-bottom: 6px;
   }
 
-  .auth-card .card-sub {
+  .auth-card .card-sub,
+  body.dark-mode .auth-card .card-sub,
+  html.darkmode .auth-card .card-sub,
+  html.darkmode body .auth-card .card-sub {
     font-size: 0.95rem;
     color: #6b7280 !important; /* CHANGED */
     margin-bottom: 18px;
   }
 
-  .form-label {
-    color: var(--text-color) !important;
+  /* Override all text colors in the right panel */
+  .right-panel *,
+  body.dark-mode .right-panel *,
+  html.darkmode .right-panel *,
+  html.darkmode body .right-panel * {
+    color: inherit;
+  }
+
+  .right-panel,
+  body.dark-mode .right-panel,
+  html.darkmode .right-panel,
+  html.darkmode body .right-panel {
+    color: #0f1724 !important;
+  }
+
+  .form-label,
+  body.dark-mode .form-label,
+  html.darkmode .form-label,
+  html.darkmode body .form-label {
+    color: #111827 !important;
     font-weight: 500;
     margin-bottom: 8px;
   }
 
-  .right-panel .form-label {
-    color: var(--text-color) !important;
+  .right-panel .form-label,
+  body.dark-mode .right-panel .form-label,
+  html.darkmode .right-panel .form-label,
+  html.darkmode body .right-panel .form-label {
+    color: #111827 !important;
     font-weight: 500;
   }
 
-  .auth-card .form-label {
-    color: var(--text-color) !important;
+  .auth-card .form-label,
+  body.dark-mode .auth-card .form-label,
+  html.darkmode .auth-card .form-label,
+  html.darkmode body .auth-card .form-label {
+    color: #111827 !important;
     font-weight: 500;
   }
 
-  label.form-label {
-    color: var(--text-color) !important;
+  label.form-label,
+  body.dark-mode label.form-label,
+  html.darkmode label.form-label,
+  html.darkmode body label.form-label {
+    color: #111827 !important;
     font-weight: 500;
   }
 
@@ -205,18 +239,27 @@
   /* CHANGED: Targeting focus by ID */
   .right-panel #full_name:focus,
   .right-panel #email:focus,
-  .right-panel .form-check-label {
-    color: var(--text-color) !important;
+  .right-panel .form-check-label,
+  body.dark-mode .right-panel .form-check-label,
+  html.darkmode .right-panel .form-check-label,
+  html.darkmode body .right-panel .form-check-label {
+    color: #111827 !important;
     font-weight: 400;
   }
 
-  .auth-card .form-check-label {
-    color: var(--text-color) !important;
+  .auth-card .form-check-label,
+  body.dark-mode .auth-card .form-check-label,
+  html.darkmode .auth-card .form-check-label,
+  html.darkmode body .auth-card .form-check-label {
+    color: #111827 !important;
     font-weight: 400;
   }
 
-  label.form-check-label {
-    color: var(--text-color) !important;
+  label.form-check-label,
+  body.dark-mode label.form-check-label,
+  html.darkmode label.form-check-label,
+  html.darkmode body label.form-check-label {
+    color: #111827 !important;
     font-weight: 400;
   }
 
@@ -230,8 +273,11 @@
     box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
   }
 
-  .form-check-label {
-    color: var(--text-color) !important;
+  .form-check-label,
+  body.dark-mode .form-check-label,
+  html.darkmode .form-check-label,
+  html.darkmode body .form-check-label {
+    color: #111827 !important;
     font-weight: 400;
   }
 
