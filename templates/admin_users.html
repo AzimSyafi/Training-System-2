@@ -170,7 +170,7 @@
                                             {% if acc.type == 'trainer' %}
                                             <li><a class="dropdown-item" href="#" onclick="openAssignCourseModal('{{ acc.id }}', '{{ acc.name }}'); return false;"><i class="fas fa-book me-2 text-success"></i>Assign Course</a></li>
                                             {% endif %}
-                                            {% if acc.type in ['user', 'trainer'] %}
+                                            {% if acc.type in ['user', 'trainer'] or (current_user.is_superadmin and acc.type in ['admin', 'authority']) %}
                                             <li><a class="dropdown-item" href="#" onclick="openChangePasswordModal('{{ acc.id }}', '{{ acc.name }}', '{{ acc.type }}'); return false;"><i class="fas fa-key me-2 text-warning"></i>Change Password</a></li>
                                             {% endif %}
                                             <li><hr class="dropdown-divider"></li>

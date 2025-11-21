@@ -11,7 +11,7 @@ import logging
 from models import db, Admin, User, Agency, Module, Certificate, Trainer, UserModule, Management, Registration, Course, WorkHistory, UserCourseProgress, AgencyAccount, CertificateTemplate
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text, or_
-from utils import safe_url_for, normalized_user_category, safe_parse_date, extract_youtube_id, is_slide_file, allowed_file, allowed_slide_file
+from utils import safe_url_for, normalized_user_category, safe_parse_date, extract_youtube_id, is_slide_file, allowed_file, allowed_slide_file, is_superadmin
 from itsdangerous import URLSafeTimedSerializer
 from flask_mail import Message
 import smtplib
@@ -1858,11 +1858,26 @@ def admin_change_user_password():
         if not user_type or not user_id or not new_password:
             return jsonify({'success': False, 'message': 'All fields are required'}), 400
 
-        # Only allow changing passwords for users and trainers
-        if user_type not in ['user', 'trainer']:
-            return jsonify({'success': False, 'message': 'Can only change passwords for users and trainers'}), 403
+        # Check if current user is superadmin
+        is_current_superadmin = is_superadmin()
+        
+        # Role-based restrictions:
+        # - Regular admins: can only change passwords for users and trainers
+        # - Superadmins: can change passwords for users, trainers, admins, and authorities
+        allowed_types = ['user', 'trainer']
+        if is_current_superadmin:
+            allowed_types.extend(['admin', 'authority'])
+        
+        if user_type not in allowed_types:
+            if is_current_superadmin:
+                return jsonify({'success': False, 'message': 'Invalid user type'}), 403
+            else:
+                return jsonify({'success': False, 'message': 'Only superadmins can change passwords for admins and authorities'}), 403
 
-        # Find the account
+        # Find the account and change password
+        account = None
+        account_name = None
+        
         if user_type == 'user':
             account = db.session.get(User, int(user_id))
             if not account:
@@ -1875,10 +1890,22 @@ def admin_change_user_password():
                 return jsonify({'success': False, 'message': 'Trainer not found'}), 404
             account.set_password(new_password)
             account_name = account.full_name
+        elif user_type == 'admin':
+            account = db.session.get(Admin, int(user_id))
+            if not account:
+                return jsonify({'success': False, 'message': 'Admin not found'}), 404
+            account.set_password(new_password)
+            account_name = account.username
+        elif user_type == 'authority':
+            account = db.session.get(User, int(user_id))
+            if not account or account.role != 'authority':
+                return jsonify({'success': False, 'message': 'Authority not found'}), 404
+            account.set_password(new_password)
+            account_name = account.full_name
 
         db.session.commit()
 
-        logging.info(f'[CHANGE PASSWORD] Admin {current_user.username} changed password for {user_type} {user_id} ({account_name})')
+        logging.info(f'[CHANGE PASSWORD] Admin {current_user.username} (superadmin={is_current_superadmin}) changed password for {user_type} {user_id} ({account_name})')
         return jsonify({'success': True, 'message': f'Password changed successfully for {account_name}'})
     except Exception as e:
         db.session.rollback()
