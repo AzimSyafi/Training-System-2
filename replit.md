@@ -1,143 +1,62 @@
-# Security Personnel Training System
+# SHAPADU Security Personnel Training System - Compressed Documentation
 
 ## Overview
-This project is a Flask-based training platform for security professionals. It offers interactive training modules, quizzes, certificate generation, and career progression tracking. The system supports multiple user roles (Admin, User, Trainer, Agency, Authority) and includes an agency portal for progress oversight and bulk user import. The platform is designed to be mobile-responsive and provide a comprehensive learning and management experience.
+The SHAPADU Security Personnel Training System is a comprehensive web-based platform designed for training security professionals in Malaysia and international workers. Its primary purpose is to standardize training, track progress, ensure compliance through a certificate approval workflow, and support multi-agency management with multi-language and mobile accessibility. The system caters to security trainees, agency managers, trainers, administrators, superadministrators, and authorities, aiming to provide consistent, high-quality security training and robust progress monitoring.
 
 ## User Preferences
-Not specified.
+I prefer iterative development with clear communication at each stage. Ask before making major architectural changes or introducing new dependencies. Ensure code is well-commented and follows Flask/Python best practices. I prioritize security and maintainability.
 
 ## System Architecture
 
-### Technology Stack
-- **Backend**: Flask (Python 3.12)
-- **Database**: PostgreSQL (Replit-managed Neon database)
-- **Frontend**: HTML templates with Tailwind CSS
-- **Server**: Gunicorn for production, Flask development server for development
-
 ### UI/UX Decisions
-- Comprehensive mobile-responsive design supporting various screen sizes and touch-friendly interactions.
-- Enhanced UI/UX with improved form field visibility, interactive states, and streamlined certificate management.
-- Responsive table system that transforms into card-based layouts on mobile devices with detailed modals.
-- Clean, modern design with hidden scrollbars for core pages.
-- Dark mode support with theme-aware colors.
+- **Responsive Design**: Mobile-first approach with custom responsive table system for optimal viewing across devices.
+- **Theme System**: Database-backed per-user dark mode preference, synchronized with local storage for instant feedback and persistence.
+- **Templates**: Jinja2 for dynamic HTML rendering.
+- **Styling**: Tailwind CSS 3.4.18 for utility-first styling, compiled via npm scripts.
+- **Icons**: Font Awesome for a consistent icon set.
+- **Visualizations**: Chart.js for dashboard analytics and statistics.
 
-### Core Features
-- Interactive training modules and quiz system with progress tracking.
-- PDF Certificate generation.
-- Multi-role support: Admin, User, Trainer, Agency, Authority.
-- Agency portal for monitoring employee progress.
-- Bulk user import functionality.
-- Dynamic work experience editor within user profiles.
-- Redesigned certificate template editor with drag-and-drop functionality and live PDF preview.
-- Course completion statistics visualized using Chart.js graphs on the Admin dashboard.
-- Admin and Trainer interfaces for course and user management.
+### Technical Implementations
+- **Authentication**: Flask-Login with custom user loader supporting multiple user types (Admin, User, Trainer, Agency Account) and robust session management. Password hashing uses Werkzeug security.
+- **Authorization**: Role-based access control implemented via decorators (`@login_required`, `@superadmin_required`) and explicit role checks.
+- **Database**: PostgreSQL (Replit-managed Neon) with SQLAlchemy ORM. Custom Python migration scripts manage schema changes.
+- **PDF Generation**: ReportLab and PyPDF2 for server-side certificate generation, with a visual template editor for drag-and-drop field positioning and customization.
+- **Quiz System**: Client-side quiz builder (JavaScript) with server-side scoring, supporting unlimited reattempts and a dynamic grading system (A→B→C based on reattempts). Quiz data is JSON-formatted.
+- **User Management**: Supports self-registration, agency bulk import via Excel (using `openpyxl`), and admin manual creation. Includes a multi-step onboarding process for new users.
+- **Content Management**: Trainers/Admins can upload YouTube videos, PDF/PPTX slide presentations, and create interactive quizzes.
+- **Certificate Workflow**: Automated certificate generation upon course completion (status 'pending'), followed by an authority approval workflow with bulk approval capabilities and audit logging.
+- **File Storage**: Static assets, uploaded slides, profile pictures, and generated certificates are stored on the local filesystem within `static/` directory.
 
-### Project Structure
-- **Application Core**: `app.py`, `run_server.py`, `models.py`, `routes.py`, `authority_routes.py`, `database.py`, `utils.py`, `certificate.py`
-- **Frontend Assets**: `templates/` (HTML), `static/` (CSS, JS, images, uploads, profile pictures)
-- **Database Management**: `migrations/`
-- **Testing**: `tests/`
+### Feature Specifications
+- **Superadmin**: Exclusive admin management (create, edit, delete admins), full system control, and a gold UI badge.
+- **Admin**: Comprehensive user, course, module, agency, and certificate management. Includes dashboard analytics.
+- **User**: Course access filtered by category, sequential module unlocking, progress tracking, unlimited quiz reattempts, profile management, and certificate download.
+- **Trainer**: Content upload to assigned modules, quiz creation, and student monitoring.
+- **Agency**: Employee management (create, bulk import), progress monitoring for agency employees.
+- **Authority**: Certificate approval workflow (pending, approved, bulk actions), approval audit.
 
-### System Design
-- Uses environment variables for sensitive configurations.
-- Database tables are automatically created on the first run.
-- Tailwind CSS is integrated with build and watch modes.
-- Production deployment utilizes Gunicorn.
-- Quiz system is embedded directly into module pages, featuring a vertical accordion layout and responsive design for mobile.
-- Unified sidebar toggle functionality across all screen sizes.
-
-### User Roles
-1.  **Superadmin**: Elevated admin privileges, exclusive rights to create/edit/delete admin accounts.
-2.  **Admin**: Full system access, user and course management (except admin management).
-3.  **User**: Standard learners.
-4.  **Trainer**: Manage content and monitor learners.
-5.  **Agency**: Monitor employee progress.
-6.  **Authority**: Approve certificates and manage compliance.
+### System Design Choices
+- **Modular Flask Application**: Structured with dedicated files for models, routes, utilities, and specific user roles.
+- **Environment Management**: Utilizes `python-dotenv` for configuration and Replit Secrets for sensitive information.
+- **Development & Deployment**: Designed for seamless deployment on Replit using Gunicorn as the production server.
 
 ## External Dependencies
-
-### Python Packages
--   Flask, Flask-Login, Flask-SQLAlchemy, Flask-Mail
--   psycopg (PostgreSQL adapter)
--   ReportLab, PyPDF2 (PDF generation)
--   openpyxl (Excel import)
-
-### Node.js Packages
--   Tailwind CSS (styling framework)
--   Chart.js (for data visualization)
-
-## Recent Changes
-
-### 2025-11-21 (Latest)
-**Fixed Dark Mode Cross-Account Bug**:
-- **Issue**: Dark mode preference was stored in browser localStorage, affecting all users on the same browser
-- **Root Cause**: localStorage is browser-wide, not user-specific
-- **Solution**: Added `dark_mode_enabled` column to all user tables (admin, user, trainer, agency_account)
-- **Implementation**:
-  - Created database migration to add dark_mode_enabled column
-  - Updated all model classes with new field
-  - Added `/api/save_theme_preference` endpoint to save preference to database
-  - Modified theme application in base.html to use database preference instead of just localStorage
-  - Theme toggle now saves to both localStorage (instant feedback) and database (persistence across devices)
-- **Result**: Each user now has their own dark mode preference that persists across sessions and doesn't affect other users
-- **Files Modified**: models.py, routes.py, templates/base.html, migrations/add_dark_mode_preference.py
-
-**Fixed Mobile Table Display - User Dashboard Pending Certificates**:
-- **Issue**: Table not displaying data on mobile view (only headers visible)
-- **Root Cause**: Table missing required attributes for responsive table system
-- **Fix**: Added `id="pendingCertificatesTable"`, `data-responsive-table="true"`, and `data-label` attributes to all th elements
-- **Result**: Table now automatically transforms into mobile-friendly cards on screens ≤768px
-- **Files Modified**: templates/user_dashboard.html
-
-**Force Light Mode on Public Pages**:
-- **Login Page**: Added inline script to remove dark mode classes + comprehensive CSS overrides for all text elements and buttons
-- **Signup Page**: Added inline script to remove dark mode classes + comprehensive CSS overrides for all text elements and buttons
-- **Landing Page**: Added inline script immediately after body tag to remove dark mode classes
-- **Issue Fixed**: White text and dark buttons appearing after logout from dark mode account
-- **Implementation**: 
-  - Synchronous JavaScript removes dark mode classes before rendering
-  - CSS overrides explicitly target `body.dark-mode` and `html.darkmode` selectors
-  - All text elements (.text-muted, h1, p, form-label, form-check-label) forced to dark colors
-  - Button elements (.btn-light) forced to light background colors
-  - Overrides prevent base.html dark mode styles from affecting public pages
-- **Files Modified**: templates/login.html, templates/signup.html, templates/index.html
-
-**Enhanced Admin Password Change Feature**:
-- **New Endpoint**: Added `/admin_change_user_password` route with role-based permissions
-- **Access Control**: Only admins and superadmins can access the password change feature
-- **Superadmin Privileges**: Superadmins can change passwords for users, trainers, admins, and authorities
-- **Regular Admin Restrictions**: Regular admins can only change passwords for users and trainers
-- **UI Updates**: "Change Password" button shown conditionally based on user role and logged-in admin type
-  - Users and trainers: visible to all admins
-  - Admins and authorities: visible only to superadmins
-- **Modal Form**: Password change modal with password confirmation and client-side validation (minimum 6 characters)
-- **Security**: Server-side role validation with clear error messages for unauthorized attempts
-- **Audit Trail**: All password changes logged with admin username, superadmin status, and target user details
-- **Files Modified**: routes.py, templates/admin_users.html, utils.py (is_superadmin import)
-
-**Superadmin Role Implementation**:
-- **Database Schema**: Added `is_superadmin` BOOLEAN column to admin table
-- **Access Control**: Created `@superadmin_required` decorator and `is_superadmin()` helper function
-- **Admin Management**: Only superadmins can create, edit, or delete admin accounts
-- **Self-Deletion Protection**: Superadmins cannot delete their own account
-- **UI Updates**: Added gold "SUPERADMIN" badge in sidebar for superadmin users
-- **Migration Script**: Created `migrations/add_superadmin_column.py` (idempotent, safe to run multiple times)
-- **Admin Creation**: Updated `create_admin.py` to support creating superadmin accounts
-- **Security**: All admin management operations verify superadmin status server-side
-- **Documentation**: Created SUPERADMIN_IMPLEMENTATION.md with comprehensive guide
-- **Files Modified**: models.py, utils.py, routes.py, templates/base.html, create_admin.py
-
-### 2025-11-19
-**Quiz Dropdown Fix - Dynamic Element IDs in module_view.html**:
-- **Fixed Critical Bug**: Replaced all hardcoded `-mv` element IDs with dynamic module-specific IDs using `{{ module.module_id }}`
-- **Elements Fixed**: quiz-header, quiz-body, quiz-container, quiz-title, quiz-subtitle, quiz-count, progress-text, status-text, status-badge, btn-submit, btn-reattempt, results-container, no-quiz, questions-row, scroll-container
-- **JavaScript Updated**: All getElementById() calls now use dynamic IDs matching the HTML elements
-- **Impact**: Quiz accordion now renders and toggles correctly for each module instance in module view
-- **Applied To**: templates/module_view.html (matches fix already applied to course_modules.html)
-
-**Profile Edit Form - IC Number Field Protection**:
-- **Greyed Out for Foreigners**: IC Number field is now disabled and greyed out for users with user_category = 'foreigner'
-- **Visual Feedback**: Field displays with light grey background, reduced opacity (60%), and 'not-allowed' cursor
-- **Prevents Editing**: Foreigner users cannot modify the IC Number field in their profile
-- **Citizens Unaffected**: IC Number field remains fully editable for citizen users
-- **Applied To**: templates/profile.html edit profile form
+- **Backend Framework**: Flask 3.x
+- **Database**: PostgreSQL (via Neon on Replit), psycopg 3.2.9, psycopg2-binary
+- **ORM**: Flask-SQLAlchemy
+- **Authentication**: Flask-Login
+- **Password Hashing**: Werkzeug security
+- **PDF Generation**: ReportLab, PyPDF2
+- **Excel Processing**: openpyxl
+- **Email**: Flask-Mail (SendGrid for production, MailHog for development)
+- **Token Generation**: itsdangerous
+- **HTTP Requests**: requests library
+- **Production Server**: Gunicorn
+- **Frontend Libraries**:
+    - Jinja2 (templating)
+    - Tailwind CSS 3.4.18 (CSS framework)
+    - Chart.js (data visualization)
+    - Bootstrap 5.3.0 (UI components)
+    - html2pdf.bundle.min.js (client-side PDF generation)
+    - Font Awesome (icons)
+- **Development Tools**: pytest (testing), python-dotenv, npm (for Node.js dependencies like Tailwind)
