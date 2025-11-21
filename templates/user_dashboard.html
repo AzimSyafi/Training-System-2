@@ -689,14 +689,14 @@
     {% if pending_certificates and pending_certificates|length > 0 %}
     <div style="overflow-x: auto;">
       <h5 class="mb-3" style="font-size: 16px; font-weight: 600; color: var(--primary-text);">Recent Pending Certificates (Top 10)</h5>
-      <table class="authority-approvals-table">
+      <table id="pendingCertificatesTable" class="authority-approvals-table" data-responsive-table="true">
         <thead>
           <tr>
-            <th>Cert ID</th>
-            <th>User</th>
-            <th>Course</th>
-            <th>Issue Date</th>
-            <th>Status</th>
+            <th data-label="Cert ID" data-primary="true">Cert ID</th>
+            <th data-label="User" data-secondary="true">User</th>
+            <th data-label="Course">Course</th>
+            <th data-label="Issue Date">Issue Date</th>
+            <th data-label="Status">Status</th>
           </tr>
         </thead>
         <tbody>

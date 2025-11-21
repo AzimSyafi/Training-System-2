@@ -69,6 +69,13 @@ Not specified.
 ## Recent Changes
 
 ### 2025-11-21 (Latest)
+**Fixed Mobile Table Display - User Dashboard Pending Certificates**:
+- **Issue**: Table not displaying data on mobile view (only headers visible)
+- **Root Cause**: Table missing required attributes for responsive table system
+- **Fix**: Added `id="pendingCertificatesTable"`, `data-responsive-table="true"`, and `data-label` attributes to all th elements
+- **Result**: Table now automatically transforms into mobile-friendly cards on screens ≤768px
+- **Files Modified**: templates/user_dashboard.html
+
 **Force Light Mode on Public Pages**:
 - **Login Page**: Added inline script to remove dark mode classes + comprehensive CSS overrides for all text elements and buttons
 - **Signup Page**: Added inline script to remove dark mode classes + comprehensive CSS overrides for all text elements and buttons
