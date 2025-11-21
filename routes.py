@@ -1843,6 +1843,48 @@ def delete_admin():
         logging.exception(f'[DELETE ADMIN] Failed to delete admin {request.form.get("admin_id", "unknown")}')
         return jsonify({'success': False, 'message': f'Error deleting admin: {str(e)}'}), 500
 
+@main_bp.route('/admin_change_user_password', methods=['POST'])
+@login_required
+def admin_change_user_password():
+    # Only admins and superadmins can change user passwords
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+    try:
+        user_type = request.form.get('user_type')
+        user_id = request.form.get('user_id')
+        new_password = request.form.get('new_password')
+
+        if not user_type or not user_id or not new_password:
+            return jsonify({'success': False, 'message': 'All fields are required'}), 400
+
+        # Only allow changing passwords for users and trainers
+        if user_type not in ['user', 'trainer']:
+            return jsonify({'success': False, 'message': 'Can only change passwords for users and trainers'}), 403
+
+        # Find the account
+        if user_type == 'user':
+            account = db.session.get(User, int(user_id))
+            if not account:
+                return jsonify({'success': False, 'message': 'User not found'}), 404
+            account.set_password(new_password)
+            account_name = account.full_name
+        elif user_type == 'trainer':
+            account = db.session.get(Trainer, int(user_id))
+            if not account:
+                return jsonify({'success': False, 'message': 'Trainer not found'}), 404
+            account.set_password(new_password)
+            account_name = account.full_name
+
+        db.session.commit()
+
+        logging.info(f'[CHANGE PASSWORD] Admin {current_user.username} changed password for {user_type} {user_id} ({account_name})')
+        return jsonify({'success': True, 'message': f'Password changed successfully for {account_name}'})
+    except Exception as e:
+        db.session.rollback()
+        logging.exception(f'[CHANGE PASSWORD] Failed to change password for {user_type} {user_id}')
+        return jsonify({'success': False, 'message': f'Error changing password: {str(e)}'}), 500
+
 @main_bp.route('/assign_trainer_course', methods=['POST'])
 @login_required
 def assign_trainer_course():

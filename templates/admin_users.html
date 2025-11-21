@@ -170,6 +170,9 @@
                                             {% if acc.type == 'trainer' %}
                                             <li><a class="dropdown-item" href="#" onclick="openAssignCourseModal('{{ acc.id }}', '{{ acc.name }}'); return false;"><i class="fas fa-book me-2 text-success"></i>Assign Course</a></li>
                                             {% endif %}
+                                            {% if acc.type in ['user', 'trainer'] %}
+                                            <li><a class="dropdown-item" href="#" onclick="openChangePasswordModal('{{ acc.id }}', '{{ acc.name }}', '{{ acc.type }}'); return false;"><i class="fas fa-key me-2 text-warning"></i>Change Password</a></li>
+                                            {% endif %}
                                             <li><hr class="dropdown-divider"></li>
                                             <li><a class="dropdown-item text-danger" href="#" onclick="deleteUserOrTrainer('{{ acc.id }}', '{{ acc.name }}', '{{ acc.type }}'); return false;"><i class="fas fa-trash-alt me-2"></i>Delete</a></li>
                                         </ul>
@@ -323,6 +326,41 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" class="btn btn-success"><i class="fas fa-book"></i> Assign Course</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="changePasswordModalLabel">Change Password</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="changePasswordForm">
+        <div class="modal-body">
+          <input type="hidden" id="changePasswordUserId" name="user_id">
+          <input type="hidden" id="changePasswordUserType" name="user_type">
+          <div class="mb-3">
+            <label class="form-label">Account: <strong id="changePasswordUserName"></strong></label>
+          </div>
+          <div class="mb-3">
+            <label for="newPassword" class="form-label">New Password</label>
+            <input type="password" class="form-control" id="newPassword" name="new_password" required minlength="6">
+            <small class="form-text text-muted">Enter a new password (minimum 6 characters).</small>
+          </div>
+          <div class="mb-3">
+            <label for="confirmPassword" class="form-label">Confirm Password</label>
+            <input type="password" class="form-control" id="confirmPassword" name="confirm_password" required>
+            <small class="form-text text-muted">Re-enter the password to confirm.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warning"><i class="fas fa-key"></i> Change Password</button>
         </div>
       </form>
     </div>
@@ -510,6 +548,42 @@ function openAssignCourseModal(trainerId, trainerName) {
         modal.show();
     } else {
         console.error('Assign course modal element not found');
+    }
+}
+
+function openChangePasswordModal(userId, userName, userType) {
+    console.log('openChangePasswordModal called with:', { userId, userName, userType });
+
+    // Hide any open modals before showing this modal
+    document.querySelectorAll('.modal.show').forEach(modal => {
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if(bsModal) bsModal.hide();
+    });
+
+    const userIdInput = document.getElementById('changePasswordUserId');
+    const userTypeInput = document.getElementById('changePasswordUserType');
+    const userNameDisplay = document.getElementById('changePasswordUserName');
+    const newPasswordInput = document.getElementById('newPassword');
+    const confirmPasswordInput = document.getElementById('confirmPassword');
+
+    if (!userIdInput || !userTypeInput || !userNameDisplay || !newPasswordInput || !confirmPasswordInput) {
+        console.error('Change password modal elements not found');
+        return;
+    }
+
+    // Set the values
+    userIdInput.value = userId;
+    userTypeInput.value = userType;
+    userNameDisplay.textContent = userName;
+    newPasswordInput.value = '';
+    confirmPasswordInput.value = '';
+
+    const modalElement = document.getElementById('changePasswordModal');
+    if (modalElement) {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } else {
+        console.error('Change password modal element not found');
     }
 }
 
@@ -719,6 +793,69 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     } else {
         console.error('Assign course form not found in DOM');
+    }
+
+    // Attach change password form submit listener
+    const changePasswordForm = document.getElementById('changePasswordForm');
+    if (changePasswordForm) {
+        changePasswordForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const userId = document.getElementById('changePasswordUserId').value;
+            const userType = document.getElementById('changePasswordUserType').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            console.log('Change password request:', { userId, userType });
+
+            // Validate passwords match
+            if (newPassword !== confirmPassword) {
+                showTempAlert('Passwords do not match. Please try again.', 'warning', 2000);
+                return;
+            }
+
+            if (!userId || !userType || !newPassword) {
+                showTempAlert('Missing required information. Please try again.', 'warning', 2000);
+                return;
+            }
+
+            try {
+                const response = await fetch('/admin_change_user_password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `user_id=${encodeURIComponent(userId)}&user_type=${encodeURIComponent(userType)}&new_password=${encodeURIComponent(newPassword)}`
+                });
+
+                console.log('Response status:', response.status);
+
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (!response.ok) {
+                    showTempAlert(data.message || `Server error: ${response.status}`, 'danger', 3000);
+                    return;
+                }
+
+                // Close modal
+                const modalElement = document.getElementById('changePasswordModal');
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) {
+                    modal.hide();
+                }
+
+                // Show result message
+                showTempAlert(data.message || 'Password changed successfully.', data.success ? 'success' : 'danger', 2500);
+
+                // Clear the form
+                document.getElementById('newPassword').value = '';
+                document.getElementById('confirmPassword').value = '';
+            } catch (error) {
+                console.error('Change password error:', error);
+                showTempAlert(`Error: ${error.message || 'Failed to change password. Please check console for details.'}`, 'danger', 3000);
+            }
+        });
+    } else {
+        console.error('Change password form not found in DOM');
     }
 
     // Initialize all dropdowns explicitly
