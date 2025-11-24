@@ -1267,21 +1267,24 @@ def admin_users():
                 'agency': '',
                 'active_status': t.active_status,
             })
-        admins = Admin.query.all()
-        for a in admins:
-            if q and (q not in (a.username or '').lower() and q not in (a.email or '').lower()):
-                continue
-            if role_filter not in ('all','admin'):
-                continue
-            merged_accounts.append({
-                'type': 'admin',
-                'id': a.admin_id,
-                'number_series': None,
-                'name': a.username,
-                'email': a.email,
-                'agency': '',
-                'active_status': True,
-            })
+        # Only show admins to superadmins
+        from utils import is_superadmin
+        if is_superadmin():
+            admins = Admin.query.all()
+            for a in admins:
+                if q and (q not in (a.username or '').lower() and q not in (a.email or '').lower()):
+                    continue
+                if role_filter not in ('all','admin'):
+                    continue
+                merged_accounts.append({
+                    'type': 'admin',
+                    'id': a.admin_id,
+                    'number_series': None,
+                    'name': a.username,
+                    'email': a.email,
+                    'agency': '',
+                    'active_status': True,
+                })
         filters = SimpleNamespace(q=q, role=role_filter, agency_id=agency_id, status=request.args.get('status','all'))
     except Exception:
         logging.exception('[ADMIN USERS] Failed building context')
