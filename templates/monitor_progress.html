@@ -107,7 +107,7 @@
               </td>
               <td>
                 {% if r.status == 'Completed' %}
-                  <span class="badge bg-success">Completed</span>
+                  <span class="badge bg-success text-white">Completed</span>
                 {% else %}
                   <span class="badge bg-warning text-dark">In Progress</span>
                 {% endif %}
@@ -200,7 +200,7 @@ function showUserProgressModal(userName, agencyName) {
     const progressBarColor = r.progress_pct >= 100 ? 'bg-success' : (r.progress_pct >= 50 ? 'bg-primary' : 'bg-warning text-dark');
     const scoreColor = r.score !== null ? (r.score <= 50 ? 'text-danger' : (r.score > 75 ? 'text-success' : 'text-primary')) : '';
     const scoreText = r.score !== null ? `<span class="fw-semibold ${scoreColor}">${r.score}</span>%` : '-';
-    const statusBadge = r.status === 'Completed' ? '<span class="badge bg-success">Completed</span>' : '<span class="badge bg-warning text-dark">In Progress</span>';
+    const statusBadge = r.status === 'Completed' ? '<span class="badge bg-success text-white">Completed</span>' : '<span class="badge bg-warning text-dark">In Progress</span>';
     
     content += `
       <tr>
