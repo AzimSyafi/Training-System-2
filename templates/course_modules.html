@@ -1667,6 +1667,11 @@
                       const userAnswers = data.userAnswers || [];
                       const correctAnswers = data.correctAnswers || [];
                       
+                      // Debug logging
+                      console.log('userAnswers:', userAnswers);
+                      console.log('correctAnswers:', correctAnswers);
+                      console.log('quiz questions:', quiz.length);
+                      
                       // Update quiz header
                       const quizTitle = document.getElementById('quiz-title-{{ module.module_id }}');
                       if (quizTitle) quizTitle.textContent = 'Quiz Review';
