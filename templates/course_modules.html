@@ -1685,7 +1685,7 @@
                       quiz.forEach((q, idx) => {
                         const userAns = userAnswers[idx];
                         const correctAns = correctAnswers[idx];
-                        const isCorrect = userAns === correctAns;
+                        const isCorrect = Number(userAns) === Number(correctAns);
                         
                         html += `<div class="question-card" style="border-left: 4px solid ${isCorrect ? '#10b981' : '#ef4444'};">`;
                         html += `<div class="question-number">${idx + 1}</div>`;
