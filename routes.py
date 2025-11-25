@@ -1581,6 +1581,9 @@ def delete_course(course_id):
         # Manually delete related modules and user module progress
         modules = Module.query.filter_by(course_id=course.course_id).all()
         for module in modules:
+            # Delete certificates for this module
+            Certificate.query.filter_by(module_id=module.module_id).delete()
+            # Delete user module progress
             UserModule.query.filter_by(module_id=module.module_id).delete()
             db.session.delete(module)
 
@@ -1677,7 +1680,9 @@ def delete_course_module(module_id):
         # Store course_id before deleting the module
         course_id = module.course_id
         
-        # Also delete user progress for this module
+        # Delete certificates for this module first
+        Certificate.query.filter_by(module_id=module.module_id).delete()
+        # Delete user progress for this module
         UserModule.query.filter_by(module_id=module.module_id).delete()
 
         db.session.delete(module)
