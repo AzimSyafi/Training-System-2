@@ -1118,6 +1118,42 @@ if (moduleModal) {
 // AJAX form submission for module content (keep modal open)
 document.addEventListener('submit', function(e) {
   const form = e.target;
+  
+  // Handle quiz form - close modal after save
+  if (form.classList.contains('quiz-builder-form')) {
+    e.preventDefault();
+    
+    const btn = form.querySelector('button[type="submit"]');
+    const spinner = btn?.querySelector('.fa-spinner');
+    if (spinner) spinner.style.display = 'inline-block';
+    btn.disabled = true;
+    
+    const formData = new FormData(form);
+    
+    fetch(form.action, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        // Close the modal - this triggers the auto-refresh
+        const modal = bootstrap.Modal.getInstance(moduleModal);
+        if (modal) modal.hide();
+      }
+    })
+    .catch(err => console.error('Error:', err))
+    .finally(() => {
+      if (spinner) spinner.style.display = 'none';
+      btn.disabled = false;
+    });
+    return;
+  }
+  
+  // Handle module content form - keep modal open
   if (!form.classList.contains('module-content-form')) return;
   
   e.preventDefault();
