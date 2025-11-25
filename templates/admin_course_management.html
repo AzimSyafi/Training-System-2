@@ -197,7 +197,7 @@
                           </ul>
                           <div class="tab-content">
                             <div class="tab-pane fade show active" id="slide-pane-{{ m.module_id }}" role="tabpanel">
-                              <form class="row g-2 align-items-start" method="post" enctype="multipart/form-data" action="{{ safe_url_for('main.manage_module_content', module_id=m.module_id) }}">
+                              <form class="row g-2 align-items-start module-content-form" method="post" enctype="multipart/form-data" action="{{ safe_url_for('main.manage_module_content', module_id=m.module_id) }}" data-module-id="{{ m.module_id }}">
                                 <input type="hidden" name="content_type" value="slide">
                                 <div class="col-12">
                                   <input type="file" name="slide_file" class="form-control form-control-sm" accept=".pdf,.ppt,.pptx">
@@ -209,12 +209,12 @@
                                 </div>
                                 <div class="col-12 d-flex align-items-center gap-2 flex-wrap small">
                                   {% if m.slide_url %}<a href="{{ url_for('main.serve_uploaded_slide', filename=m.slide_url) }}" target="_blank" class="text-success text-truncate" style="max-width:200px"><i class="fas fa-file-pdf me-1"></i>{{ m.slide_url }}</a>{% else %}<span class="text-muted">No slide</span>{% endif %}
-                                  <button class="btn btn-primary btn-sm" type="submit">Save</button>
+                                  <button class="btn btn-primary btn-sm" type="submit"><i class="fas fa-spinner fa-spin me-1" style="display:none;"></i>Save</button>
                                 </div>
                               </form>
                             </div>
                             <div class="tab-pane fade" id="video-pane-{{ m.module_id }}" role="tabpanel">
-                              <form class="row g-2" method="post" action="{{ safe_url_for('main.manage_module_content', module_id=m.module_id) }}">
+                              <form class="row g-2 module-content-form" method="post" action="{{ safe_url_for('main.manage_module_content', module_id=m.module_id) }}" data-module-id="{{ m.module_id }}">
                                 <input type="hidden" name="content_type" value="video">
                                 <div class="col-12">
                                   <div class="input-group input-group-sm">
@@ -223,7 +223,7 @@
                                   </div>
                                 </div>
                                 <div class="col-12 text-end">
-                                  <button class="btn btn-primary btn-sm" type="submit">Save</button>
+                                  <button class="btn btn-primary btn-sm" type="submit"><i class="fas fa-spinner fa-spin me-1" style="display:none;"></i>Save</button>
                                 </div>
                               </form>
                             </div>
