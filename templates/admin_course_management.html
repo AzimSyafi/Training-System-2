@@ -1107,6 +1107,14 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 })();
 
+// Auto-refresh page when modal closes
+const moduleModal = document.getElementById('moduleDetailModal');
+if (moduleModal) {
+  moduleModal.addEventListener('hide.bs.modal', function() {
+    location.reload();
+  });
+}
+
 // AJAX form submission for module content (keep modal open)
 document.addEventListener('submit', function(e) {
   const form = e.target;
