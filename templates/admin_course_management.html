@@ -1106,5 +1106,46 @@ document.addEventListener('DOMContentLoaded', function(){
     }, 300); // Wait for page to fully load
   }
 })();
+
+// AJAX form submission for module content (keep modal open)
+document.addEventListener('submit', function(e) {
+  const form = e.target;
+  if (!form.classList.contains('module-content-form')) return;
+  
+  e.preventDefault();
+  
+  const btn = form.querySelector('button[type="submit"]');
+  const spinner = btn?.querySelector('.fa-spinner');
+  if (spinner) spinner.style.display = 'inline-block';
+  btn.disabled = true;
+  
+  const formData = new FormData(form);
+  
+  fetch(form.action, {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      // Show success message
+      const alertDiv = document.createElement('div');
+      alertDiv.className = 'alert alert-success alert-dismissible fade show';
+      alertDiv.innerHTML = `${data.message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+      form.parentElement.insertBefore(alertDiv, form);
+      
+      // Auto dismiss after 3 seconds
+      setTimeout(() => alertDiv.remove(), 3000);
+    }
+  })
+  .catch(err => console.error('Error:', err))
+  .finally(() => {
+    if (spinner) spinner.style.display = 'none';
+    btn.disabled = false;
+  });
+});
 </script>
 {% endblock %}

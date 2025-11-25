@@ -2138,6 +2138,10 @@ def manage_module_content(module_id):
         logging.exception(f'[MANAGE CONTENT] Failed for module {module_id}')
         flash(f'Error managing content: {e}', 'danger')
 
+    # Check if this is an AJAX request
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': 'Content saved successfully!'})
+    
     # Redirect back with hash to preserve scroll position and module focus
     # Include course_id in hash so JavaScript can expand the correct panel
     course_id = module.course_id if module else None
