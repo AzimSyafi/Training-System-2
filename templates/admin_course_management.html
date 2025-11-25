@@ -1120,6 +1120,7 @@ document.addEventListener('submit', function(e) {
   btn.disabled = true;
   
   const formData = new FormData(form);
+  const moduleId = form.getAttribute('data-module-id');
   
   fetch(form.action, {
     method: 'POST',
@@ -1137,8 +1138,13 @@ document.addEventListener('submit', function(e) {
       alertDiv.innerHTML = `${data.message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
       form.parentElement.insertBefore(alertDiv, form);
       
-      // Auto dismiss after 3 seconds
-      setTimeout(() => alertDiv.remove(), 3000);
+      // Reload the modal to refresh the form fields
+      if (moduleId) {
+        setTimeout(() => {
+          openModuleModal(moduleId, 'content');
+          alertDiv.remove();
+        }, 500);
+      }
     }
   })
   .catch(err => console.error('Error:', err))
