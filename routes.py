@@ -1447,18 +1447,29 @@ def admin_course_management():
             module_id = request.form.get('module_id')
             quiz_json = request.form.get('quiz_data')
             if not module_id or not quiz_json:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({'success': False, 'message': 'Missing module_id or quiz_json'})
                 flash('Missing module_id or quiz_json', 'danger')
                 return redirect(url_for('main.admin_course_management'))
             module = db.session.get(Module, int(module_id))
             if not module:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({'success': False, 'message': 'Module not found'})
                 flash('Module not found', 'danger')
                 return redirect(url_for('main.admin_course_management'))
             module.quiz_json = quiz_json
             db.session.commit()
+            
+            # Check if this is an AJAX request
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': True, 'message': 'Quiz updated successfully'})
+            
             flash('Quiz updated successfully', 'success')
         except Exception as e:
             db.session.rollback()
             logging.exception('[ADMIN COURSE MANAGEMENT] Failed to update quiz')
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'message': f'Error updating quiz: {e}'})
             flash(f'Error updating quiz: {e}', 'danger')
         return redirect(url_for('main.admin_course_management'))
     try:
