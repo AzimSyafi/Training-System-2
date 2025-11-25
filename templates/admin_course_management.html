@@ -1107,11 +1107,32 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 })();
 
-// Auto-refresh page when modal closes
+// Auto-refresh page when modal closes - preserve course context
 const moduleModal = document.getElementById('moduleDetailModal');
 if (moduleModal) {
   moduleModal.addEventListener('hide.bs.modal', function() {
-    location.reload();
+    // Find the course ID from the current modal content
+    const moduleElement = moduleModal.querySelector('.module-modal-inner');
+    if (moduleElement) {
+      const moduleId = moduleElement.getAttribute('data-module-id');
+      // Find the parent course wrapper to get course ID
+      let courseId = null;
+      const parentCourses = document.querySelectorAll('.course-manage-wrapper');
+      parentCourses.forEach(course => {
+        if (course.querySelector(`[data-module-id="${moduleId}"]`)) {
+          courseId = course.getAttribute('data-course-id');
+        }
+      });
+      
+      if (courseId) {
+        // Reload with hash to stay on this course
+        location.href = window.location.pathname + '#course-' + courseId;
+      } else {
+        location.reload();
+      }
+    } else {
+      location.reload();
+    }
   });
 }
 
