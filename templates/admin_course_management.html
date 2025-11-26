@@ -1167,11 +1167,8 @@ document.addEventListener('submit', function(e) {
         alertDiv.innerHTML = `✓ Quiz saved successfully!<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
         form.parentElement.insertBefore(alertDiv, form);
         
-        // Wait 2 seconds then close modal - this triggers the auto-refresh
-        setTimeout(() => {
-          const modal = bootstrap.Modal.getInstance(moduleModal);
-          if (modal) modal.hide();
-        }, 2000);
+        // Auto dismiss alert after 3 seconds but keep modal open
+        setTimeout(() => alertDiv.remove(), 3000);
       }
     })
     .catch(err => console.error('Error:', err))
