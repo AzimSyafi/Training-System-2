@@ -1,9 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Course Management{% endblock %}
 {% block content %}
-<!-- Bottom Toast Container for Notifications -->
-<div id="toastContainer" style="position: fixed; bottom: 20px; left: 20px; z-index: 9999;"></div>
-
 <div class="container-fluid" id="courseManagementRoot">
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
     <div>
@@ -1110,49 +1107,45 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 })();
 
-// Show toast notification at bottom
-function showBottomToast(message) {
-  const container = document.getElementById('toastContainer');
-  const alertDiv = document.createElement('div');
-  alertDiv.className = 'alert alert-success alert-dismissible fade show';
-  alertDiv.style.minWidth = '300px';
-  alertDiv.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
-  container.appendChild(alertDiv);
-  
-  setTimeout(() => alertDiv.remove(), 3000);
+// Setup auto-refresh when modal closes - preserve course context
+function setupModalCloseListener() {
+  const moduleModal = document.getElementById('moduleDetailModal');
+  if (moduleModal) {
+    // Remove old listener if exists
+    moduleModal.removeEventListener('hide.bs.modal', handleModalClose);
+    // Add fresh listener
+    moduleModal.addEventListener('hide.bs.modal', handleModalClose);
+  }
 }
 
-// Setup auto-refresh when modal closes - preserve course context
-const moduleModal = document.getElementById('moduleDetailModal');
-if (moduleModal) {
-  moduleModal.addEventListener('hidden.bs.modal', function() {
-    // Wait a moment for modal to fully close, then refresh
-    setTimeout(() => {
-      // Find the course ID from the current modal content
-      const moduleElement = moduleModal.querySelector('.module-modal-inner');
-      if (moduleElement) {
-        const moduleId = moduleElement.getAttribute('data-module-id');
-        // Find the parent course wrapper to get course ID
-        let courseId = null;
-        const parentCourses = document.querySelectorAll('.course-manage-wrapper');
-        parentCourses.forEach(course => {
-          if (course.querySelector(`[data-module-id="${moduleId}"]`)) {
-            courseId = course.getAttribute('data-course-id');
-          }
-        });
-        
-        if (courseId) {
-          // Reload with hash to stay on this course and show updated quiz
-          location.href = window.location.pathname + '#course-' + courseId;
-        } else {
-          location.reload();
-        }
-      } else {
-        location.reload();
+function handleModalClose() {
+  const moduleModal = document.getElementById('moduleDetailModal');
+  // Find the course ID from the current modal content
+  const moduleElement = moduleModal.querySelector('.module-modal-inner');
+  if (moduleElement) {
+    const moduleId = moduleElement.getAttribute('data-module-id');
+    // Find the parent course wrapper to get course ID
+    let courseId = null;
+    const parentCourses = document.querySelectorAll('.course-manage-wrapper');
+    parentCourses.forEach(course => {
+      if (course.querySelector(`[data-module-id="${moduleId}"]`)) {
+        courseId = course.getAttribute('data-course-id');
       }
-    }, 300);
-  });
+    });
+    
+    if (courseId) {
+      // Reload with hash to stay on this course and show updated quiz
+      location.href = window.location.pathname + '#course-' + courseId;
+    } else {
+      location.reload();
+    }
+  } else {
+    location.reload();
+  }
 }
+
+// Setup listener on page load
+setupModalCloseListener();
 
 // AJAX form submission for module content (keep modal open)
 document.addEventListener('submit', function(e) {
@@ -1179,8 +1172,14 @@ document.addEventListener('submit', function(e) {
     .then(r => r.json())
     .then(data => {
       if (data.success) {
-        // Show success message at bottom
-        showBottomToast('✓ Quiz has been saved');
+        // Show success message
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-success alert-dismissible fade show';
+        alertDiv.innerHTML = `✓ Quiz has been saved<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+        form.parentElement.insertBefore(alertDiv, form);
+        
+        // Auto dismiss alert after 3 seconds but keep modal open
+        setTimeout(() => alertDiv.remove(), 3000);
       }
     })
     .catch(err => console.error('Error:', err))
