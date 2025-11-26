@@ -507,6 +507,31 @@
                 </div>
             </div>
 
+            <!-- Text Field -->
+            <div class="field-control" data-field="text">
+                <div class="field-header">
+                    <h4>Certificate Text</h4>
+                    <div class="visibility-toggle">
+                        <input type="checkbox" id="text_visible" {% if template and template.text_visible %}checked{% endif %} onchange="updateFieldVisibility('text')">
+                        <label for="text_visible">Visible</label>
+                    </div>
+                </div>
+                <div class="field-inputs">
+                    <div class="input-wrapper">
+                        <label>X Position</label>
+                        <input type="number" id="text_x" value="{{ template.text_x if template else 306 }}" onchange="updateMarkerPosition('text')">
+                    </div>
+                    <div class="input-wrapper">
+                        <label>Y Position</label>
+                        <input type="number" id="text_y" value="{{ template.text_y if template else 170 }}" onchange="updateMarkerPosition('text')">
+                    </div>
+                    <div class="input-wrapper">
+                        <label>Font Size</label>
+                        <input type="number" id="text_font_size" value="{{ template.text_font_size if template else 12 }}" min="8" max="72">
+                    </div>
+                </div>
+            </div>
+
             <!-- Date Field -->
             <div class="field-control" data-field="date">
                 <div class="field-header">
@@ -544,13 +569,14 @@
 <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-    const fields = ['name', 'ic', 'course_type', 'percentage', 'grade', 'date'];
+    const fields = ['name', 'ic', 'course_type', 'percentage', 'grade', 'text', 'date'];
     const fieldLabels = {
         'name': 'Name',
         'ic': 'IC',
         'course_type': 'Course',
         'percentage': 'Percentage',
         'grade': 'Grade',
+        'text': 'Text',
         'date': 'Date'
     };
 
@@ -746,7 +772,8 @@
             'course_type': { x: 306, y: 280 },
             'percentage': { x: 306, y: 250 },
             'grade': { x: 306, y: 220 },
-            'date': { x: 306, y: 190 }
+            'text': { x: 306, y: 170 },
+            'date': { x: 306, y: 140 }
         };
 
         fields.forEach(field => {
