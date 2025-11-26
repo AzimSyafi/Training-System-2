@@ -3005,41 +3005,45 @@ def preview_certificate_template():
         packet = BytesIO()
         can = canvas.Canvas(packet, pagesize=letter)
         
+        # PDF coordinate system: (0,0) is bottom-left, but editor uses top-left
+        # Letter size: 612 x 792 points. Invert Y coordinates.
+        PDF_HEIGHT = 792
+        
         # Place Name (only if visible)
         if getattr(template_settings, 'name_visible', True):
             can.setFont("Times-Roman", template_settings.name_font_size)
             can.setFillColorRGB(0, 0, 0)
-            can.drawCentredString(template_settings.name_x, template_settings.name_y, mock_name)
+            can.drawCentredString(template_settings.name_x, PDF_HEIGHT - template_settings.name_y, mock_name)
         
         # Passport/IC (only if visible)
         if getattr(template_settings, 'ic_visible', True):
             can.setFont("Times-Roman", template_settings.ic_font_size)
-            can.drawCentredString(template_settings.ic_x, template_settings.ic_y, f"Passport/IC: {mock_ic}")
+            can.drawCentredString(template_settings.ic_x, PDF_HEIGHT - template_settings.ic_y, f"Passport/IC: {mock_ic}")
         
         # Course type (only if visible)
         if getattr(template_settings, 'course_type_visible', True):
             can.setFont("Times-Roman", template_settings.course_type_font_size)
-            can.drawCentredString(template_settings.course_type_x, template_settings.course_type_y, mock_course)
+            can.drawCentredString(template_settings.course_type_x, PDF_HEIGHT - template_settings.course_type_y, mock_course)
         
         # Percentage (only if visible)
         if getattr(template_settings, 'percentage_visible', True):
             can.setFont("Times-Roman", template_settings.percentage_font_size)
-            can.drawCentredString(template_settings.percentage_x, template_settings.percentage_y, f"Overall Percentage: {mock_percentage}%")
+            can.drawCentredString(template_settings.percentage_x, PDF_HEIGHT - template_settings.percentage_y, f"Overall Percentage: {mock_percentage}%")
         
         # Grade (only if visible)
         if getattr(template_settings, 'grade_visible', True):
             can.setFont("Times-Roman", template_settings.grade_font_size)
-            can.drawCentredString(template_settings.grade_x, template_settings.grade_y, f"Course Grade: {mock_grade}")
+            can.drawCentredString(template_settings.grade_x, PDF_HEIGHT - template_settings.grade_y, f"Course Grade: {mock_grade}")
         
         # Text (only if visible)
         if getattr(template_settings, 'text_visible', True):
             can.setFont("Times-Roman", template_settings.text_font_size)
-            can.drawCentredString(template_settings.text_x, template_settings.text_y, mock_text)
+            can.drawCentredString(template_settings.text_x, PDF_HEIGHT - template_settings.text_y, mock_text)
         
         # Date (only if visible)
         if getattr(template_settings, 'date_visible', True):
             can.setFont("Times-Roman", template_settings.date_font_size)
-            can.drawCentredString(template_settings.date_x, template_settings.date_y, mock_date)
+            can.drawCentredString(template_settings.date_x, PDF_HEIGHT - template_settings.date_y, mock_date)
         
         can.save()
         packet.seek(0)
