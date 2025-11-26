@@ -1634,7 +1634,12 @@
                         const nextHeader = nextCard.querySelector('.card-header');
                         if (nextHeader) {
                           nextModuleBtn.addEventListener('click', () => {
-                            // Reload page to refresh unlock status from backend
+                            // Find next module ID and scroll to it after reload
+                            const nextModuleContent = nextCard.querySelector('[id^="module-content-"]');
+                            if (nextModuleContent) {
+                              const nextModuleId = nextModuleContent.id.replace('module-content-', '');
+                              window.location.hash = `module-${nextModuleId}`;
+                            }
                             location.reload();
                           });
                         }
