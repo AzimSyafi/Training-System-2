@@ -1634,8 +1634,8 @@
                         const nextHeader = nextCard.querySelector('.card-header');
                         if (nextHeader) {
                           nextModuleBtn.addEventListener('click', () => {
-                            nextHeader.click();
-                            nextHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            // Reload page to refresh unlock status from backend
+                            location.reload();
                           });
                         }
                       } else {
