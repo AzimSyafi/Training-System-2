@@ -1909,13 +1909,13 @@ function completeCourse(courseCode) {
   {% if overall_percentage is defined and current_user.has_completed_all_modules_in_course(course_type) %}
   <div class="mt-4" style="max-width: 600px; margin-left: auto; margin-right: auto;">
     <button 
-      class="w-full text-center border-2 font-semibold py-3 px-6 rounded-lg transition-all duration-200 {% if overall_percentage >= 100 %}border-green-700 bg-green-700 text-white hover:bg-green-800 hover:border-green-800{% else %}border-gray-400 bg-gray-200 text-gray-500 opacity-50 cursor-not-allowed{% endif %}" 
-      onclick="{% if overall_percentage >= 100 %}completeCourse('{{ course_type.lower() }}');{% endif %}" 
-      {% if overall_percentage < 100 %}disabled{% endif %}
+      class="w-full text-center border-2 font-semibold py-3 px-6 rounded-lg transition-all duration-200 {% if overall_percentage >= 50 %}border-green-700 bg-green-700 text-white hover:bg-green-800 hover:border-green-800{% else %}border-gray-400 bg-gray-200 text-gray-500 opacity-50 cursor-not-allowed{% endif %}" 
+      onclick="{% if overall_percentage >= 50 %}completeCourse('{{ course_type.lower() }}');{% endif %}" 
+      {% if overall_percentage < 50 %}disabled{% endif %}
       style="font-size: 1.1rem;">
       <i class="fas fa-check-circle me-2"></i>Complete Course
     </button>
-    {% if overall_percentage < 100 %}
+    {% if overall_percentage < 50 %}
     <p class="text-center text-muted mt-2" style="font-size: 0.9rem;">
       <i class="fas fa-info-circle me-1"></i>Complete all modules with passing scores to unlock
     </p>
