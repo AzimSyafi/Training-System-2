@@ -528,6 +528,34 @@
     }
   }
 </style>
+<script>
+function toggleModule(moduleId) {
+  const content = document.getElementById('module-content-' + moduleId);
+  const chevron = document.getElementById('chevron-' + moduleId);
+  const header = chevron ? chevron.closest('.card-header') : null;
+  if (!content || !chevron || !header) return;
+  const open = content.style.display === 'block';
+  content.style.display = open ? 'none' : 'block';
+  chevron.classList.toggle('fa-chevron-up', !open);
+  chevron.classList.toggle('fa-chevron-down', open);
+  header.classList.toggle('collapsed', open === true);
+}
+async function reattemptCourse(courseType) {
+  const confirmed = await customConfirm('Are you sure you want to reattempt this course? All your progress will be reset.', 'Confirm Reattempt', {type: 'danger', confirmText: 'Reset Progress', confirmClass: 'btn-danger'});
+  if (confirmed) {
+    fetch(`/api/reattempt_course/${courseType}`, {method:'POST', headers:{'Content-Type':'application/json'}})
+      .then(r=>r.json()).then(async data=>{
+        if(data.success){
+          await customAlert('Course reset.', 'Success', {type: 'success'});
+          location.reload();
+        }
+        else {
+          await customAlert('Failed: ' + (data.message||'Unknown'), 'Error', {type: 'danger'});
+        }
+      }).catch(async e=> await customAlert('Error: '+e, 'Error', {type: 'danger'}));
+  }
+}
+</script>
 {% endblock %}
 
 {% block content %}
@@ -1903,33 +1931,6 @@
 
 {% block scripts %}
 <script>
-function toggleModule(moduleId) {
-  const content = document.getElementById('module-content-' + moduleId);
-  const chevron = document.getElementById('chevron-' + moduleId);
-  const header = chevron ? chevron.closest('.card-header') : null;
-  if (!content || !chevron || !header) return;
-  const open = content.style.display === 'block';
-  content.style.display = open ? 'none' : 'block';
-  chevron.classList.toggle('fa-chevron-up', !open);
-  chevron.classList.toggle('fa-chevron-down', open);
-  header.classList.toggle('collapsed', open === true); // add collapsed when hiding body
-}
-async function reattemptCourse(courseType) {
-  const confirmed = await customConfirm('Are you sure you want to reattempt this course? All your progress will be reset.', 'Confirm Reattempt', {type: 'danger', confirmText: 'Reset Progress', confirmClass: 'btn-danger'});
-  if (confirmed) {
-    fetch(`/api/reattempt_course/${courseType}`, {method:'POST', headers:{'Content-Type':'application/json'}})
-      .then(r=>r.json()).then(async data=>{
-        if(data.success){
-          await customAlert('Course reset.', 'Success', {type: 'success'});
-          location.reload();
-        }
-        else {
-          await customAlert('Failed: ' + (data.message||'Unknown'), 'Error', {type: 'danger'});
-        }
-      }).catch(async e=> await customAlert('Error: '+e, 'Error', {type: 'danger'}));
-  }
-}
-
 // Activate deferred iframes and YouTube placeholders to avoid Jinja-in-src lint warnings
 function activateDeferredIframes(root=document){
   const iframes = (root || document).querySelectorAll('iframe.deferred-iframe');
