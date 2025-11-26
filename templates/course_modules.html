@@ -1547,11 +1547,6 @@
                       renderResults(data);
                       confetti();
                       
-                      // Refresh page after 2 seconds to update module status and certificates
-                      setTimeout(() => {
-                        location.reload();
-                      }, 2000);
-                      
                     }catch(err){
                       alert('Error submitting quiz: '+err);
                       btnSubmit.disabled = false; 
@@ -1608,10 +1603,18 @@
                     
                     html += `</div>`;
                     
-                    html += `<div style="text-align: center;">`;
-                    html += `<button class="reattempt-button" id="btn-reattempt-{{ module.module_id }}">`;
+                    html += `<div style="text-align: center; display: flex; gap: 12px; justify-content: center; margin-top: 24px; flex-wrap: wrap;">`;
+                    html += `<button class="reattempt-button" id="btn-reattempt-{{ module.module_id }}" style="flex: 1; min-width: 150px;">`;
                     html += `<svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>`;
                     html += `Reattempt Quiz`;
+                    html += `</button>`;
+                    html += `<button class="next-module-button" id="btn-next-module-{{ module.module_id }}" style="flex: 1; min-width: 150px; background: #10b981; color: white; padding: 12px 20px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">`;
+                    html += `<svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>`;
+                    html += `Next Module`;
+                    html += `</button>`;
+                    html += `<button class="refresh-button" id="btn-refresh-{{ module.module_id }}" style="flex: 1; min-width: 150px; background: #6366f1; color: white; padding: 12px 20px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">`;
+                    html += `<svg class="lucide" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>`;
+                    html += `Refresh Page`;
                     html += `</button>`;
                     html += `</div>`;
                     
@@ -1621,6 +1624,31 @@
                     resultsContainer.style.display = 'block';
                     
                     document.getElementById('btn-reattempt-{{ module.module_id }}')?.addEventListener('click', startReattempt);
+                    
+                    // Find next module and add event listener
+                    const nextModuleBtn = document.getElementById('btn-next-module-{{ module.module_id }}');
+                    if (nextModuleBtn) {
+                      const allModuleHeaders = Array.from(document.querySelectorAll('.card-header'));
+                      const currentIndex = allModuleHeaders.findIndex(h => h.closest(`#module-content-{{ module.module_id }}`));
+                      if (currentIndex >= 0 && currentIndex < allModuleHeaders.length - 1) {
+                        nextModuleBtn.addEventListener('click', () => {
+                          const nextHeader = allModuleHeaders[currentIndex + 1];
+                          if (nextHeader) {
+                            nextHeader.click();
+                            nextHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }
+                        });
+                      } else {
+                        nextModuleBtn.style.opacity = '0.5';
+                        nextModuleBtn.disabled = true;
+                        nextModuleBtn.title = 'No more modules';
+                      }
+                    }
+                    
+                    // Refresh button
+                    document.getElementById('btn-refresh-{{ module.module_id }}')?.addEventListener('click', () => {
+                      location.reload();
+                    });
                   }
 
                   function startReattempt(){
