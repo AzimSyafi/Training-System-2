@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import A4
 from io import BytesIO
 from models import User, Certificate, Module
 from app import db  # Assuming you use SQLAlchemy
@@ -65,11 +65,11 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None,
 
     # Create overlay PDF with user info
     packet = BytesIO()
-    can = canvas.Canvas(packet, pagesize=letter)
+    can = canvas.Canvas(packet, pagesize=A4)
     
     # PDF coordinate system: (0,0) is bottom-left, but editor uses top-left
-    # Letter size: 612 x 792 points. Invert Y coordinates.
-    PDF_HEIGHT = 792
+    # A4 size: 595 x 842 points. Invert Y coordinates.
+    PDF_HEIGHT = 842
 
     # Attempt-based Course Grade from user progress
     try:

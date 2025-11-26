@@ -622,15 +622,27 @@
             const pdf = await loadingTask.promise;
             const page = await pdf.getPage(1);
 
-            const viewport = page.getViewport({ scale: 1.5 });
+            // Get original PDF dimensions
+            const originalViewport = page.getViewport({ scale: 1 });
+            
+            // A4 dimensions in points: 595 x 842
+            const A4_WIDTH = 595;
+            const A4_HEIGHT = 842;
+            
+            // Calculate scale to fit A4 size (target width of ~600px for good viewing)
+            const targetWidth = 600;
+            const scale = targetWidth / A4_WIDTH;
+            
+            const viewport = page.getViewport({ scale: scale });
             const canvas = document.getElementById('pdfCanvas');
             const context = canvas.getContext('2d');
 
-            canvas.height = viewport.height;
+            // Set canvas to A4 aspect ratio
             canvas.width = viewport.width;
+            canvas.height = viewport.height;
 
-            pdfOriginalWidth = viewport.width;
-            pdfScale = viewport.scale;
+            pdfOriginalWidth = A4_WIDTH;
+            pdfScale = scale;
 
             await page.render({
                 canvasContext: context,
