@@ -1547,6 +1547,11 @@
                       renderResults(data);
                       confetti();
                       
+                      // Refresh page after 2 seconds to update module status and certificates
+                      setTimeout(() => {
+                        location.reload();
+                      }, 2000);
+                      
                     }catch(err){
                       alert('Error submitting quiz: '+err);
                       btnSubmit.disabled = false; 
