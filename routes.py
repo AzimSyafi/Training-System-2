@@ -2912,10 +2912,16 @@ def update_certificate_template():
         if not data:
             return jsonify({'success': False, 'message': 'No data provided'}), 400
 
+        # Ensure only one template is active at a time
         template = CertificateTemplate.query.filter_by(is_active=True).first()
         if not template:
+            # Deactivate all templates first
+            CertificateTemplate.query.update({CertificateTemplate.is_active: False})
             template = CertificateTemplate(is_active=True)
             db.session.add(template)
+        else:
+            # Deactivate all other templates
+            CertificateTemplate.query.filter(CertificateTemplate.id != template.id).update({CertificateTemplate.is_active: False})
 
         # Update fields
         template.name_x = data.get('name_x', template.name_x)
