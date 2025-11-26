@@ -2,7 +2,7 @@
 Routes for Training System app, using Flask Blueprint.
 All route functions from app.py are moved here.
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory, abort, current_app, make_response
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory, abort, current_app, make_response, send_file
 from flask_login import login_user, login_required, logout_user, current_user
 from werkzeug.utils import secure_filename
 from datetime import datetime
