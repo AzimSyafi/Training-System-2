@@ -2960,6 +2960,114 @@ def update_certificate_template():
         logging.exception('[UPDATE CERTIFICATE TEMPLATE] Failed')
         return jsonify({'success': False, 'message': 'Failed to update template'}), 500
 
+# Preview certificate with mock data
+@main_bp.route('/preview_certificate_template')
+@login_required
+def preview_certificate_template():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.login'))
+    
+    try:
+        from PyPDF2 import PdfReader, PdfWriter
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from io import BytesIO
+        
+        # Get active template settings
+        template_settings = CertificateTemplate.query.filter_by(is_active=True).first()
+        if not template_settings:
+            return jsonify({'success': False, 'message': 'No active template found'}), 404
+        
+        # Get template path
+        if template_settings and template_settings.name:
+            template_path = os.path.join('static', 'uploads', 'certificate_templates', template_settings.name)
+            if not os.path.exists(template_path):
+                fallback_path = os.path.join('static', 'cert_templates', 'Training_cert.pdf')
+                if os.path.exists(fallback_path):
+                    template_path = fallback_path
+                else:
+                    return jsonify({'success': False, 'message': 'Certificate template file not found'}), 404
+        else:
+            template_path = os.path.join('static', 'cert_templates', 'Training_cert.pdf')
+            if not os.path.exists(template_path):
+                return jsonify({'success': False, 'message': 'Certificate template file not found'}), 404
+        
+        # Mock data for preview
+        mock_name = "JOHN DOE"
+        mock_ic = "A1234567"
+        mock_course = "SECURITY TRAINING"
+        mock_percentage = "95"
+        mock_grade = "A"
+        mock_text = "received training and fulfilled the requirements on"
+        mock_date = datetime.now().strftime('%B %d, %Y')
+        
+        # Create overlay PDF with mock data
+        packet = BytesIO()
+        can = canvas.Canvas(packet, pagesize=letter)
+        
+        # Place Name (only if visible)
+        if getattr(template_settings, 'name_visible', True):
+            can.setFont("Times-Roman", template_settings.name_font_size)
+            can.setFillColorRGB(0, 0, 0)
+            can.drawCentredString(template_settings.name_x, template_settings.name_y, mock_name)
+        
+        # Passport/IC (only if visible)
+        if getattr(template_settings, 'ic_visible', True):
+            can.setFont("Times-Roman", template_settings.ic_font_size)
+            can.drawCentredString(template_settings.ic_x, template_settings.ic_y, f"Passport/IC: {mock_ic}")
+        
+        # Course type (only if visible)
+        if getattr(template_settings, 'course_type_visible', True):
+            can.setFont("Times-Roman", template_settings.course_type_font_size)
+            can.drawCentredString(template_settings.course_type_x, template_settings.course_type_y, mock_course)
+        
+        # Percentage (only if visible)
+        if getattr(template_settings, 'percentage_visible', True):
+            can.setFont("Times-Roman", template_settings.percentage_font_size)
+            can.drawCentredString(template_settings.percentage_x, template_settings.percentage_y, f"Overall Percentage: {mock_percentage}%")
+        
+        # Grade (only if visible)
+        if getattr(template_settings, 'grade_visible', True):
+            can.setFont("Times-Roman", template_settings.grade_font_size)
+            can.drawCentredString(template_settings.grade_x, template_settings.grade_y, f"Course Grade: {mock_grade}")
+        
+        # Text (only if visible)
+        if getattr(template_settings, 'text_visible', True):
+            can.setFont("Times-Roman", template_settings.text_font_size)
+            can.drawCentredString(template_settings.text_x, template_settings.text_y, mock_text)
+        
+        # Date (only if visible)
+        if getattr(template_settings, 'date_visible', True):
+            can.setFont("Times-Roman", template_settings.date_font_size)
+            can.drawCentredString(template_settings.date_x, template_settings.date_y, mock_date)
+        
+        can.save()
+        packet.seek(0)
+        
+        # Merge overlay with template
+        template_pdf = PdfReader(template_path)
+        overlay_pdf = PdfReader(packet)
+        output_pdf = PdfWriter()
+        page = template_pdf.pages[0]
+        page.merge_page(overlay_pdf.pages[0])
+        output_pdf.add_page(page)
+        
+        # Write to BytesIO for response
+        output = BytesIO()
+        output_pdf.write(output)
+        output.seek(0)
+        
+        return send_file(
+            output,
+            mimetype='application/pdf',
+            as_attachment=False,
+            download_name='certificate_preview.pdf'
+        )
+        
+    except Exception:
+        logging.exception('[PREVIEW CERTIFICATE] Failed')
+        return jsonify({'success': False, 'message': 'Failed to generate preview'}), 500
+
 # Get active certificate template PDF path
 @main_bp.route('/api/get_active_certificate_template', methods=['GET'])
 @login_required

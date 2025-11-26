@@ -363,6 +363,9 @@
             <div class="canvas-header">
                 <h2>Certificate Preview</h2>
                 <div class="canvas-actions">
+                    <button class="btn btn-primary" onclick="previewCertificate()">
+                        <i class="fas fa-eye"></i> Preview Certificate
+                    </button>
                     <button class="btn btn-secondary" onclick="toggleFieldsVisibility()">Toggle All Fields</button>
                     <button class="btn btn-tertiary" onclick="resetPositions()">Reset Positions</button>
                 </div>
@@ -751,6 +754,11 @@
             document.getElementById(field + '_y').value = defaults[field].y;
             updateMarkerPosition(field);
         });
+    }
+
+    // Preview certificate with mock data
+    function previewCertificate() {
+        window.open('{{ url_for("main.preview_certificate_template") }}', '_blank');
     }
 
     // Save template
