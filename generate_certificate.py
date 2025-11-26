@@ -100,7 +100,9 @@ def generate_certificate(user_id, course_type, overall_percentage, cert_id=None,
     # Display overall percentage using template settings (only if visible)
     if getattr(template_settings, 'percentage_visible', True):
         can.setFont("Times-Roman", template_settings.percentage_font_size)
-        can.drawCentredString(template_settings.percentage_x, PDF_HEIGHT - template_settings.percentage_y, f"Overall Percentage: {overall_percentage}%")
+        # Format to 1 decimal place
+        formatted_percentage = f"{float(overall_percentage):.1f}"
+        can.drawCentredString(template_settings.percentage_x, PDF_HEIGHT - template_settings.percentage_y, f"Overall Percentage: {formatted_percentage}%")
 
     # Display Course Grade using template settings (only if visible)
     if getattr(template_settings, 'grade_visible', True):

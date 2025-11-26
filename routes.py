@@ -3984,14 +3984,29 @@ def api_complete_course():
         except Exception:
             representative_module = modules[0]
         
-        # Create pending certificate
+        # Calculate average score for the course
+        module_ids = [m.module_id for m in modules]
+        user_modules = UserModule.query.filter(
+            UserModule.user_id == uid,
+            UserModule.module_id.in_(module_ids),
+            UserModule.is_completed == True
+        ).all()
+        
+        if user_modules:
+            total_score = sum(um.score for um in user_modules if um.score is not None)
+            average_score = total_score / len(user_modules) if len(user_modules) > 0 else 0
+        else:
+            average_score = 0
+        
+        # Create pending certificate with score
         from datetime import date
         new_cert = Certificate(
             user_id=uid,
             module_type=course_code,
             module_id=representative_module.module_id,
             issue_date=date.today(),
-            status='pending'
+            status='pending',
+            score=average_score
         )
         db.session.add(new_cert)
         db.session.commit()
