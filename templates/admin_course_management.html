@@ -1107,34 +1107,45 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 })();
 
-// Auto-refresh page when modal closes - preserve course context
-const moduleModal = document.getElementById('moduleDetailModal');
-if (moduleModal) {
-  moduleModal.addEventListener('hide.bs.modal', function() {
-    // Find the course ID from the current modal content
-    const moduleElement = moduleModal.querySelector('.module-modal-inner');
-    if (moduleElement) {
-      const moduleId = moduleElement.getAttribute('data-module-id');
-      // Find the parent course wrapper to get course ID
-      let courseId = null;
-      const parentCourses = document.querySelectorAll('.course-manage-wrapper');
-      parentCourses.forEach(course => {
-        if (course.querySelector(`[data-module-id="${moduleId}"]`)) {
-          courseId = course.getAttribute('data-course-id');
-        }
-      });
-      
-      if (courseId) {
-        // Reload with hash to stay on this course
-        location.href = window.location.pathname + '#course-' + courseId;
-      } else {
-        location.reload();
+// Setup auto-refresh when modal closes - preserve course context
+function setupModalCloseListener() {
+  const moduleModal = document.getElementById('moduleDetailModal');
+  if (moduleModal) {
+    // Remove old listener if exists
+    moduleModal.removeEventListener('hide.bs.modal', handleModalClose);
+    // Add fresh listener
+    moduleModal.addEventListener('hide.bs.modal', handleModalClose);
+  }
+}
+
+function handleModalClose() {
+  const moduleModal = document.getElementById('moduleDetailModal');
+  // Find the course ID from the current modal content
+  const moduleElement = moduleModal.querySelector('.module-modal-inner');
+  if (moduleElement) {
+    const moduleId = moduleElement.getAttribute('data-module-id');
+    // Find the parent course wrapper to get course ID
+    let courseId = null;
+    const parentCourses = document.querySelectorAll('.course-manage-wrapper');
+    parentCourses.forEach(course => {
+      if (course.querySelector(`[data-module-id="${moduleId}"]`)) {
+        courseId = course.getAttribute('data-course-id');
       }
+    });
+    
+    if (courseId) {
+      // Reload with hash to stay on this course and show updated quiz
+      location.href = window.location.pathname + '#course-' + courseId;
     } else {
       location.reload();
     }
-  });
+  } else {
+    location.reload();
+  }
 }
+
+// Setup listener on page load
+setupModalCloseListener();
 
 // AJAX form submission for module content (keep modal open)
 document.addEventListener('submit', function(e) {
