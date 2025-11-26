@@ -555,6 +555,30 @@ async function reattemptCourse(courseType) {
       }).catch(async e=> await customAlert('Error: '+e, 'Error', {type: 'danger'}));
   }
 }
+function completeCourse(courseCode) {
+  fetch('/api/complete_course', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ course_code: courseCode })
+  })
+  .then(res => res.json().then(data => ({ ok: res.ok, status: res.status, data })).catch(() => ({ ok: res.ok, status: res.status, data: {} })))
+  .then(async ({ ok, data }) => {
+    if (ok && data && data.success) {
+      if (data.already_submitted) {
+        await customAlert('Already submitted for approval.', 'Course Status', {type: 'info'});
+      } else if (data.submitted) {
+        await customAlert('Course completed! Sent for approval.', 'Success', {type: 'success'});
+      } else {
+        await customAlert('Course completion recorded.', 'Success', {type: 'success'});
+      }
+      location.reload();
+    } else {
+      const msg = (data && data.message) ? data.message : 'Could not complete course.';
+      await customAlert('Error: ' + msg, 'Error', {type: 'danger'});
+    }
+  })
+  .catch(async ()=> await customAlert('Request failed.', 'Error', {type: 'danger'}));
+}
 </script>
 {% endblock %}
 
@@ -1881,6 +1905,23 @@ async function reattemptCourse(courseType) {
       </div>
     </div>
   {% endfor %}
+
+  {% if overall_percentage is defined and current_user.has_completed_all_modules_in_course(course_type) %}
+  <div class="mt-4" style="max-width: 600px; margin-left: auto; margin-right: auto;">
+    <button 
+      class="w-full text-center border-2 font-semibold py-3 px-6 rounded-lg transition-all duration-200 {% if overall_percentage >= 100 %}border-green-700 bg-green-700 text-white hover:bg-green-800 hover:border-green-800{% else %}border-gray-400 bg-gray-200 text-gray-500 opacity-50 cursor-not-allowed{% endif %}" 
+      onclick="{% if overall_percentage >= 100 %}completeCourse('{{ course_type.lower() }}');{% endif %}" 
+      {% if overall_percentage < 100 %}disabled{% endif %}
+      style="font-size: 1.1rem;">
+      <i class="fas fa-check-circle me-2"></i>Complete Course
+    </button>
+    {% if overall_percentage < 100 %}
+    <p class="text-center text-muted mt-2" style="font-size: 0.9rem;">
+      <i class="fas fa-info-circle me-1"></i>Complete all modules with passing scores to unlock
+    </p>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
 
 <div class="modal fade" id="disclaimerModal" tabindex="-1" aria-labelledby="disclaimerModalLabel" aria-hidden="true">
