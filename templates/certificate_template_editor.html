@@ -784,13 +784,12 @@
             const result = await response.json();
 
             if (result.success) {
-                alert('Template saved successfully!');
-                window.location.href = '{{ url_for("main.admin_certificates") }}';
+                alert('✅ Template saved successfully! You can continue editing or preview your changes.');
             } else {
-                alert('Error: ' + (result.message || 'Failed to save template'));
+                alert('❌ Error: ' + (result.message || 'Failed to save template'));
             }
         } catch (error) {
-            alert('Error saving template: ' + error.message);
+            alert('❌ Error saving template: ' + error.message);
         }
     }
 
