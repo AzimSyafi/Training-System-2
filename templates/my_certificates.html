@@ -42,9 +42,6 @@
 
                                 <p class="card-text mb-2">
                                     <strong>Issue Date:</strong> {{ certificate.issue_date.strftime('%B %d, %Y') }}
-                                    {% if is_approved and certificate.approved_at %}
-                                        <br><strong>Approved At:</strong> {{ certificate.approved_at.strftime('%Y-%m-%d %H:%M') }}
-                                    {% endif %}
                                     {% if is_approved and certificate.approved_by %}
                                         <br><strong>Approved By:</strong> {{ certificate.approved_by.full_name }}
                                     {% endif %}
